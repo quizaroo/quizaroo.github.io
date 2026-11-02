@@ -25,6 +25,6 @@ Add it to your phone's home screen from the browser's Share menu to use it like 
 }
 ```
 
-Import also accepts a bare array of sets, or a single set object. A set whose `id` already exists replaces the stored one. An optional `"front": "definition"` on a set makes the definition show first.
+Import also accepts a bare array of sets, or a single set object. If a set's `id` already exists and its cards differ, the app asks whether to merge, replace, keep both or skip. Identical sets are skipped. An optional `"front": "definition"` on a set makes the definition show first.
 
 MIT licensed.

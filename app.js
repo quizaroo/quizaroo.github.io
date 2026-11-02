@@ -25,15 +25,46 @@ function normalise_set(raw_set) {
   if (!raw_set || !Array.isArray(raw_set.cards)) return null;
   return {id: String(raw_set.id || new_id()), title: String(raw_set.title || 'Untitled set'), cards: raw_set.cards.filter(raw_card => raw_card && (raw_card.term || raw_card.definition)).map(raw_card => ({term: String(raw_card.term || ''), definition: String(raw_card.definition || '')})), front: raw_set.front === 'definition' ? 'definition' : undefined};
 }
-// Accepts {format, sets:[...]}, a bare array of sets, or a single set object. Sets with an existing id replace it.
+// Accepts {format, sets:[...]}, a bare array of sets, or a single set object. Sets with an existing id go through compare_sets; nothing is saved until any conflicts are resolved.
 function import_json(json_text) {
   let parsed_json; try { parsed_json = JSON.parse(json_text); } catch (parse_err) { alert('That file is not valid JSON.'); return; }
   const raw_sets = Array.isArray(parsed_json) ? parsed_json : Array.isArray(parsed_json.sets) ? parsed_json.sets : [parsed_json];
-  const imported_sets = raw_sets.map(normalise_set).filter(Boolean);
+  const imported_sets = Array.from(new Map(raw_sets.map(normalise_set).filter(Boolean).map(imported_set => [imported_set.id, imported_set])).values());
   if (!imported_sets.length) { alert('No flashcard sets found in that file.'); return; }
-  let replaced_count = 0;
-  imported_sets.forEach(imported_set => { const existing_index = app_state.sets.findIndex(card_set => card_set.id === imported_set.id); if (existing_index >= 0) { app_state.sets[existing_index] = imported_set; replaced_count++; } else app_state.sets.push(imported_set); });
-  save_state(); alert('Imported ' + imported_sets.length + ' set(s)' + (replaced_count ? ', ' + replaced_count + ' replaced' : '') + '.'); route();
+  const new_sets = [], conflicts = []; let identical_count = 0;
+  imported_sets.forEach(imported_set => {
+    const your_set = find_set(imported_set.id);
+    if (!your_set) { new_sets.push(imported_set); return; }
+    const comparison = compare_sets(your_set, imported_set);
+    if (comparison.new_cards.length || comparison.changed_cards.length || comparison.only_yours_count) conflicts.push({your_set, imported_set, comparison, choice: 'merge'}); else identical_count++;
+  });
+  if (conflicts.length) view_import_conflicts(new_sets, conflicts, identical_count); else apply_import(new_sets, conflicts, identical_count);
+}
+function clean_text(raw_text) { return raw_text.trim().replace(/\s+/g, ' '); }
+function card_key(card_item) { return clean_text(card_item.term).toLowerCase() || '\0' + clean_text(card_item.definition); }
+// Cards match by term, ignoring capitals and extra spaces. A set with duplicate terms counts as unchanged if any of its copies has the imported definition.
+function compare_sets(your_set, imported_set) {
+  const your_cards_by_key = new Map(), imported_keys = new Set(imported_set.cards.map(card_key)), seen_cards = new Set(), new_cards = [], changed_cards = [];
+  your_set.cards.forEach(card_item => { const key_text = card_key(card_item); if (!your_cards_by_key.has(key_text)) your_cards_by_key.set(key_text, []); your_cards_by_key.get(key_text).push(card_item); });
+  imported_set.cards.forEach(imported_card => {
+    const key_text = card_key(imported_card), definition_text = clean_text(imported_card.definition), matching_cards = your_cards_by_key.get(key_text), seen_text = key_text + '\n' + definition_text;
+    if (seen_cards.has(seen_text)) return; seen_cards.add(seen_text);
+    if (!matching_cards) new_cards.push(imported_card);
+    else if (!matching_cards.some(card_item => clean_text(card_item.definition) === definition_text)) changed_cards.push({your_card: matching_cards[0], imported_card, use_imported: false});
+  });
+  return {new_cards, changed_cards, only_yours_count: your_set.cards.filter(card_item => !imported_keys.has(card_key(card_item))).length};
+}
+function apply_import(new_sets, conflicts, identical_count) {
+  const choice_counts = {merge: 0, replace: 0, both: 0, skip: 0};
+  conflicts.forEach(conflict => {
+    choice_counts[conflict.choice]++;
+    if (conflict.choice === 'merge') { conflict.comparison.changed_cards.forEach(changed_card => { if (changed_card.use_imported) changed_card.your_card.definition = changed_card.imported_card.definition; }); conflict.your_set.cards.push(...conflict.comparison.new_cards); }
+    else if (conflict.choice === 'replace') app_state.sets[app_state.sets.indexOf(conflict.your_set)] = conflict.imported_set;
+    else if (conflict.choice === 'both') app_state.sets.push(Object.assign({}, conflict.imported_set, {id: new_id(), title: conflict.imported_set.title + ' (imported)'}));
+  });
+  app_state.sets.push(...new_sets); save_state();
+  const summary_parts = [[new_sets.length, 'added'], [choice_counts.merge, 'merged'], [choice_counts.replace, 'replaced'], [choice_counts.both, 'kept as a copy'], [choice_counts.skip, 'skipped'], [identical_count, 'already up to date']].filter(summary_part => summary_part[0]).map(summary_part => summary_part[0] + ' ' + summary_part[1]);
+  alert('Import finished: ' + summary_parts.join(', ') + '.'); route();
 }
 function download_json(file_name, sets_to_export) {
   const export_blob = new Blob([JSON.stringify({format: 'open-flashcards', version: 1, sets: sets_to_export}, null, 1)], {type: 'application/json'});
@@ -61,6 +92,33 @@ function view_library() {
   view_el.querySelector('select').value = app_state.default_front;
   const set_list_el = view_el.querySelector('.set-list');
   if (set_list_el) sorted_sets.forEach(card_set => set_list_el.appendChild(el('a', {class: 'set-tile', href: '#/set/' + card_set.id}, el('strong', {}, card_set.title), el('span', {class: 'muted'}, card_set.cards.length + ' cards'))));
+}
+
+function view_import_conflicts(new_sets, conflicts, identical_count) {
+  const choice_options = [['merge', 'Merge'], ['replace', 'Replace with imported'], ['both', 'Keep both'], ['skip', 'Skip']];
+  const conflict_panels = conflicts.map((conflict, conflict_index) => {
+    const changed_cards = conflict.comparison.changed_cards, changed_list_el = changed_cards.length ? el('div', {class: 'card-table'}) : null;
+    changed_cards.forEach((changed_card, changed_index) => {
+      const radio_name = 'changed-' + conflict_index + '-' + changed_index;
+      changed_list_el.appendChild(el('div', {class: 'conflict-card'}, el('strong', {}, changed_card.your_card.term),
+        el('label', {class: 'toggle-line'}, el('input', {type: 'radio', name: radio_name, checked: true, onchange: () => { changed_card.use_imported = false; }}), 'Yours: ' + changed_card.your_card.definition),
+        el('label', {class: 'toggle-line'}, el('input', {type: 'radio', name: radio_name, onchange: () => { changed_card.use_imported = true; }}), 'Imported: ' + changed_card.imported_card.definition)));
+    });
+    function show_changed() { if (changed_list_el) changed_list_el.hidden = conflict.choice !== 'merge'; }
+    conflict.select_el = el('select', {onchange: change_event => { conflict.choice = change_event.target.value; show_changed(); }}, ...choice_options.map(choice_option => el('option', {value: choice_option[0]}, choice_option[1])));
+    conflict.show_changed = show_changed;
+    return el('div', {class: 'conflict-panel'}, el('strong', {}, conflict.your_set.title),
+      conflict.imported_set.title !== conflict.your_set.title ? el('div', {class: 'muted'}, 'Imported title: ' + conflict.imported_set.title) : null,
+      el('div', {class: 'muted'}, conflict.comparison.new_cards.length + ' new · ' + changed_cards.length + ' changed · ' + conflict.comparison.only_yours_count + ' only in yours'),
+      el('label', {class: 'toggle-line'}, 'Action:', conflict.select_el), changed_list_el);
+  });
+  const apply_all_el = conflicts.length > 1 ? el('label', {class: 'toggle-line'}, 'Apply to all:', el('select', {onchange: change_event => { if (!change_event.target.value) return; conflicts.forEach(conflict => { conflict.choice = change_event.target.value; conflict.select_el.value = conflict.choice; conflict.show_changed(); }); }}, el('option', {value: ''}, 'Choose…'), ...choice_options.map(choice_option => el('option', {value: choice_option[0]}, choice_option[1])))) : null;
+  render([el('button', {onclick: route}, 'Cancel'), el('button', {class: 'primary', onclick: () => apply_import(new_sets, conflicts, identical_count)}, 'Finish import')], [
+    el('h1', {}, 'Resolve import'),
+    el('div', {class: 'muted'}, conflicts.length + ' set(s) already exist with different cards. Merge keeps your cards and adds the new ones. Nothing is saved until you finish.'),
+    new_sets.length || identical_count ? el('div', {class: 'muted'}, new_sets.length + ' new set(s) will be added, ' + identical_count + ' already up to date.') : null,
+    apply_all_el, el('div', {class: 'set-list'}, ...conflict_panels)
+  ]);
 }
 
 function view_set(card_set) {

@@ -22,6 +22,10 @@ input[type=text], textarea { width: 100%; font: inherit; color: var(--text); bac
 textarea { resize: vertical; min-height: 42px; }
 .title-input { font-size: 20px; font-weight: 600; }
 .toggle-line { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.conflict-panel { display: grid; gap: 8px; padding: 14px 16px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; }
+.conflict-card { display: grid; gap: 4px; padding: 10px 14px; background: var(--card); }
+.conflict-card label { overflow-wrap: anywhere; }
+[hidden] { display: none !important; }
 .study-wrap { display: flex; flex-direction: column; align-items: center; gap: 16px; }
 .progress { width: 100%; height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; }
 .progress div { height: 100%; background: var(--accent); transition: width .2s; }
