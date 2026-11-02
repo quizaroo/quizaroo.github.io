@@ -37,13 +37,14 @@ function relative_day(time_ms) {
 function date_chips(card_set) {
   return el('span', {class: 'date-chips'},
     card_set.created ? el('span', {class: 'date-chip'}, 'Created', el('b', {}, format_date(card_set.created))) : null,
-    card_set.last_studied ? el('span', {class: 'date-chip'}, 'Last studied', el('b', {}, relative_day(card_set.last_studied))) : null);
+    card_set.last_studied ? el('span', {class: 'date-chip'}, 'Last studied', el('b', {}, relative_day(card_set.last_studied))) : null,
+    (card_set.trophies || []).length ? el('span', {class: 'date-chip'}, 'Trophies', el('b', {}, card_set.trophies.length)) : null);
 }
 
 // ---- Import / export ----
 function normalise_set(raw_set) {
   if (!raw_set || !Array.isArray(raw_set.cards)) return null;
-  return {id: String(raw_set.id || new_id()), title: String(raw_set.title || 'Untitled set'), cards: raw_set.cards.filter(raw_card => raw_card && (raw_card.term || raw_card.definition)).map(raw_card => ({term: String(raw_card.term || ''), definition: String(raw_card.definition || '')})), front: raw_set.front === 'definition' || raw_set.front === 'mixed' ? raw_set.front : undefined, description: raw_set.description ? String(raw_set.description) : undefined, created: /^\d{4}-\d{2}-\d{2}$/.test(raw_set.created) ? raw_set.created : undefined, colour: TINTS.some(tint_item => tint_item[0] === raw_set.colour) ? raw_set.colour : undefined, last_studied: Number(raw_set.last_studied) || undefined, last_opened: Number(raw_set.last_opened) || undefined, progress: raw_set.progress && typeof raw_set.progress === 'object' ? raw_set.progress : undefined, best_speed: Number(raw_set.best_speed) || undefined};
+  return {id: String(raw_set.id || new_id()), title: String(raw_set.title || 'Untitled set'), cards: raw_set.cards.filter(raw_card => raw_card && (raw_card.term || raw_card.definition)).map(raw_card => ({term: String(raw_card.term || ''), definition: String(raw_card.definition || '')})), front: raw_set.front === 'definition' || raw_set.front === 'mixed' ? raw_set.front : undefined, description: raw_set.description ? String(raw_set.description) : undefined, created: /^\d{4}-\d{2}-\d{2}$/.test(raw_set.created) ? raw_set.created : undefined, colour: TINTS.some(tint_item => tint_item[0] === raw_set.colour) ? raw_set.colour : undefined, last_studied: Number(raw_set.last_studied) || undefined, last_opened: Number(raw_set.last_opened) || undefined, trophies: Array.isArray(raw_set.trophies) ? raw_set.trophies.filter(trophy_item => trophy_item && /^[a-z-]+$/.test(trophy_item.image) && typeof trophy_item.line === 'string').map(trophy_item => ({image: trophy_item.image, line: trophy_item.line, goal: trophy_item.goal ? String(trophy_item.goal) : undefined, mode: String(trophy_item.mode || ''), right: Number(trophy_item.right) || 0, total: Number(trophy_item.total) || 0, at: Number(trophy_item.at) || Date.now()})) : undefined, progress: raw_set.progress && typeof raw_set.progress === 'object' ? raw_set.progress : undefined, best_speed: Number(raw_set.best_speed) || undefined};
 }
 // Accepts {format, sets:[...]}, a bare array of sets, or a single set object. Sets with an existing id go through compare_sets; nothing is saved until any conflicts are resolved.
 function import_json(json_text) {
@@ -190,10 +191,10 @@ function view_set(card_set) {
       el('span', {class: 'date-chips'}, el('span', {class: 'date-chip'}, el('b', {}, card_set.cards.length), 'cards'), ...date_chips(card_set).childNodes),
       studyable_count ? el('div', {class: 'hero-progress'}, progress_meter(card_set), el('div', {class: 'form-note'}, counts.mastered + ' mastered · ' + counts.familiar + ' familiar · ' + counts.learning + ' learning · ' + counts.new + ' new' + (due_count ? ' · ' + due_count + ' due now' : ''))) : null,
       !studyable_count ? el('div', {class: 'form-note'}, 'Add at least one card with a term and a definition to start learning.') : skipped_count ? el('div', {class: 'form-note'}, skipped_count + ' card(s) are missing a side and are left out.') : null),
-    mode_group('Learn'), mode_group('Practise'), mode_group('Games'),
-    el('div', {class: 'button-row set-actions'}, el('button', {onclick: () => { if (!confirm('Reset your progress on "' + card_set.title + '"? Every card goes back to new.')) return; delete card_set.progress; delete card_set.best_speed; delete card_set.last_studied; save_state(); view_set(card_set); }}, '↺ Reset progress'),
+    trophy_shelf(card_set), mode_group('Learn'), mode_group('Practise'), mode_group('Games'),
+    el('div', {class: 'button-row set-actions'}, el('button', {onclick: () => { if (!confirm('Reset your progress on "' + card_set.title + '"? Every card goes back to new. Your trophies stay.')) return; delete card_set.progress; delete card_set.best_speed; delete card_set.last_studied; save_state(); view_set(card_set); }}, '↺ Reset progress'),
       el('button', {onclick: () => download_json(safe_file_name(card_set.title), [card_set])}, 'Export set'),
-      el('button', {onclick: () => { const copied_set = JSON.parse(JSON.stringify(card_set)); copied_set.id = new_id(); copied_set.title = card_set.title + ' (copy)'; delete copied_set.last_studied; delete copied_set.last_opened; delete copied_set.progress; delete copied_set.best_speed; app_state.sets.push(copied_set); save_state(); location.hash = '#/set/' + copied_set.id; }}, 'Duplicate'),
+      el('button', {onclick: () => { const copied_set = JSON.parse(JSON.stringify(card_set)); copied_set.id = new_id(); copied_set.title = card_set.title + ' (copy)'; delete copied_set.last_studied; delete copied_set.last_opened; delete copied_set.progress; delete copied_set.best_speed; delete copied_set.trophies; app_state.sets.push(copied_set); save_state(); location.hash = '#/set/' + copied_set.id; }}, 'Duplicate'),
       el('button', {class: 'danger', onclick: () => { if (!confirm('Delete "' + card_set.title + '"? This cannot be undone.')) return; app_state.sets = app_state.sets.filter(other_set => other_set.id !== card_set.id); save_state(); location.hash = '#/library'; }}, 'Delete set'))
   ]);
 }
@@ -279,9 +280,9 @@ function view_study(card_set) {
 }
 
 function view_study_summary(card_set) {
-  const learning_indexes = study_session.learning.slice();
+  const learning_indexes = study_session.learning.slice(), reward_el = award_round(card_set, find_mode(study_session.mode), study_session.known.length, study_session.known.length + learning_indexes.length);
   render(find_mode(study_session.mode).label, [el('a', {class: 'button', href: '#/set/' + card_set.id}, 'Done')], [el('div', {class: 'study-wrap empty', style: tint_style(card_set)},
-    el('h2', {class: 'summary-title'}, learning_indexes.length ? 'Round complete' : 'All known!'),
+    el('h2', {class: 'summary-title'}, learning_indexes.length ? 'Round complete' : 'All known!'), reward_el,
     el('div', {class: 'counts'}, el('span', {class: 'learn'}, learning_indexes.length + ' still learning'), el('span', {class: 'know'}, study_session.known.length + ' known')),
     el('div', {class: 'button-row'},
       learning_indexes.length ? el('button', {class: 'primary', onclick: () => { start_session(card_set, learning_indexes, study_session.mode); view_study(card_set); }}, 'Study the ' + learning_indexes.length + ' again') : null,

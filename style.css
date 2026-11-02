@@ -192,6 +192,25 @@ body:has(#update-banner:not([hidden])) .toast { bottom: 94px; }
 @keyframes here-pulse { 0%, 100% { box-shadow: 0 0 0 2px rgb(255 190 40 / 0), 0 0 0 rgb(255 190 40 / 0); } 50% { box-shadow: 0 0 0 3px rgb(255 190 40 / .95), 0 0 18px rgb(255 190 40 / .6); } }
 .flash { animation: here-pulse .7s ease-in-out 3; border-radius: 12px; }
 
+/* ---- Rewards ---- */
+.trophy-shelf { margin: 0 0 20px; }
+.shelf-count { font-size: 14px; font-weight: 400; }
+.shelf-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 6px; min-height: 58px; padding: 0 6px 5px; border-bottom: 4px solid color-mix(in srgb, #b98545 75%, transparent); box-shadow: 0 5px 6px -4px rgba(15, 23, 42, .28); }
+.shelf-item { flex: none; width: 46px; height: 46px; padding: 3px; background: none; border: 1px solid transparent; border-radius: 10px; transition: transform .15s; }
+.shelf-item:hover:not(.is-empty) { transform: translateY(-3px); background: none !important; }
+.shelf-item.is-active { background: var(--glass-hover); border-color: var(--active-border); }
+.shelf-item.is-empty { opacity: .45; }
+.shelf-image { display: block; width: 100%; height: 100%; }
+.shelf-empty { align-self: center; }
+.shelf-detail { margin-top: 8px; padding: 9px 14px; background: var(--glass); border: 1px solid var(--glass-border); border-radius: 12px; }
+.reward-card { position: relative; display: grid; grid-template-columns: 56px minmax(0, 1fr); align-items: center; gap: 4px 14px; width: 100%; margin: 12px 0; padding: 14px 18px; text-align: left; background: color-mix(in srgb, #ffe27a 28%, var(--sheet)); border: 1px solid color-mix(in srgb, #ffc285 70%, transparent); border-radius: 16px; animation: reward-in .35s ease-out; }
+.reward-goal { grid-column: 1 / -1; display: grid; grid-template-columns: 56px minmax(0, 1fr); align-items: center; gap: 14px; padding-top: 8px; border-top: 1px solid var(--rule); }
+.reward-image { display: block; width: 52px; height: 52px; }
+@keyframes reward-in { from { opacity: 0; transform: scale(.94); } }
+.confetti-burst { position: absolute; left: 50%; top: 50%; width: 0; height: 0; pointer-events: none; }
+.confetti-burst i { position: absolute; width: 8px; height: 8px; border-radius: 2px; opacity: 0; animation: confetti-fly 1.2s ease-out forwards; }
+@keyframes confetti-fly { 0% { opacity: 1; transform: translate(0, 0) rotate(0); } 70% { opacity: 1; } 100% { opacity: 0; transform: translate(var(--fly-x), calc(var(--fly-y) + 90px)) rotate(var(--spin)); } }
+
 /* ---- Learning modes ---- */
 .meter { display: flex; height: 6px; margin-top: 8px; max-width: 280px; overflow: hidden; border-radius: 3px; background: color-mix(in srgb, var(--text) 10%, transparent); }
 .meter-mastered { background: #2fb36b; } .meter-familiar { background: #8bd8a0; } .meter-learning { background: #ffb347; }

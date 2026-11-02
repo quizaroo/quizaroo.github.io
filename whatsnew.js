@@ -10,6 +10,7 @@ const FIRST_SET = ['.set-row .row-title'];
 const WHATS_NEW = {
   '1.1.01': [
     {text: 'Settings: check for updates by hand, read every past update here, and choose whether this list appears after an update.', go: '#/settings', at: '.updates-section'},
+    {text: 'Each set now has a trophy shelf. Finish a round in any mode to win a reward, and tap one to see what it was for.', go: '#/library', open: FIRST_SET, at: '.trophy-shelf', more: 'The better the round, the better the reward, with special ones for knowing a whole set.'},
     {text: 'Each set: its learning modes are now tiles, each with its own drawing and a line saying what it is for.', go: '#/library', open: FIRST_SET, at: '.mode-tiles'},
     {text: 'Edit a set: created date and colour are now near the top, above the cards. Tab still goes straight from About to the first term.', go: '#/new', at: '.detail-row input[type=date]'},
     {text: 'Cards in every mode: words now sit on the lines of the paper. Learn from scratch names each side in the margin instead of using an equals sign.'},
@@ -37,7 +38,7 @@ const WHATS_NEW = {
   '1.0.00': [{text: 'Open Flashcards goes live: make sets, flip and swipe through them, and import or export them as JSON.'}]
 };
 const PUBLISHED = {
-  '1.1.01': '2026-11-02T13:41:05Z',
+  '1.1.01': '2026-11-02T14:06:17Z',
   '1.1.00': '2026-11-02T13:36:09Z',
   '1.0.02': '2026-11-02T12:27:01Z',
   '1.0.01': '2026-11-02T12:25:01Z',

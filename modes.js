@@ -168,7 +168,7 @@ function view_learn(card_set, mode_item) {
     if (!batch_cards.length) { mode_frame(card_set, mode_item, ['All learned'], [el('div', {class: 'empty'}, el('h2', {class: 'summary-title'}, 'You have learned everything here'), el('div', {class: 'button-row center-row'}, el('a', {class: 'button primary', href: play_hash(card_set, 'revise')}, 'Revise')))]); return; }
     study_session.steps = batch_cards.map(card_index => ({card_index, stage: 0})); study_session.total_steps = study_session.steps.length * 3; study_session.done_steps = 0; study_session.batch_size = batch_cards.length;
   }
-  if (!study_session.steps.length) { const left_count = studyable_indexes(card_set).filter(card_index => card_status(card_set, card_index) !== 'mastered').length; mode_frame(card_set, mode_item, [study_session.batch_size + ' cards practised'], [el('div', {class: 'empty'}, el('h2', {class: 'summary-title'}, 'Batch finished'), el('div', {class: 'muted'}, 'You got ' + study_session.right + ' right and ' + study_session.wrong + ' wrong.'), el('div', {class: 'button-row center-row'}, left_count ? el('button', {class: 'primary', onclick: () => { start_mode_session(card_set, 'learn', []); view_learn(card_set, mode_item); }}, 'Next cards') : null, el('a', {class: 'button', href: '#/set/' + card_set.id}, 'Back to set')))]); return; }
+  if (!study_session.steps.length) { const left_count = studyable_indexes(card_set).filter(card_index => card_status(card_set, card_index) !== 'mastered').length; const reward_el = award_round(card_set, mode_item, study_session.right - study_session.batch_size * 3 + study_session.batch_size * 2, study_session.batch_size * 2 + study_session.wrong); mode_frame(card_set, mode_item, [study_session.batch_size + ' cards practised'], [el('div', {class: 'empty'}, el('h2', {class: 'summary-title'}, 'Batch finished'), reward_el, el('div', {class: 'button-row center-row'}, left_count ? el('button', {class: 'primary', onclick: () => { start_mode_session(card_set, 'learn', []); view_learn(card_set, mode_item); }}, 'Next cards') : null, el('a', {class: 'button', href: '#/set/' + card_set.id}, 'Back to set')))]); return; }
   const current_step = study_session.steps[0];
   function finish_step(is_right) {
     study_session.steps.shift();
@@ -206,7 +206,8 @@ function view_wheel(card_set, mode_item) {
   if (study_session.landed) {
     const landed_card = study_session.landed.card_index, landed_slice = study_session.landed.picked_slice;
     return ask_type(card_set, mode_item, landed_card, is_right => {
-      record_answer(card_set, landed_card, is_right); if (is_right) study_session.right++; else study_session.wrong++; study_session.turn++; study_session.landed = null;
+      record_answer(card_set, landed_card, is_right); if (is_right) { study_session.right++; study_session.spin_right = (study_session.spin_right || 0) + 1; } else study_session.wrong++; study_session.turn++; study_session.landed = null; study_session.round_reward = null;
+      if (study_session.turn % 5 === 0) { study_session.spin_reward = award_round(card_set, mode_item, study_session.spin_right || 0, 5); study_session.spin_right = 0; } else study_session.spin_reward = '';
       const replacement_cards = weakest_first(card_set, studyable_indexes(card_set).filter(other_index => !wheel_cards.includes(other_index))); if (is_right && replacement_cards.length) wheel_cards[landed_slice] = replacement_cards[0];
       view_wheel(card_set, mode_item);
     }, {status: 'Landed on this word'});
@@ -218,9 +219,10 @@ function view_wheel(card_set, mode_item) {
     wheel_svg.style.transform = 'rotate(' + study_session.spin_angle + 'deg)';
     later(() => { study_session.landed = {card_index: wheel_cards[picked_slice], picked_slice}; view_wheel(card_set, mode_item); }, 3300);
   }}, 'Spin');
-  mode_frame(card_set, mode_item, [study_session.right + ' right · ' + study_session.wrong + ' wrong'], [el('div', {class: 'wheel-holder'}, el('div', {class: 'wheel-pointer'}), wheel_svg), spin_button]);
+  mode_frame(card_set, mode_item, [study_session.right + ' right · ' + study_session.wrong + ' wrong'], [study_session.spin_reward || '', el('div', {class: 'wheel-holder'}, el('div', {class: 'wheel-pointer'}), wheel_svg), spin_button]);
 }
 function view_match(card_set, mode_item) {
+  study_session.round_reward = null;
   const round_cards = weakest_first(card_set, studyable_indexes(card_set)).slice(0, 6), started_ms = Date.now(); let picked_tile = null, left_count = round_cards.length, wrong_tries = 0;
   const clock_el = el('span', {}, '0s'); function tick() { clock_el.textContent = Math.round((Date.now() - started_ms) / 1000) + 's'; later(tick, 500); }
   function make_tile(card_index, side_key) { return el('button', {class: 'match-tile', onclick: click_event => {
@@ -228,7 +230,7 @@ function view_match(card_set, mode_item) {
     if (!picked_tile) { picked_tile = tile_el; tile_el.classList.add('is-picked'); tile_el.dataset.card = card_index; return; }
     if (picked_tile === tile_el) { tile_el.classList.remove('is-picked'); picked_tile = null; return; }
     const is_pair = Number(picked_tile.dataset.card) === card_index && picked_tile.dataset.side !== tile_el.dataset.side, first_tile = picked_tile; picked_tile = null; first_tile.classList.remove('is-picked');
-    if (is_pair) { first_tile.classList.add('is-matched'); tile_el.classList.add('is-matched'); first_tile.disabled = true; tile_el.disabled = true; left_count--; if (!left_count) { const seconds_taken = Math.round((Date.now() - started_ms) / 1000); card_set.last_studied = Date.now(); save_state(); clear_mode_timers(); grid_el.after(el('div', {class: 'answer-panel is-right', role: 'status'}, el('strong', {}, 'All matched in ' + seconds_taken + ' seconds'), el('div', {}, wrong_tries + ' wrong tries'), el('button', {class: 'primary', onclick: () => view_match(card_set, mode_item)}, 'Play again'))); } }
+    if (is_pair) { first_tile.classList.add('is-matched'); tile_el.classList.add('is-matched'); first_tile.disabled = true; tile_el.disabled = true; left_count--; if (!left_count) { const seconds_taken = Math.round((Date.now() - started_ms) / 1000); card_set.last_studied = Date.now(); save_state(); clear_mode_timers(); const reward_el = award_round(card_set, mode_item, round_cards.length, round_cards.length + wrong_tries); grid_el.after(reward_el, el('div', {class: 'answer-panel is-right', role: 'status'}, el('strong', {}, 'All matched in ' + seconds_taken + ' seconds'), el('div', {}, wrong_tries + ' wrong tries'), el('button', {class: 'primary', onclick: () => view_match(card_set, mode_item)}, 'Play again'))); } }
     else { wrong_tries++; first_tile.classList.add('is-miss'); tile_el.classList.add('is-miss'); setTimeout(() => { first_tile.classList.remove('is-miss'); tile_el.classList.remove('is-miss'); }, 450); }
   }}, card_set.cards[card_index][side_key]); }
   const all_tiles = shuffled(round_cards.flatMap(card_index => { const term_tile = make_tile(card_index, 'term'), definition_tile = make_tile(card_index, 'definition'); term_tile.dataset.side = 'term'; term_tile.dataset.card = card_index; definition_tile.dataset.side = 'definition'; definition_tile.dataset.card = card_index; return [term_tile, definition_tile]; }));
@@ -237,6 +239,7 @@ function view_match(card_set, mode_item) {
   tick();
 }
 function view_memory(card_set, mode_item) {
+  study_session.round_reward = null;
   const round_cards = weakest_first(card_set, studyable_indexes(card_set)).slice(0, 6); let turned_tiles = [], left_count = round_cards.length, turn_count = 0, is_waiting = false;
   const turns_el = el('span', {}, '0 turns');
   const all_tiles = shuffled(round_cards.flatMap(card_index => ['term', 'definition'].map(side_key => { const tile_el = el('button', {class: 'memory-tile', 'aria-label': 'Hidden card', onclick: () => {
@@ -245,7 +248,7 @@ function view_memory(card_set, mode_item) {
     if (turned_tiles.length < 2) return;
     turn_count++; turns_el.textContent = turn_count + ' turns';
     const first_turned = turned_tiles[0], second_turned = turned_tiles[1]; turned_tiles = [];
-    if (first_turned.card_index === second_turned.card_index) { first_turned.tile_el.classList.add('is-matched'); second_turned.tile_el.classList.add('is-matched'); left_count--; if (!left_count) { card_set.last_studied = Date.now(); save_state(); grid_el.after(el('div', {class: 'answer-panel is-right', role: 'status'}, el('strong', {}, 'All found in ' + turn_count + ' turns'), el('button', {class: 'primary', onclick: () => view_memory(card_set, mode_item)}, 'Play again'))); } return; }
+    if (first_turned.card_index === second_turned.card_index) { first_turned.tile_el.classList.add('is-matched'); second_turned.tile_el.classList.add('is-matched'); left_count--; if (!left_count) { card_set.last_studied = Date.now(); save_state(); const reward_el = award_round(card_set, mode_item, round_cards.length, Math.max(turn_count, round_cards.length)); grid_el.after(reward_el, el('div', {class: 'answer-panel is-right', role: 'status'}, el('strong', {}, 'All found in ' + turn_count + ' turns'), el('button', {class: 'primary', onclick: () => view_memory(card_set, mode_item)}, 'Play again'))); } return; }
     is_waiting = true; later(() => { [first_turned, second_turned].forEach(turned_item => { turned_item.tile_el.classList.remove('is-up'); turned_item.tile_el.textContent = ''; }); is_waiting = false; }, 1100);
   }}); return tile_el; })));
   const grid_el = el('div', {class: 'memory-grid'}, ...all_tiles);
@@ -261,7 +264,7 @@ function view_speed(card_set, mode_item) {
     ask_choice(card_set, mode_item, card_index, is_right => { record_answer(card_set, card_index, is_right); if (is_right) study_session.right++; else study_session.wrong++; study_session.position++; next_speed_question(); }, {quick: true, status: seconds_el, top_node: timer_el});
     show_time();
   }
-  function finish_speed() { clear_mode_timers(); const is_record = study_session.right > (card_set.best_speed || 0); if (is_record) { card_set.best_speed = study_session.right; save_state(); } mode_frame(card_set, Object.assign({}, mode_item, {how: null}), ['Time up'], [el('div', {class: 'empty'}, el('h2', {class: 'summary-title'}, study_session.right + ' right in 60 seconds'), el('div', {class: 'muted'}, is_record ? 'Your new best.' : 'Your best is ' + card_set.best_speed + '.'), el('div', {class: 'button-row center-row'}, el('button', {class: 'primary', onclick: () => { start_mode_session(card_set, 'speed', []); view_speed(card_set, mode_item); }}, 'Play again')))]); }
+  function finish_speed() { clear_mode_timers(); const reward_el = award_round(card_set, mode_item, study_session.right, Math.max(1, study_session.right + study_session.wrong)), is_record = study_session.right > (card_set.best_speed || 0); if (is_record) { card_set.best_speed = study_session.right; save_state(); } mode_frame(card_set, Object.assign({}, mode_item, {how: null}), ['Time up'], [el('div', {class: 'empty'}, el('h2', {class: 'summary-title'}, study_session.right + ' right in 60 seconds'), reward_el, el('div', {class: 'muted'}, is_record ? 'Your new best.' : 'Your best is ' + card_set.best_speed + '.'), el('div', {class: 'button-row center-row'}, el('button', {class: 'primary', onclick: () => { start_mode_session(card_set, 'speed', []); view_speed(card_set, mode_item); }}, 'Play again')))]); }
   next_speed_question();
 }
 function view_test(card_set, mode_item) {
@@ -273,7 +276,8 @@ function view_test(card_set, mode_item) {
 }
 function view_mode_summary(card_set, mode_item) {
   const missed_cards = Array.from(new Set(study_session.missed)), total_count = study_session.right + study_session.wrong, score_percent = total_count ? Math.round(100 * study_session.right / total_count) : 0;
-  mode_frame(card_set, Object.assign({}, mode_item, {how: null}), ['Finished'], [el('div', {class: 'empty summary'}, el('h2', {class: 'summary-title'}, score_percent + '%'), el('div', {class: 'counts summary-counts'}, el('span', {class: 'know'}, study_session.right + ' right'), el('span', {class: 'learn'}, study_session.wrong + ' wrong')),
+  const reward_el = award_round(card_set, mode_item, study_session.right, total_count);
+  mode_frame(card_set, Object.assign({}, mode_item, {how: null}), ['Finished'], [el('div', {class: 'empty summary'}, el('h2', {class: 'summary-title'}, score_percent + '%'), reward_el, el('div', {class: 'counts summary-counts'}, el('span', {class: 'know'}, study_session.right + ' right'), el('span', {class: 'learn'}, study_session.wrong + ' wrong')),
     missed_cards.length ? el('div', {class: 'ruled missed-list'}, ...missed_cards.map(card_index => el('div', {class: 'card-row'}, el('div', {class: 'line-margin line-number'}), el('div', {}, card_set.cards[card_index].term), el('div', {class: 'card-definition'}, card_set.cards[card_index].definition)))) : null,
     el('div', {class: 'button-row center-row'}, missed_cards.length ? el('button', {class: 'primary', onclick: () => { start_mode_session(card_set, mode_item.key, missed_cards); if (mode_item.key === 'test') study_session.test_ready = true; view_mode(card_set, mode_item.key); }}, 'Try the ' + missed_cards.length + ' you missed') : null, el('button', {onclick: () => { study_session = null; view_mode(card_set, mode_item.key); }}, 'Play again')))]);
 }
@@ -287,4 +291,45 @@ function view_mode(card_set, mode_key) {
   if (is_new_session) start_mode_session(card_set, mode_item.key, QUESTION_ASKERS[mode_item.key] ? weakest_first(card_set, studyable_indexes(card_set)) : []);
   if (QUESTION_ASKERS[mode_item.key]) return run_questions(card_set, mode_item, QUESTION_ASKERS[mode_item.key]);
   ({learn: view_learn, wheel: view_wheel, match: view_match, memory: view_memory, speed: view_speed, test: view_test})[mode_item.key](card_set, mode_item);
+}
+
+// ---- Rewards: every finished round earns one for that set's trophy shelf. The better the round, the better the reward. Wording stays general, so it suits any subject. ----
+const REWARD_TIERS = [
+  {from_percent: 100, lead: 'Perfect round!', rewards: [['trophy', 'You have won a trophy.'], ['gold', 'You have won a gold medal.'], ['gem', 'You have won a gem.'], ['glowing-star', 'You have won a shining star.']]},
+  {from_percent: 90, lead: 'Excellent work!', rewards: [['silver', 'You have won a silver medal.'], ['star', 'You have won a star.'], ['rocket', 'You have won a rocket.'], ['rainbow', 'You have won a rainbow.'], ['gift', 'You have won a present.']]},
+  {from_percent: 70, lead: 'Great progress!', rewards: [['bronze', 'You have won a bronze medal.'], ['cake', 'Here is a slice of cake.'], ['icecream', 'Here is an ice cream.'], ['sunflower', 'Here is a sunflower.'], ['balloon', 'Here is a balloon.'], ['ribbon', 'Here is a ribbon.']]},
+  {from_percent: 50, lead: 'Good progress!', rewards: [['cherries', 'Here are some cherries.'], ['strawberry', 'Here is a strawberry.'], ['doughnut', 'Here is a doughnut.'], ['honey', 'Here is a pot of honey.']]},
+  {from_percent: 0, lead: 'Good effort!', rewards: [['cookie', 'Here is a cookie.'], ['apple', 'Here is an apple.'], ['pear', 'Here is a pear.'], ['clover', 'Here is a lucky clover.']]}
+];
+const SET_GOALS = [
+  {key: 'learned', image: 'crown', line: 'Great progress! You know every card in this set well, so you have won a crown.', is_met: counts => !counts.new && !counts.learning},
+  {key: 'mastered', image: 'gem', line: 'Amazing! You have mastered every card in this set, so you have won a gem.', is_met: counts => !counts.new && !counts.learning && !counts.familiar}
+];
+function reward_image(image_name, image_class) { return el('img', {class: image_class, src: 'assets/rewards/' + image_name + '.svg', alt: '', width: 48, height: 48}); }
+function pick_reward(reward_tier) { const recent_images = (app_state.recent_rewards || []).slice(-3), fresh_rewards = reward_tier.rewards.filter(reward_item => !recent_images.includes(reward_item[0])), usable_rewards = fresh_rewards.length ? fresh_rewards : reward_tier.rewards, picked_reward = usable_rewards[Math.floor(Math.random() * usable_rewards.length)]; app_state.recent_rewards = recent_images.concat(picked_reward[0]); return picked_reward; }
+// Adds the round's reward to the shelf and returns the card to show. A round only earns one, however many times its screen is drawn.
+function award_round(card_set, mode_item, right_count, total_count) {
+  if (study_session.round_reward !== undefined && study_session.round_reward !== null) return study_session.round_reward;
+  if (total_count < Math.min(3, studyable_indexes(card_set).length)) return '';
+  const score_percent = Math.round(100 * right_count / total_count), reward_tier = REWARD_TIERS.find(tier_item => score_percent >= tier_item.from_percent), picked_reward = pick_reward(reward_tier), line_text = reward_tier.lead + ' ' + picked_reward[1], now_ms = Date.now();
+  card_set.trophies = card_set.trophies || [];
+  card_set.trophies.push({image: picked_reward[0], line: line_text, mode: mode_item.label, right: right_count, total: total_count, at: now_ms});
+  const reached_goals = SET_GOALS.filter(goal_item => goal_item.is_met(progress_counts(card_set)) && !card_set.trophies.some(trophy_item => trophy_item.goal === goal_item.key));
+  reached_goals.forEach(goal_item => card_set.trophies.push({image: goal_item.image, line: goal_item.line, goal: goal_item.key, mode: mode_item.label, at: now_ms}));
+  save_state();
+  const reward_el = el('div', {class: 'reward-card', role: 'status'}, reward_image(picked_reward[0], 'reward-image'), el('div', {}, el('strong', {}, line_text), el('div', {class: 'muted'}, right_count + ' of ' + total_count + ' right. Added to your trophy shelf.')), ...reached_goals.map(goal_item => el('div', {class: 'reward-goal'}, reward_image(goal_item.image, 'reward-image'), el('strong', {}, goal_item.line))));
+  study_session.round_reward = reward_el; later(() => spawn_confetti(reward_el), 60);
+  return reward_el;
+}
+function spawn_confetti(anchor_el) {
+  if (!anchor_el.isConnected || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const burst_el = el('div', {class: 'confetti-burst', 'aria-hidden': 'true'});
+  for (let piece_index = 0; piece_index < 26; piece_index++) burst_el.appendChild(el('i', {style: 'background:' + TINTS[piece_index % TINTS.length][1] + ';--fly-x:' + Math.round(Math.random() * 320 - 160) + 'px;--fly-y:' + Math.round(-60 - Math.random() * 140) + 'px;--spin:' + Math.round(Math.random() * 720 - 360) + 'deg;animation-delay:' + Math.round(Math.random() * 120) + 'ms'}));
+  anchor_el.appendChild(burst_el); setTimeout(() => burst_el.remove(), 1500);
+}
+function trophy_shelf(card_set) {
+  const trophy_list = (card_set.trophies || []).slice().reverse(), detail_el = el('div', {class: 'shelf-detail', role: 'status'}); detail_el.hidden = true;
+  function trophy_button(trophy_item) { const button_el = el('button', {class: 'shelf-item', title: trophy_item.line, 'aria-label': trophy_item.line, onclick: () => { const is_same = button_el.classList.contains('is-active'); shelf_el.querySelectorAll('.is-active').forEach(active_el => active_el.classList.remove('is-active')); detail_el.hidden = is_same; if (is_same) return; button_el.classList.add('is-active'); detail_el.replaceChildren(el('strong', {}, trophy_item.line), el('div', {class: 'muted'}, trophy_item.mode + (trophy_item.total ? ' · ' + trophy_item.right + ' of ' + trophy_item.total + ' right' : '') + ' · ' + relative_day(trophy_item.at))); }}, reward_image(trophy_item.image, 'shelf-image')); return button_el; }
+  const shelf_el = el('div', {class: 'shelf-row'}, ...(trophy_list.length ? trophy_list.map(trophy_button) : [el('span', {class: 'shelf-item is-empty'}, reward_image('hourglass', 'shelf-image')), el('span', {class: 'muted shelf-empty'}, 'Finish a round in any mode to win your first reward.')]));
+  return el('section', {class: 'trophy-shelf'}, el('h2', {class: 'list-heading'}, 'Trophy shelf', trophy_list.length ? el('span', {class: 'muted shelf-count'}, ' ' + trophy_list.length) : ''), shelf_el, detail_el);
 }

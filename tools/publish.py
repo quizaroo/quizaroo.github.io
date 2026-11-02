@@ -1,7 +1,7 @@
 """Run just before publishing a version: python tools/publish.py --now, then commit.
 
 Checks VERSION in sw.js matches the newest version in whatsnew.js and that sw.js lists
-every script, then stamps versions with no time yet in PUBLISHED with the time now.
+every file, then stamps versions with no time yet in PUBLISHED with the time now.
 """
 import os
 import re
@@ -16,7 +16,8 @@ newest = max(versions, key=number)
 worker_version = re.search(r"const VERSION = '([^']+)'", worker).group(1)
 if worker_version != newest:
     sys.exit(f'sw.js VERSION is {worker_version} but whatsnew.js has {newest}')
-missing = [name for name in os.listdir('.') if name.endswith(('.js', '.css', '.json', '.html', '.svg')) and name != 'sw.js' and f"'{name}'" not in worker]
+files = [name for name in os.listdir('.') if name.endswith(('.js', '.css', '.json', '.html', '.svg')) and name != 'sw.js'] + [f'assets/rewards/{name}' for name in os.listdir('assets/rewards')]
+missing = [name for name in files if f"'{name}'" not in worker]
 if missing:
     sys.exit(f'Missing from SHELL in sw.js: {missing}')
 
