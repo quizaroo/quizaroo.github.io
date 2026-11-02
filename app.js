@@ -287,7 +287,15 @@ function view_edit(card_set, is_new) {
 
 // ---- Study ----
 function shuffled(source_items) { const result_items = source_items.slice(); for (let swap_index = result_items.length - 1; swap_index > 0; swap_index--) { const random_index = Math.floor(Math.random() * (swap_index + 1)), held_item = result_items[swap_index]; result_items[swap_index] = result_items[random_index]; result_items[random_index] = held_item; } return result_items; }
-function start_session(card_set, card_indexes, mode_key) { study_session = {set_id: card_set.id, mode: mode_key, queue: card_indexes.slice(), position: 0, known: [], learning: []}; }
+function start_session(card_set, card_indexes, mode_key) { study_session = {set_id: card_set.id, mode: mode_key, queue: card_indexes.slice(), position: 0, known: [], learning: [], answer_history: []}; }
+// Takes back the last answer in Flashcards or Revise, with what it did to the card's progress.
+function take_back_answer(card_set) {
+  const last_answer = study_session.answer_history.pop(); if (!last_answer) return;
+  (last_answer.was_known ? study_session.known : study_session.learning).pop(); study_session.position = last_answer.position;
+  if (card_set.progress) { if (last_answer.record) card_set.progress[last_answer.key_text] = last_answer.record; else delete card_set.progress[last_answer.key_text]; }
+  if (last_answer.last_studied) card_set.last_studied = last_answer.last_studied; else delete card_set.last_studied;
+}
+function previous_card_button(card_set) { return el('button', Object.assign({'data-key': 'Backspace', title: 'Go back and change your answer (Backspace)', onclick: () => { if (study_session.round_reward) { card_set.trophies.length -= study_session.round_trophy_count; study_session.round_reward = null; } take_back_answer(card_set); save_state(); view_study(card_set); }}, study_session.answer_history.length ? {} : {disabled: 'disabled'}), '← Previous card'); }
 
 // Flashcards keeps score unless switched off, or opened on a word from View all vocab. Without score, nothing is recorded, Back and Next go round for ever, and there is no end of round.
 function start_flashcards(card_set, start_card, return_hash) {
@@ -316,7 +324,7 @@ function view_study(card_set) {
     if (keep_score) start_flashcards(card_set, undefined, study_session.return_hash); else study_session.browsing = true;
     view_study(card_set);
   }
-  function answer(is_known) { record_answer(card_set, current_index, is_known); (is_known ? study_session.known : study_session.learning).push(study_session.queue[study_session.position]); study_session.position++; view_study(card_set); }
+  function answer(is_known) { const key_text = card_key(current_card); study_session.answer_history.push({position: study_session.position, was_known: is_known, key_text, record: (card_set.progress || {})[key_text], last_studied: card_set.last_studied}); record_answer(card_set, current_index, is_known); (is_known ? study_session.known : study_session.learning).push(study_session.queue[study_session.position]); study_session.position++; view_study(card_set); }
   // Tap flips. A horizontal swipe answers (right = know, left = still learning), or without score turns to the next or last card.
   let drag_start = null;
   function drag_begin(start_x, start_y) { drag_start = {x: start_x, y: start_y}; inner_el.style.transition = 'none'; }
@@ -342,17 +350,32 @@ function view_study(card_set) {
     is_browsing ? null : el('div', {class: 'counts'}, el('span', {class: 'learn'}, study_session.learning.length + ' learning'), el('span', {class: 'know'}, study_session.known.length + ' known')),
     card_el,
     is_browsing ? el('div', {class: 'study-buttons'}, el('button', {onclick: () => move_card(-1)}, '← Back'), el('button', {onclick: () => card_el.classList.toggle('flipped')}, 'Flip'), el('button', {onclick: () => move_card(1)}, 'Next →')) : el('div', {class: 'study-buttons'}, el('button', {class: 'learn-button', onclick: () => answer(false)}, '← Still learning'), el('button', {onclick: () => card_el.classList.toggle('flipped')}, 'Flip'), el('button', {class: 'know-button', onclick: () => answer(true)}, 'Know →')),
-    el('div', {class: 'muted'}, is_browsing ? 'Tap to flip · swipe or press ← → to move · nothing is recorded' : 'Tap to flip · swipe right if you know it, left if not · keys: space, ← →'))]);
+    is_browsing ? null : el('div', {class: 'study-nav'}, previous_card_button(card_set), el('button', Object.assign({title: 'Start this round again and take back its answers', onclick: () => { while (study_session.answer_history.length) take_back_answer(card_set); save_state(); view_study(card_set); }}, study_session.answer_history.length ? {} : {disabled: 'disabled'}), 'Start again')),
+    el('div', {class: 'muted'}, is_browsing ? 'Tap to flip · swipe or press ← → to move · nothing is recorded' : 'Tap to flip · swipe right if you know it, left if not · keys: space, ← →, Backspace for the previous card'))]);
 }
 
 function view_study_summary(card_set) {
-  const learning_indexes = study_session.learning.slice(), reward_el = award_round(card_set, find_mode(study_session.mode), study_session.known.length, study_session.known.length + learning_indexes.length);
+  const learning_indexes = study_session.learning.slice(), reward_el = award_round(card_set, find_mode(study_session.mode), study_session.known.length, study_session.known.length + learning_indexes.length), next_tiles = round_next_tiles(card_set, learning_indexes, study_session.known.length, study_session.mode);
   render(set_trail(card_set, find_mode(study_session.mode).label), [el('a', {class: 'button', href: '#/set/' + card_set.id}, 'Done')], [el('div', {class: 'study-wrap empty', style: tint_style(card_set)},
     el('h2', {class: 'summary-title'}, learning_indexes.length ? 'Round complete' : 'All known!'), reward_el,
     el('div', {class: 'counts'}, el('span', {class: 'learn'}, learning_indexes.length + ' still learning'), el('span', {class: 'know'}, study_session.known.length + ' known')),
-    el('div', {class: 'button-row'},
-      learning_indexes.length ? el('button', {class: 'primary', onclick: () => { start_session(card_set, learning_indexes, study_session.mode); view_study(card_set); }}, 'Study the ' + learning_indexes.length + ' again') : null,
-      el('button', {onclick: () => { const session_mode = study_session.mode; study_session = null; view_mode(card_set, session_mode === 'revise' ? 'cards' : session_mode); }}, 'Go through all cards')))]);
+    el('div', {class: 'next-tiles'}, ...next_tiles), el('div', {class: 'button-row center-row'}, previous_card_button(card_set)))]);
+}
+// What to do after a round, with one tile recommended from how it went: mostly wrong needs Learn from scratch, some wrong needs those cards again, all right moves on.
+function round_next_tiles(card_set, learning_indexes, known_count, session_mode) {
+  const due_count = due_indexes(card_set).length, learn_now = learn_counts(card_set), total_count = studyable_indexes(card_set).length, is_learn_unfinished = learn_now.learned < learn_now.cards, can_revise = session_mode !== 'revise' && due_count > 0;
+  const recommended_name = learning_indexes.length ? (known_count < learning_indexes.length ? 'learn' : 'more') : can_revise ? 'revise' : is_learn_unfinished ? 'learn' : 'all';
+  function next_tile(tile_name, heading_text, note_text, tile_action) {
+    const tile_nodes = [recommended_name === tile_name ? el('span', {class: 'recommended-tag'}, 'Recommended') : null, el('strong', {}, heading_text), el('span', {class: 'next-note'}, note_text)];
+    const class_text = 'next-tile' + (recommended_name === tile_name ? ' is-recommended' : '');
+    return typeof tile_action === 'string' ? el('a', {class: class_text, href: tile_action}, ...tile_nodes) : el('button', {class: class_text, onclick: tile_action}, ...tile_nodes);
+  }
+  return [
+    learning_indexes.length ? next_tile('more', 'Study more', "Let's go through the " + (learning_indexes.length === 1 ? 'one' : learning_indexes.length) + " you're still learning.", () => { start_session(card_set, learning_indexes, session_mode); view_study(card_set); }) : null,
+    next_tile('all', 'Go through all cards', 'Another round of all ' + total_count + ' cards.', () => { study_session = null; view_mode(card_set, 'cards'); }),
+    session_mode === 'revise' ? null : next_tile('revise', 'Move on to Revise', due_count ? due_count + (due_count === 1 ? ' card is' : ' cards are') + ' ready to come back.' : 'Nothing is ready yet. It will tell you when the next card is.', play_hash(card_set, 'revise')),
+    next_tile('learn', 'Move on to Learn from scratch', is_learn_unfinished ? 'Showing cards, multiple choice and typing, with ' + learn_now.learned + ' of ' + learn_now.cards + ' cards learned so far.' : 'You have finished it for this set. Start it again from there.', play_hash(card_set, 'learn'))
+  ].filter(Boolean);
 }
 
 document.addEventListener('keydown', key_event => {
@@ -372,7 +395,7 @@ function view_settings() {
     const check_result = await check_for_update();
     if (check_result === 'ready') { toast('Updating…'); await apply_update(); return; }
     check_button.disabled = false; check_button.textContent = 'Check for updates';
-    toast(check_result === 'offline' ? 'Could not reach the server. Try again when you are online.' : 'You have the latest version.');
+    toast(check_result === 'offline' ? 'Could not reach the server. Try again when you are online.' : 'You have the latest version.', {ms: 3000});
   }}, 'Check for updates');
   render([menu_crumb('settings', '#/settings')], [], [sync_section(), settings_panel('updates', 'Updates', el('span', {class: 'settings-panel-status'}, 'Version ' + APP_VERSION), {class: 'settings-panel updates-section'},
     el('div', {class: 'ruled'},

@@ -8,6 +8,12 @@
 // No `at`: no Show me. PUBLISHED holds when each version went live (UTC), filled in by tools/publish.py.
 const FIRST_SET = ['.set-row .row-title'];
 const WHATS_NEW = {
+  '1.3.06': [
+    {text: 'Flashcards with Keep score on: Previous card goes back and takes back your answer, so you can change your mind. Start again restarts the round and takes back its answers.', go: '#/library', open: FIRST_SET.concat('[data-mode="cards"]'), at: '.study-nav'},
+    {text: 'End of a round of Flashcards: big tiles saying what to do next, such as Study more or Move on to Revise, with one marked Recommended from how the round went.'},
+    {text: 'Messages now follow Dawn and Dusk, and have a small ring counting down. Ctrl+Z also presses Undo while one shows. Fixed.'},
+    {text: 'Learn from scratch: Start over is now called Start again.'}
+  ],
   '1.3.05': [{text: 'Sync: creating an account now emails you a code to confirm your address.', go: '#/settings', at: '#sync-section'}],
   '1.3.04': [
     {text: 'Sync: clearer wording before you sign in, including the address to email to keep using it after 24 hours.', go: '#/settings', at: '#sync-section'},
@@ -25,7 +31,7 @@ const WHATS_NEW = {
     {text: 'Sync: Storage now shows how much of your account you have used.'}
   ],
   '1.2.01': [
-    {text: 'Learn from scratch now remembers where you got to, shows your progress on its tile, and has Start over next to the step count.', go: '#/library', open: FIRST_SET, at: '[data-mode="learn"]'},
+    {text: 'Learn from scratch now remembers where you got to, shows your progress on its tile, and has Start again next to the step count.', go: '#/library', open: FIRST_SET, at: '[data-mode="learn"]'},
     {text: 'Learn from scratch: switches to turn multiple choice or typing off, if you would rather not type.'},
     {text: 'Each set: Revise now explains what it does.', go: '#/library', open: FIRST_SET, at: '[data-mode="revise"]'},
     {text: 'The top title is now breadcrumbs that start from the left menu, with its icon. Click Your Library to go back.', go: '#/library', open: FIRST_SET, at: '#page-title'},
@@ -79,6 +85,7 @@ const WHATS_NEW = {
   '1.0.00': [{text: 'Open Flashcards goes live: make sets, flip and swipe through them, and import or export them as JSON.'}]
 };
 const PUBLISHED = {
+  '1.3.06': '2026-11-02T20:32:35Z',
   '1.3.05': '2026-11-02T19:22:24Z',
   '1.3.04': '2026-11-02T19:17:34Z',
   '1.3.03': '2026-11-02T17:58:13Z',
@@ -152,10 +159,28 @@ async function show_me(entry, from_version, page_index) {
   target_el.classList.remove('flash'); void target_el.offsetWidth; target_el.classList.add('flash'); setTimeout(() => target_el.classList.remove('flash'), 2200);
   toast('Here it is', back_to_list);
 }
+// A brief message, the same as Sift's. A small ring runs down over the time it shows. Undo also answers Ctrl+Z (Cmd+Z) while it shows, until something is typed.
+let toast_el = null, toast_timer = null, toast_undo = null;
+function hide_toast() { clearTimeout(toast_timer); toast_undo = null; if (toast_el) toast_el.classList.remove('show'); }
+addEventListener('keydown', key_event => { if (!toast_undo || (key_event.key || '').toLowerCase() !== 'z' || !(key_event.ctrlKey || key_event.metaKey) || key_event.shiftKey || key_event.altKey) return; key_event.preventDefault(); key_event.stopImmediatePropagation(); toast_undo(); }, true);
+addEventListener('beforeinput', () => { if (!toast_undo) return; toast_undo = null; if (toast_el) toast_el.querySelectorAll('kbd').forEach(key_el => key_el.remove()); }, true);
 function toast(toast_text, toast_options) {
-  document.querySelectorAll('.toast').forEach(old_toast => old_toast.remove());
-  const toast_el = el('div', {class: 'toast', role: 'status'}, toast_text, toast_options && toast_options.action ? el('button', {onclick: () => { toast_el.remove(); toast_options.on_action(); }}, toast_options.action) : null);
-  document.body.appendChild(toast_el); setTimeout(() => toast_el.remove(), (toast_options && toast_options.ms) || 3000);
+  const {action, on_action, ms = action ? 6000 : 1600} = toast_options || {};
+  if (!toast_el) { toast_el = el('div', {class: 'toast', role: 'status', 'aria-live': 'polite'}); document.body.appendChild(toast_el); }
+  const ring_el = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  ring_el.setAttribute('class', 'toast-timer'); ring_el.setAttribute('viewBox', '0 0 20 20'); ring_el.setAttribute('aria-hidden', 'true'); ring_el.style.setProperty('--ms', ms + 'ms');
+  ring_el.innerHTML = '<circle class="toast-track" cx="10" cy="10" r="8"/><circle class="toast-left" cx="10" cy="10" r="8" pathLength="100"/>';
+  toast_el.replaceChildren(ring_el, el('span', {}, toast_text));
+  toast_undo = null;
+  if (action) {
+    let is_done = false;
+    const run_action = () => { if (is_done) return; is_done = true; hide_toast(); on_action(); };
+    const button_el = el('button', {type: 'button', onclick: run_action}, action);
+    if (action === 'Undo') { button_el.appendChild(el('kbd', {}, /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent) ? '⌘Z' : 'Ctrl+Z')); toast_undo = run_action; }
+    toast_el.appendChild(button_el);
+  }
+  toast_el.classList.add('show');
+  clearTimeout(toast_timer); toast_timer = setTimeout(hide_toast, ms);
 }
 
 // ---- Service worker ----

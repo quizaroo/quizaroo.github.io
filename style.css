@@ -169,6 +169,15 @@ input[type=checkbox], input[type=radio] { accent-color: var(--accent); }
 .swipe-hint.learn { left: 14px; background: var(--learn); }
 .swipe-hint.know { right: 14px; background: var(--know); }
 .study-buttons { display: flex; gap: 10px; width: 100%; }
+.next-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; width: 100%; margin: 16px 0 4px; text-align: left; }
+.next-tile { display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 3px; padding: 15px 16px; color: var(--text); text-align: left; background: var(--sheet); border: 1px solid var(--glass-border); border-radius: 16px; }
+.next-tile:hover { background: var(--glass-hover); }
+.next-tile strong { font-size: 17px; font-weight: 600; }
+.next-note { color: var(--muted); font-size: 14px; line-height: 1.35; }
+.next-tile.is-recommended { border: 2px solid var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--sheet)); }
+.recommended-tag { margin-bottom: 3px; padding: 1px 9px; color: #fff; font-size: 12px; font-weight: 600; background: var(--accent); border-radius: 10px; }
+.study-nav { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; width: 100%; }
+.study-nav button { padding: 6px 14px; font-size: 14px; }
 .study-buttons button { flex: 1; padding: 14px 8px; font-weight: 500; }
 .study-buttons .learn-button, .study-buttons .know-button { border-color: transparent; color: var(--on-tint); }
 .study-buttons .learn-button { background: var(--learn); } .study-buttons .know-button { background: var(--know); }
@@ -176,9 +185,15 @@ input[type=checkbox], input[type=radio] { accent-color: var(--accent); }
 .summary-title { margin: 0; font-size: clamp(1.6rem, 5vw, 2.2rem); font-weight: 300; }
 /* ---- Updates: the same as Sift's ---- */
 #update-banner { position: fixed; left: 50%; bottom: 24px; z-index: 20; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; width: max-content; max-width: calc(100vw - 32px); padding: 10px 12px 10px 18px; font-size: 15px; background: var(--sheet); border: 1px solid var(--active-border); border-radius: 18px; box-shadow: var(--shadow); }
-.toast { position: fixed; left: 50%; bottom: 24px; z-index: 19; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; width: max-content; max-width: calc(100vw - 32px); padding: 9px 16px; font-size: 15px; background: var(--text); color: var(--bg); border-radius: 16px; box-shadow: var(--shadow); }
-.toast button { padding: 3px 11px; font-size: 14px; color: var(--bg); background: transparent; border-color: var(--bg); }
-.toast button:hover:not(:disabled) { color: var(--text); }
+.toast { position: fixed; left: 50%; bottom: 24px; z-index: 19; display: flex; align-items: center; gap: 12px; width: max-content; max-width: calc(100vw - 32px); padding: 8px 16px; font-size: 14px; color: var(--text); background: color-mix(in srgb, var(--sheet) 92%, transparent); border: 1px solid var(--active-border); border-radius: 999px; box-shadow: var(--shadow); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); opacity: 0; transform: translate(-50%, 8px); transition: opacity .2s, transform .2s; pointer-events: none; }
+.toast.show { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+.toast-timer { flex: none; width: 16px; height: 16px; margin: 0 -4px 0 -6px; transform: rotate(-90deg); }
+.toast-timer circle { fill: none; stroke-width: 2.6; }
+.toast-track { stroke: color-mix(in srgb, var(--text) 16%, transparent); }
+.toast-left { stroke: var(--accent); stroke-linecap: round; stroke-dasharray: 100; animation: toast-left var(--ms, 6s) linear forwards; }
+@keyframes toast-left { to { stroke-dashoffset: -100; } }
+.toast span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.toast button { flex: none; padding: 3px 12px; font-size: 14px; font-weight: 600; color: var(--accent); background: none; border-color: var(--glass-border); }
 body:has(#update-banner:not([hidden])) .toast { bottom: 94px; }
 @media (max-width: 700px) { #update-banner, .toast { bottom: calc(76px + env(safe-area-inset-bottom)); } body:has(#update-banner:not([hidden])) .toast { bottom: calc(144px + env(safe-area-inset-bottom)); } body[data-focus] #update-banner { bottom: 16px; } }
 .settings-line { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 9px 12px; }
