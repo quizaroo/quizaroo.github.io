@@ -35,7 +35,7 @@ if [ "$need_node" = 1 ]; then
 fi
 
 # --- the port must be free (another service on this machine may already use it) ---
-PORT="$(sed -n 's/^PORT=//p' /etc/open-flashcards/open-flashcards.env 2>/dev/null | tail -1)"; PORT="${PORT:-8797}"
+PORT="$(sed -n 's/^PORT=//p' /etc/open-flashcards/open-flashcards.env 2>/dev/null | tail -1 || true)"; PORT="${PORT:-8797}"
 if ! systemctl is-active -q open-flashcards-server && ss -ltn "sport = :$PORT" | grep -q LISTEN; then
   echo "Port $PORT is already in use. Set PORT=<another> in /etc/open-flashcards/open-flashcards.env (create it if needed), then run this again."
   exit 1
