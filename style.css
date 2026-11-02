@@ -411,7 +411,7 @@ a.mode-tile:hover { transform: translateY(-2px); box-shadow: var(--shadow); back
 .settings-panel-body { padding: 0 16px 14px; }
 .settings-panel-body > :first-child { margin-top: 0; }
 .sync-section { margin-bottom: 12px; }
-.sync-trial { padding: 9px 12px; font-size: 14px; background: var(--glass-track); border: 1px solid var(--glass-border); border-radius: 12px; }
+.sync-note { padding: 9px 12px; font-size: 14px; background: var(--glass-track); border: 1px solid var(--glass-border); border-radius: 12px; }
 .sync-admin { padding: 9px 12px; font-size: 14px; background: var(--glass-track); border: 1px solid var(--active-border); border-radius: 12px; }
 .nav-item.has-alert { position: relative; }
 .nav-item.has-alert::after { content: ''; position: absolute; top: 8px; right: 10px; width: 9px; height: 9px; background: var(--danger); border-radius: 50%; }

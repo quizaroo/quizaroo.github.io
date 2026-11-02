@@ -1,5 +1,5 @@
 // The pill at the top right and the Sync section of Settings: sign in (or create the account on a fresh server), then it runs by itself.
-const SYNC_FORM_KEY = 'open-flashcards:sync-form', PANELS_KEY = 'open-flashcards:settings-open', TRIAL_EMAIL = 'hazymat@gmail.com';
+const SYNC_FORM_KEY = 'open-flashcards:sync-form', PANELS_KEY = 'open-flashcards:settings-open', CONTACT_EMAIL = 'hazymat@gmail.com';
 // An expandable panel in Settings: a title and a basic status while closed. Whether it's open is remembered on this device.
 function settings_panel(panel_key, title_text, status_el, panel_attributes, ...body_nodes) {
   let open_panels = {};
@@ -19,6 +19,16 @@ function sync_pill() {
     pill_el.dataset.state = sync_status.state;
     pill_el.title = sync_status.state === 'off' ? 'Stored on this device only' : sync_status.error || pill_text;
   });
+}
+// Safari can clear a website's saved data after about a week away from it. Added to the Home Screen, the app is kept. Shown once per device until dismissed, only in Safari on an iPhone or iPad.
+const HOME_SCREEN_TIP_KEY = 'open-flashcards:home-screen-tip';
+function home_screen_tip() {
+  const is_ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  let was_dismissed = false;
+  try { was_dismissed = !!localStorage.getItem(HOME_SCREEN_TIP_KEY); } catch (storage_err) {}
+  if (!is_ios || navigator.standalone || was_dismissed) return null;
+  const tip_el = el('p', {class: 'sync-note home-screen-tip'}, el('b', {}, 'Keep your sets safe on this device.'), ' Safari can clear saved data after about a week away, so tap Share, then Add to Home Screen, and open the app from there. ', el('button', {class: 'link-button', onclick: () => { try { localStorage.setItem(HOME_SCREEN_TIP_KEY, '1'); } catch (storage_err) {} tip_el.remove(); }}, 'Got it'));
+  return tip_el;
 }
 function typed_sync_form() { try { return JSON.parse(localStorage.getItem(SYNC_FORM_KEY)) || {}; } catch (storage_err) { return {}; } }
 function remember_sync_form(form_changes) { try { localStorage.setItem(SYNC_FORM_KEY, JSON.stringify(Object.assign(typed_sync_form(), form_changes))); } catch (storage_err) {} }
@@ -126,7 +136,7 @@ function sync_section() {
     let uses_own_server = !!typed_form.server && typed_form.server !== sync_engine.DEFAULT_SERVER;
     const chosen_server = () => (uses_own_server ? server_el.value.trim() : sync_engine.DEFAULT_SERVER);
     const server_el = text_input('server', {value: uses_own_server ? typed_form.server : '', placeholder: 'https://your-server', inputmode: 'url', autocomplete: 'off', oninput: () => { remember_sync_form({server: server_el.value.trim()}); clearTimeout(server_el.check_timer); server_el.check_timer = setTimeout(() => check_server(), 600); }, onblur: () => check_server(chosen_server() === checked_server)});
-    const server_field_el = field('Your own server', server_el, 'wide'), own_server_button = el('button', {type: 'button', onclick: () => { uses_own_server = !uses_own_server; server_field_el.hidden = !uses_own_server; own_server_button.textContent = uses_own_server ? 'Use the free server' : 'Use your own server'; if (!uses_own_server) remember_sync_form({server: ''}); check_server(); }}, uses_own_server ? 'Use the free server' : 'Use your own server');
+    const server_field_el = field('Your own server', server_el, 'wide'), own_server_button = el('button', {type: 'button', onclick: () => { uses_own_server = !uses_own_server; server_field_el.hidden = !uses_own_server; own_server_button.textContent = uses_own_server ? "Use the app's server" : 'Use your own server'; if (!uses_own_server) remember_sync_form({server: ''}); check_server(); }}, uses_own_server ? "Use the app's server" : 'Use your own server');
     server_field_el.hidden = !uses_own_server;
     const email_el = text_input('email', {type: 'email', value: typed_form.email || '', autocomplete: 'username', oninput: () => remember_sync_form({email: email_el.value.trim()})}), password_el = text_input('password', {type: 'password', autocomplete: 'current-password'});
     const reach_text_el = el('span', {}), reach_el = el('p', {class: 'sync-reach'}, reach_text_el, el('button', {type: 'button', class: 'link-button', onclick: () => check_server()}, 'Check again'));
@@ -201,11 +211,11 @@ function sync_section() {
       await sync_engine.start(); draw();
     })(); }}, server_field_el, field('Email', email_el), field('Password', password_el), reach_el, el('div', {class: 'button-row'}, sign_in_button, create_button, el('button', {type: 'button', onclick: () => { recover_form.hidden = !recover_form.hidden; }}, 'Forgot password?'), message_el));
     const reason_el = sync_status.error ? el('p', {class: 'sync-out-reason'}, sync_status.error) : null;
-    body_el.replaceChildren(...[reason_el, el('p', {class: 'muted'}, 'Sync keeps your phone and laptop in step. Everything is encrypted here first; the server only stores scrambled copies.'), trial_note(), sign_in_form, cert_el, help_el, recover_form, el('div', {class: 'button-row'}, own_server_button)].filter(Boolean));
+    body_el.replaceChildren(...[reason_el, el('p', {class: 'muted'}, 'Sync keeps your phone and laptop in step. Everything is encrypted here first; the server only stores scrambled copies.'), sync_note(), sign_in_form, cert_el, help_el, recover_form, el('div', {class: 'button-row'}, own_server_button)].filter(Boolean));
     check_server();
   }
-  function trial_note() {
-    return el('p', {class: 'sync-trial'}, el('b', {}, 'Free trial.'), ' Create an account below and try it. To keep using it after 24 hours, ', el('a', {href: 'mailto:' + TRIAL_EMAIL + '?subject=Open%20Flashcards%20sync'}, 'email me'), ', or your account may be deleted. Your own devices keep their copies either way, and you never need an account to use the app.');
+  function sync_note() {
+    return el('p', {class: 'sync-note'}, el('b', {}, 'This app is free.'), ' Sync is open to you too, but please email ', el('a', {href: 'mailto:' + CONTACT_EMAIL + '?subject=Open%20Flashcards%20sync'}, CONTACT_EMAIL), " to keep using it after 24 hours. Otherwise your account may be deleted. You won't lose anything if it is: your data stays on your device, and it just stops syncing.");
   }
   function draw() { was_signed_in = !!sync_engine.signed_in(); if (was_signed_in) draw_signed_in(); else draw_signed_out(); }
   function paint_facts(sync_status) {
