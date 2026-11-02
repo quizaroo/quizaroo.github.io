@@ -8,6 +8,8 @@
 //   flashcards-admin delete-user <email>      remove an account and everything stored for it
 //   flashcards-admin registration [first|open|closed]
 //                                       show or change who can create accounts
+//   flashcards-admin reset-admin <email>
+//                                       free up an admin address whose account has gone, so it can be made again
 //
 // Reads the same DATA_DIR as the server. `registration` edits the env file
 // (FLASHCARDS_ENV, default /etc/open-flashcards/open-flashcards.env) and restarts the service.
@@ -52,6 +54,16 @@ if (cmd === 'users') {
   if (!arg) { console.error('Usage: flashcards-admin delete-user <email>'); process.exit(1); }
   const r = open().prepare('DELETE FROM users WHERE email = ?').run(arg);   // devices and records cascade
   console.log(r.changes ? 'Account and all its stored data deleted.' : 'No account with that email.');
+} else if (cmd === 'reset-admin') {
+  if (!arg) { console.error('Usage: flashcards-admin reset-admin <email>'); process.exit(1); }
+  const db = open();
+  const email = arg.trim().toLowerCase();
+  const pins = JSON.parse(db.prepare("SELECT value FROM meta WHERE key = 'admin_ids'").get()?.value || '{}');
+  if (db.prepare('SELECT 1 FROM users WHERE email = ?').get(email)) { console.log('That address still has an account. Delete it first if you mean to.'); process.exit(1); }
+  if (!pins[email]) { console.log('That address is not held for an admin.'); process.exit(0); }
+  delete pins[email];
+  db.prepare("UPDATE meta SET value = ? WHERE key = 'admin_ids'").run(JSON.stringify(pins));
+  console.log('Done. Close sign-ups or sign up straight away: the first account made with this address becomes the admin.');
 } else if (cmd === 'registration') {
   const text = fs.existsSync(ENV_FILE) ? fs.readFileSync(ENV_FILE, 'utf8') : '';
   const current = (fs.existsSync(dbFile) && open().prepare("SELECT value FROM meta WHERE key = 'registration'").get()?.value) || /^REGISTRATION=(.*)$/m.exec(text)?.[1] || 'first';
@@ -63,5 +75,5 @@ if (cmd === 'users') {
   try { execFileSync('systemctl', ['restart', 'open-flashcards-server'], { stdio: 'inherit' }); console.log(`Registration is now "${arg}".`); }
   catch { console.log(`Saved "${arg}" in ${ENV_FILE}. Restart the server to apply it.`); }
 } else {
-  console.log(fs.readFileSync(new URL(import.meta.url), 'utf8').split('\n').slice(1, 13).map(l => l.replace(/^\/\/ ?/, '')).join('\n'));
+  console.log(fs.readFileSync(new URL(import.meta.url), 'utf8').split('\n').slice(1, 15).map(l => l.replace(/^\/\/ ?/, '')).join('\n'));
 }

@@ -413,6 +413,26 @@ try {
     r = await call2('GET', '/api/usage', null, anna);
     assert.equal(r.status, 401, 'a deleted account is signed out');
 
+    // admin rights go with the account, not just the address
+    const side3 = new DatabaseSync(path.join(dir2, 'flashcards.db'));
+    const boss2 = (await call2('POST', '/api/login', { email: 'boss@example.com', auth_hash: 'a'.repeat(44), device_name: 'x' })).json.token;
+    assert.equal((await call2('GET', '/api/admin/summary', null, boss2)).status, 200);
+    side3.prepare("DELETE FROM users WHERE email = 'boss@example.com'").run();
+    r = await join('boss@example.com');
+    assert.equal(r.status, 409, "a deleted admin's address can't be signed up for");
+    const other = (await join('other@example.com')).json.token;
+    side3.prepare("UPDATE users SET email = 'boss@example.com' WHERE email = 'other@example.com'").run();
+    assert.equal((await call2('GET', '/api/admin/summary', null, other)).status, 403, 'the address alone is not enough');
+    r = await call2('GET', '/api/usage', null, other);
+    assert.equal(r.json.limited, true, 'and gets no admin limit');
+    side3.prepare("DELETE FROM users WHERE email = 'boss@example.com'").run();
+    side3.close();
+    const { execFileSync } = await import('node:child_process');
+    assert.match(execFileSync(process.execPath, ['admin.js', 'reset-admin', 'boss@example.com'], { env: { ...process.env, DATA_DIR: dir2 } }).toString(), /Done/);
+    const newBoss = await join('boss@example.com');
+    assert.equal(newBoss.status, 200, 'free again after reset-admin');
+    assert.equal((await call2('GET', '/api/admin/summary', null, newBoss.json.token)).status, 200, 'and the new account is the admin');
+
     // the page
     r = await call2('GET', '/admin');
     assert.equal(r.status, 200);
