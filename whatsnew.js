@@ -8,6 +8,14 @@
 // No `at`: no Show me. PUBLISHED holds when each version went live (UTC), filled in by tools/publish.py.
 const FIRST_SET = ['.set-row .row-title'];
 const WHATS_NEW = {
+  '1.1.02': [
+    {text: 'The eye button at the top replaces day and night. It holds Day or Night, and a choice of two styles: Lined, or Plain with rounded cards.', go: '#/', at: '#view-button'},
+    {text: 'Each set: press and hold a tile, then drag it anywhere to rearrange. The others move aside, and a blue dashed outline shows where it will land.', go: '#/library', open: FIRST_SET, at: '.mode-tiles', more: 'The order you choose applies to every set.'},
+    {text: 'Flashcards is now the second tile by default.', go: '#/library', open: FIRST_SET, at: '[data-mode="cards"]'},
+    {text: 'Edit a set: press and hold a card to move it up or down the list.', go: '#/new', at: '.edit-row'},
+    {text: 'Learn from scratch: Back and Forward. Back returns to the last step and undoes it. Forward moves on without marking the card.'},
+    {text: 'Cards: words now sit a few pixels above the line.'}
+  ],
   '1.1.01': [
     {text: 'Settings: check for updates by hand, read every past update here, and choose whether this list appears after an update.', go: '#/settings', at: '.updates-section'},
     {text: 'Each set now has a trophy shelf. Finish a round in any mode to win a reward, and tap one to see what it was for.', go: '#/library', open: FIRST_SET, at: '.trophy-shelf', more: 'The better the round, the better the reward, with special ones for knowing a whole set.'},
@@ -29,7 +37,7 @@ const WHATS_NEW = {
     {text: 'The app tracks how well you know each card and brings hard ones back sooner. Your Library shows the progress on each set.', go: '#/library', at: '.meter'},
     {text: 'Reset progress puts every card in a set back to new.', go: '#/library', open: FIRST_SET, at: '.set-actions'},
     {text: 'Sets can have a description, a created date and a colour. The demo sets have tidier titles to match.', go: '#/library', at: '.row-description'},
-    {text: 'The sun button switches between light and dark.', go: '#/', at: '#theme-button'},
+    {text: 'Light and dark colours to choose from.', go: '#/', at: '#view-button'},
     {text: 'Show first has moved from the top of the page into the modes, with a new Mixed option.'},
     {text: 'A set with no cards can no longer be saved or studied.'}
   ],
@@ -38,6 +46,7 @@ const WHATS_NEW = {
   '1.0.00': [{text: 'Open Flashcards goes live: make sets, flip and swipe through them, and import or export them as JSON.'}]
 };
 const PUBLISHED = {
+  '1.1.02': '2026-11-02T14:29:30Z',
   '1.1.01': '2026-11-02T14:06:17Z',
   '1.1.00': '2026-11-02T13:36:09Z',
   '1.0.02': '2026-11-02T12:27:01Z',

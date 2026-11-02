@@ -1,5 +1,5 @@
 // Open Flashcards: browser-only. Data lives in localStorage; import/export uses the open JSON format described in README.md.
-const STORAGE_KEY = 'open-flashcards:v1', THEME_KEY = 'open-flashcards:theme', DEMO_VERSION = 2, view_el = document.getElementById('view'), topbar_actions_el = document.getElementById('topbar-actions'), page_title_el = document.getElementById('page-title'), import_input_el = document.getElementById('import-file');
+const STORAGE_KEY = 'open-flashcards:v1', THEME_KEY = 'open-flashcards:theme', STYLE_KEY = 'open-flashcards:style', view_button_el = document.getElementById('view-button'), DEMO_VERSION = 2, view_el = document.getElementById('view'), topbar_actions_el = document.getElementById('topbar-actions'), page_title_el = document.getElementById('page-title'), import_input_el = document.getElementById('import-file');
 // The same twelve soft hues as Sift. A set keeps the colour it was given (`colour`); until then its colour comes from its id, so it never changes.
 const TINTS = [['rose', '#ff9aa2'], ['coral', '#ffab91'], ['peach', '#ffc285'], ['butter', '#ffe27a'], ['lime', '#d4ef8a'], ['mint', '#9be7a8'], ['teal', '#86e3d0'], ['sky', '#8fd3ff'], ['periwinkle', '#a8b8ff'], ['lavender', '#c3a6ff'], ['orchid', '#f4a6e0'], ['sand', '#e3c9a8']];
 let app_state = load_state(), study_session = null, editor_has_changes = null, skip_next_route = false, last_list_hash = '#/';
@@ -182,21 +182,22 @@ function view_set(card_set) {
     const is_open = studyable_count >= mode_item.min_cards, art_el = el('span', {class: 'mode-art', 'aria-hidden': 'true'});
     art_el.innerHTML = '<svg viewBox="0 0 64 64">' + mode_item.art + '</svg>';
     const tile_nodes = [art_el, el('span', {class: 'mode-text'}, el('strong', {}, mode_item.label + (mode_item.key === 'revise' && due_count ? ' (' + due_count + ')' : '')), el('span', {class: 'mode-blurb'}, is_open ? mode_item.blurb : 'Needs at least ' + mode_item.min_cards + ' complete card' + (mode_item.min_cards > 1 ? 's.' : '.')))];
-    return is_open ? el('a', {class: 'mode-tile', style: '--tint:' + mode_item.tint, href: play_hash(card_set, mode_item.key)}, ...tile_nodes) : el('span', {class: 'mode-tile is-off', style: '--tint:' + mode_item.tint}, ...tile_nodes);
+    return is_open ? el('a', {class: 'mode-tile', style: '--tint:' + mode_item.tint, href: play_hash(card_set, mode_item.key), draggable: 'false', 'data-mode': mode_item.key}, ...tile_nodes) : el('span', {class: 'mode-tile is-off', style: '--tint:' + mode_item.tint, 'data-mode': mode_item.key}, ...tile_nodes);
   }
-  function mode_group(group_name) { return el('div', {class: 'mode-group'}, el('h2', {class: 'list-heading'}, group_name), el('div', {class: 'mode-tiles'}, ...MODES.filter(mode_item => mode_item.group === group_name).map(mode_tile))); }
+  function mode_group(group_name) { return el('div', {class: 'mode-group'}, el('h2', {class: 'list-heading'}, group_name), el('div', {class: 'mode-tiles', 'data-group': group_name}, ...modes_in_group(group_name).map(mode_tile))); }
   render(card_set.title, [el('a', {class: 'button', href: '#/edit/' + card_set.id}, 'Edit')], [
     el('div', {class: 'set-hero', style: tint_style(card_set)},
       card_set.description ? el('p', {}, card_set.description) : null,
       el('span', {class: 'date-chips'}, el('span', {class: 'date-chip'}, el('b', {}, card_set.cards.length), 'cards'), ...date_chips(card_set).childNodes),
       studyable_count ? el('div', {class: 'hero-progress'}, progress_meter(card_set), el('div', {class: 'form-note'}, counts.mastered + ' mastered · ' + counts.familiar + ' familiar · ' + counts.learning + ' learning · ' + counts.new + ' new' + (due_count ? ' · ' + due_count + ' due now' : ''))) : null,
       !studyable_count ? el('div', {class: 'form-note'}, 'Add at least one card with a term and a definition to start learning.') : skipped_count ? el('div', {class: 'form-note'}, skipped_count + ' card(s) are missing a side and are left out.') : null),
-    trophy_shelf(card_set), mode_group('Learn'), mode_group('Practise'), mode_group('Games'),
+    trophy_shelf(card_set), el('div', {class: 'mode-areas'}, mode_group('Learn'), mode_group('Practise'), mode_group('Games')), el('div', {class: 'muted mode-hint'}, 'Press and hold a tile to move it.'),
     el('div', {class: 'button-row set-actions'}, el('button', {onclick: () => { if (!confirm('Reset your progress on "' + card_set.title + '"? Every card goes back to new. Your trophies stay.')) return; delete card_set.progress; delete card_set.best_speed; delete card_set.last_studied; save_state(); view_set(card_set); }}, '↺ Reset progress'),
       el('button', {onclick: () => download_json(safe_file_name(card_set.title), [card_set])}, 'Export set'),
       el('button', {onclick: () => { const copied_set = JSON.parse(JSON.stringify(card_set)); copied_set.id = new_id(); copied_set.title = card_set.title + ' (copy)'; delete copied_set.last_studied; delete copied_set.last_opened; delete copied_set.progress; delete copied_set.best_speed; delete copied_set.trophies; app_state.sets.push(copied_set); save_state(); location.hash = '#/set/' + copied_set.id; }}, 'Duplicate'),
       el('button', {class: 'danger', onclick: () => { if (!confirm('Delete "' + card_set.title + '"? This cannot be undone.')) return; app_state.sets = app_state.sets.filter(other_set => other_set.id !== card_set.id); save_state(); location.hash = '#/library'; }}, 'Delete set'))
   ]);
+  press_and_drag(view_el.querySelector('.mode-areas'), {item_selector: '.mode-tile', empty_selector: '.mode-tiles', on_drop: () => { const saved_layout = {}; view_el.querySelectorAll('.mode-tiles').forEach(group_el => { saved_layout[group_el.dataset.group] = Array.from(group_el.querySelectorAll('.mode-tile')).map(tile_el => tile_el.dataset.mode); }); app_state.mode_layout = saved_layout; save_state(); }});
 }
 
 // There is always a blank row at the end, so Tab moves term, definition, next term, next definition without stopping. Date and colour are skipped by Tab, so About goes straight to the first term.
@@ -213,10 +214,11 @@ function view_edit(card_set, is_new) {
   function fit_height(textarea_el) { if (!textarea_el.isConnected) return; textarea_el.style.height = 'auto'; textarea_el.style.height = textarea_el.scrollHeight + 2 + 'px'; }
   function card_input(draft_card, side_key, side_label, row_el) { return el('textarea', {rows: 1, class: 'line-field', placeholder: side_label, 'aria-label': side_label, onfocus: focus_event => fit_height(focus_event.target), oninput: input_event => { draft_card[side_key] = input_event.target.value; fit_height(input_event.target); row_el.classList.toggle('blank-row', is_blank(draft_card)); add_blank_row(); error_el.hidden = true; }}, draft_card[side_key]); }
   function make_row(draft_card) {
-    const row_el = el('div', {class: 'edit-row' + (is_blank(draft_card) ? ' blank-row' : '')}, el('div', {class: 'line-margin line-number'}));
+    const row_el = el('div', {class: 'edit-row' + (is_blank(draft_card) ? ' blank-row' : '')}, el('div', {class: 'line-margin line-number'})); row_el.draft_card = draft_card;
     row_el.append(card_input(draft_card, 'term', 'Term', row_el), card_input(draft_card, 'definition', 'Definition', row_el), el('button', {class: 'remove-card', title: 'Remove card', 'aria-label': 'Remove card', tabindex: -1, onclick: () => { draft_cards.splice(draft_cards.indexOf(draft_card), 1); row_el.remove(); add_blank_row(); }}, '✕'));
     rows_el.appendChild(row_el); row_el.querySelectorAll('textarea').forEach(fit_height);
   }
+  press_and_drag(rows_el, {item_selector: '.edit-row', fixed_selector: '.blank-row', skip_selector: '.remove-card', one_axis: true, on_drop: () => { draft_cards.splice(0, draft_cards.length, ...Array.from(rows_el.children).map(row_el => row_el.draft_card)); }});
   function add_blank_row() { if (draft_cards.length && is_blank(draft_cards[draft_cards.length - 1])) return; const blank_card = {term: '', definition: ''}; draft_cards.push(blank_card); make_row(blank_card); }
   function draw_rows() { rows_el.replaceChildren(); draft_cards.forEach(make_row); add_blank_row(); }
   function bulk_add() {
@@ -237,7 +239,7 @@ function view_edit(card_set, is_new) {
   const cancel_hash = is_new ? last_list_hash : '#/set/' + card_set.id;
   render(is_new ? 'New set' : 'Edit set', [el('a', {class: 'button', href: cancel_hash}, 'Cancel'), el('button', {class: 'primary', onclick: save_edits}, 'Save')], [
     el('div', {class: 'ruled'}, el('div', {class: 'detail-row'}, el('div', {class: 'line-margin'}, 'Name'), title_input_el), el('div', {class: 'detail-row'}, el('div', {class: 'line-margin'}, 'About'), description_input_el), el('div', {class: 'detail-row'}, el('div', {class: 'line-margin'}, 'Created'), created_input_el), el('div', {class: 'detail-row'}, el('div', {class: 'line-margin'}, 'Colour'), colour_pick_el)),
-    el('h2', {class: 'edit-heading'}, 'Cards'), el('div', {class: 'muted'}, 'Press Tab to move from term to definition to the next term. A new row appears as you type.'),
+    el('h2', {class: 'edit-heading'}, 'Cards'), el('div', {class: 'muted'}, 'Press Tab to move from term to definition to the next term. A new row appears as you type. Press and hold a card to move it.'),
     rows_el, error_el,
     el('div', {class: 'button-row'}, el('button', {class: 'primary', onclick: save_edits}, 'Save'), el('button', {onclick: bulk_add}, 'Paste list'),
       el('button', {onclick: () => { draft_cards.forEach(draft_card => { const swapped_term = draft_card.term; draft_card.term = draft_card.definition; draft_card.definition = swapped_term; }); draw_rows(); }}, 'Swap all sides'))
@@ -317,7 +319,7 @@ function view_settings() {
 function route() {
   const route_parts = location.hash.replace(/^#\/?/, '').split('/'), route_name = route_parts[0], route_set = find_set(decodeURIComponent(route_parts[1] || ''));
   const is_home = !['library', 'settings', 'new', 'set', 'edit', 'play'].includes(route_name) || (['set', 'edit', 'play'].includes(route_name) && !route_set);
-  editor_has_changes = null;
+  editor_has_changes = null; close_view_menu();
   study_session = null; clear_mode_timers();
   if (['set', 'edit', 'play'].includes(route_name) && route_set) { route_set.last_opened = Date.now(); save_state(); }
   if (is_home) last_list_hash = '#/'; else if (route_name === 'library') last_list_hash = '#/library';
@@ -338,7 +340,21 @@ window.addEventListener('hashchange', hash_event => {
   route();
 });
 window.addEventListener('beforeunload', unload_event => { if (editor_has_changes && editor_has_changes()) unload_event.preventDefault(); });
-document.getElementById('theme-button').addEventListener('click', () => { try { localStorage.setItem(THEME_KEY, document.documentElement.dataset.theme === 'glass' ? 'light' : 'glass'); } catch (storage_err) {} apply_theme(); });
+// ---- View menu ----
+function save_view_choice(storage_key, chosen_value) { try { localStorage.setItem(storage_key, chosen_value); } catch (storage_err) {} apply_theme(); }
+function close_view_menu() { const menu_el = document.querySelector('.view-menu'); if (!menu_el) return; menu_el.remove(); view_button_el.setAttribute('aria-expanded', 'false'); removeEventListener('pointerdown', close_if_outside, true); removeEventListener('keydown', close_on_escape, true); }
+function close_if_outside(pointer_event) { if (!pointer_event.target.closest('.view-menu, #view-button')) close_view_menu(); }
+function close_on_escape(key_event) { if (key_event.key === 'Escape') { key_event.stopPropagation(); close_view_menu(); view_button_el.focus(); } }
+function open_view_menu() {
+  function choice_row(storage_key, current_value, choices) { const buttons = choices.map(choice_item => el('button', {'aria-pressed': String(choice_item.value === current_value), onclick: () => { save_view_choice(storage_key, choice_item.value); buttons.forEach((button_el, button_index) => button_el.setAttribute('aria-pressed', String(choices[button_index].value === choice_item.value))); }}, choice_item.sample, choice_item.label)); return el('div', {class: 'view-choices'}, ...buttons); }
+  const button_rect = view_button_el.getBoundingClientRect(), root_data = document.documentElement.dataset;
+  const menu_el = el('div', {class: 'view-menu', role: 'dialog', 'aria-label': 'View settings', style: 'top:' + (button_rect.bottom + 8) + 'px;right:' + Math.max(12, innerWidth - button_rect.right) + 'px'},
+    el('h3', {}, 'Style'), choice_row(STYLE_KEY, root_data.style, [{value: 'lined', label: 'Lined', sample: el('span', {class: 'view-sample lined'})}, {value: 'plain', label: 'Plain', sample: el('span', {class: 'view-sample plain'}, el('i'), el('i'))}]),
+    el('h3', {}, 'Day or night'), choice_row(THEME_KEY, root_data.theme, [{value: 'light', label: '☀ Day'}, {value: 'glass', label: '☾ Night'}]));
+  document.body.appendChild(menu_el); view_button_el.setAttribute('aria-expanded', 'true');
+  addEventListener('pointerdown', close_if_outside, true); addEventListener('keydown', close_on_escape, true);
+}
+view_button_el.addEventListener('click', () => { if (document.querySelector('.view-menu')) close_view_menu(); else open_view_menu(); });
 route();
 seed_demo_sets();
 upgrade_demo_sets();
