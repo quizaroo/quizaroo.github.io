@@ -42,11 +42,19 @@ function download_json(file_name, sets_to_export) {
 function safe_file_name(title_text) { return (title_text.replace(/[\\/:*?"<>|]+/g, '').trim() || 'set') + '.json'; }
 import_input_el.addEventListener('change', () => { const chosen_file = import_input_el.files[0]; if (!chosen_file) return; chosen_file.text().then(import_json); import_input_el.value = ''; });
 
+// ---- Demo sets ----
+function is_first_run() { try { return localStorage.getItem(STORAGE_KEY) === null; } catch (storage_err) { return false; } }
+function fetch_demo_sets() { return fetch('demo-sets.json').then(demo_response => demo_response.json()).then(demo_json => demo_json.sets.map(normalise_set).filter(Boolean)); }
+// Seeds only a browser with nothing saved; saved data, even an empty library, is never touched.
+function seed_demo_sets() { if (is_first_run()) fetch_demo_sets().then(demo_sets => { if (!is_first_run()) return; app_state.sets = demo_sets; save_state(); route(); }).catch(() => {}); }
+// Adds only the demo sets that are missing, so an edited copy is never replaced.
+function add_missing_demo_sets() { fetch_demo_sets().then(demo_sets => { const missing_sets = demo_sets.filter(demo_set => !find_set(demo_set.id)); app_state.sets.push(...missing_sets); save_state(); alert('Added ' + missing_sets.length + ' demo set(s).'); route(); }).catch(() => alert('Could not load the demo sets.')); }
+
 // ---- Views ----
 function view_library() {
   const sorted_sets = app_state.sets.slice().sort((set_a, set_b) => set_a.title.localeCompare(set_b.title));
   render([el('button', {onclick: () => import_input_el.click()}, 'Import'), el('button', {onclick: () => download_json('open-flashcards-all.json', app_state.sets)}, 'Export all')], [
-    el('div', {class: 'button-row'}, el('button', {class: 'primary', onclick: () => { const created_set = {id: new_id(), title: 'New set', cards: [{term: '', definition: ''}]}; app_state.sets.push(created_set); save_state(); location.hash = '#/edit/' + created_set.id; }}, '+ New set'),
+    el('div', {class: 'button-row'}, el('button', {class: 'primary', onclick: () => { const created_set = {id: new_id(), title: 'New set', cards: [{term: '', definition: ''}]}; app_state.sets.push(created_set); save_state(); location.hash = '#/edit/' + created_set.id; }}, '+ New set'), el('button', {onclick: add_missing_demo_sets}, 'Load demo sets'),
       el('label', {class: 'toggle-line'}, 'Show first:', el('select', {onchange: change_event => { app_state.default_front = change_event.target.value; save_state(); }}, el('option', {value: 'term'}, 'Term'), el('option', {value: 'definition'}, 'Definition')))),
     sorted_sets.length ? el('div', {class: 'set-list'}) : el('p', {class: 'empty muted'}, 'No sets yet. Create one, or import a .json file.')
   ]);
@@ -160,3 +168,4 @@ function route() {
 }
 window.addEventListener('hashchange', route);
 route();
+seed_demo_sets();

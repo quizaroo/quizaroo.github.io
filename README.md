@@ -9,6 +9,7 @@ A simple, open-source flashcards app that runs entirely in your browser. No acco
 - Choose which side shows first (globally or per set), shuffle on/off, swap all sides of a set
 - Import and export single sets or everything as JSON
 - Your sets are stored in your browser (localStorage). Export regularly if you want a backup.
+- A browser with nothing saved starts with the demo sets from `demo-sets.json`. "Load demo sets" adds any that are missing and never changes your existing sets.
 
 Add it to your phone's home screen from the browser's Share menu to use it like an app.
 
