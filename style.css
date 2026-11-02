@@ -49,7 +49,8 @@ button.danger { color: var(--danger); }
 #theme-button { border-color: transparent; background: none; color: var(--muted); }
 .button-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 14px 0; }
 .toggle-line { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--muted); }
-select { padding: 7px 10px; font-size: 14px; color: var(--text); background: var(--glass-track); border: 1px solid var(--glass-border); border-radius: 12px; }
+select { padding: 7px 10px; font-size: 14px; color: var(--text); background: var(--sheet); border: 1px solid var(--glass-border); border-radius: 12px; }
+option { color: var(--text); background: var(--sheet); } /* the open list: some browsers draw it white whatever the theme */
 input[type=checkbox], input[type=radio] { accent-color: var(--accent); }
 @media (pointer: coarse) { select, textarea, input { font-size: 16px; } }
 .form-error { margin: 12px 0; padding: 9px 14px; border-radius: 12px; background: var(--learn); color: var(--on-tint); font-size: 15px; }
