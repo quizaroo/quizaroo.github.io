@@ -1,19 +1,19 @@
 // Learning modes. Loaded before app.js, which supplies el, render, save_state and the set helpers.
 const MODES = [
-  {key: 'vocab', label: 'View all vocab', emoji: '📋', group: 'Learn', tint: '#8fd3ff', min_cards: 1},
-  {key: 'learn', label: 'Learn from scratch', emoji: '🌱', group: 'Learn', tint: '#9be7a8', min_cards: 1},
-  {key: 'revise', label: 'Revise', emoji: '🔁', group: 'Learn', tint: '#ffc285', min_cards: 1},
-  {key: 'cards', label: 'Flashcards', emoji: '🃏', group: 'Learn', tint: '#a8b8ff', min_cards: 1},
-  {key: 'type', label: 'Type the answer', emoji: '⌨️', group: 'Practise', tint: '#86e3d0', min_cards: 1, how: 'Type the answer, then press Enter.'},
-  {key: 'choice', label: 'Multiple choice', emoji: '🔘', group: 'Practise', tint: '#c3a6ff', min_cards: 2, how: 'Pick the right answer, or press 1 to 4.'},
-  {key: 'truefalse', label: 'True or false', emoji: '⚖️', group: 'Practise', tint: '#ffe27a', min_cards: 2, how: 'Do these two go together? Press ← for false, → for true.'},
-  {key: 'scramble', label: 'Unscramble', emoji: '🔤', group: 'Practise', tint: '#f4a6e0', min_cards: 1, how: 'Tap the letters in the right order.'},
-  {key: 'listen', label: 'Listen and type', emoji: '🎧', group: 'Practise', tint: '#d4ef8a', min_cards: 1, how: 'Listen to the word, then type what it means.', fixed_direction: true},
-  {key: 'test', label: 'Test', emoji: '📝', group: 'Practise', tint: '#ff9aa2', min_cards: 1, how: 'Ten mixed questions. You see your score at the end.'},
-  {key: 'wheel', label: 'Spin the wheel', emoji: '🎡', group: 'Games', tint: '#ffab91', min_cards: 1, how: 'Spin, then answer the word it lands on.'},
-  {key: 'match', label: 'Match pairs', emoji: '🧩', group: 'Games', tint: '#8fd3ff', min_cards: 2, how: 'Tap a word, then its partner. Beat the clock.', fixed_direction: true},
-  {key: 'memory', label: 'Memory', emoji: '🧠', group: 'Games', tint: '#c3a6ff', min_cards: 2, how: 'Turn over two cards at a time to find the pairs.', fixed_direction: true},
-  {key: 'speed', label: 'Speed round', emoji: '⚡', group: 'Games', tint: '#ffe27a', min_cards: 2, how: 'As many right answers as you can in 60 seconds.'}
+  {key: 'vocab', label: 'View all vocab', blurb: 'See every term beside its meaning, to read through or look something up.', art: '<rect x="9" y="10" width="46" height="44" rx="4"/><path d="M9 21h46M9 32h46M9 43h46M28 10v44"/><path d="M14 15.500h9M33 15.500h16M14 26.500h8M33 26.500h12M14 37.500h9M33 37.500h17M14 48.500h7M33 48.500h11"/>', group: 'Learn', tint: '#8fd3ff', min_cards: 1},
+  {key: 'learn', label: 'Learn from scratch', blurb: 'Start new words from nothing, in small batches: see, pick, then type.', art: '<path d="M18 40h28l-3 15a2 2 0 0 1-2 1.500H23a2 2 0 0 1-2-1.500z"/><path d="M15 40h34"/><path d="M32 40V21"/><path d="M32 28c-1-8-7-12-15-12 0 8 6 13 15 12z"/><path d="M32 22c0-7 5-12 14-13 1 8-5 14-14 13z"/>', group: 'Learn', tint: '#9be7a8', min_cards: 1},
+  {key: 'revise', label: 'Revise', blurb: 'Only the cards due today, so words stick for the long term.', art: '<path d="M52 27a21 21 0 0 0-37-8l-5 5"/><path d="M10 13v11h11"/><path d="M12 37a21 21 0 0 0 37 8l5-5"/><path d="M54 51V40H43"/><rect x="24" y="25" width="16" height="14" rx="2"/><path d="M28 30h8M28 34h5"/>', group: 'Learn', tint: '#ffc285', min_cards: 1},
+  {key: 'cards', label: 'Flashcards', blurb: 'Flip through every card and say whether you know it.', art: '<rect x="19" y="9" width="34" height="24" rx="3" transform="rotate(8 36 21)"/><rect x="11" y="24" width="38" height="28" rx="3" transform="rotate(-5 30 38)"/><path d="M19 34l20-2M20 41l21-2M20 47l12-1"/>', group: 'Learn', tint: '#a8b8ff', min_cards: 1},
+  {key: 'type', label: 'Type the answer', blurb: 'Spell each answer yourself, the toughest test of what you remember.', art: '<rect x="6" y="28" width="52" height="27" rx="4"/><path d="M13 35h2M21 35h2M29 35h2M37 35h2M45 35h6M13 41h6M25 41h2M33 41h2M41 41h2M49 41h2M13 48h4M23 48h20M49 48h2"/><path d="M22 9h20M32 9v13M27 22h10"/>', group: 'Practise', tint: '#86e3d0', min_cards: 1, how: 'Type the answer, then press Enter.'},
+  {key: 'choice', label: 'Multiple choice', blurb: 'Pick the right answer from four, a gentle way to get to know new words.', art: '<circle cx="14" cy="13" r="6"/><path d="M26 13h27"/><circle cx="14" cy="32" r="6"/><circle cx="14" cy="32" r="2" fill="currentColor"/><path d="M26 32h27"/><circle cx="14" cy="51" r="6"/><path d="M26 51h27"/><path d="M47 26l4 5 7-9"/>', group: 'Practise', tint: '#c3a6ff', min_cards: 2, how: 'Pick the right answer, or press 1 to 4.'},
+  {key: 'truefalse', label: 'True or false', blurb: 'Decide quickly whether two things belong together.', art: '<path d="M32 8v44M20 56h24M32 52c-3 0-6 2-7 4M32 52c3 0 6 2 7 4"/><path d="M12 15h40"/><path d="M12 15L5 34M12 15l7 19M3 34a9 6 0 0 0 18 0zM52 15l-7 19M52 15l7 19M43 34a9 6 0 0 0 18 0z"/><circle cx="32" cy="11" r="3"/>', group: 'Practise', tint: '#ffe27a', min_cards: 2, how: 'Do these two go together? Press ← for false, → for true.'},
+  {key: 'scramble', label: 'Unscramble', blurb: 'Rebuild the word from its letters to practise spelling.', art: '<rect x="7" y="10" width="20" height="20" rx="3" transform="rotate(-9 17 20)"/><path d="M12.5 26l4-11 5 9.500M14.5 22h6"/><rect x="36" y="7" width="20" height="20" rx="3" transform="rotate(10 46 17)"/><path d="M42 11v12M42 11h5c4 0 4 5 0 5h-5M42 16h6c4 0 4 6 0 6h-6"/><rect x="20" y="37" width="20" height="20" rx="3" transform="rotate(5 30 47)"/><path d="M35 43a5.5 5.5 0 1 0 0 8"/>', group: 'Practise', tint: '#f4a6e0', min_cards: 1, how: 'Tap the letters in the right order.'},
+  {key: 'listen', label: 'Listen and type', blurb: 'Hear the word and type its meaning, to train your ear.', art: '<path d="M11 39V31a21 21 0 0 1 42 0v8"/><rect x="6" y="37" width="10" height="17" rx="4"/><rect x="48" y="37" width="10" height="17" rx="4"/><path d="M24 40v6M29 36v14M34 33v20M39 38v10"/>', group: 'Practise', tint: '#d4ef8a', min_cards: 1, how: 'Listen to the word, then type what it means.', fixed_direction: true},
+  {key: 'test', label: 'Test', blurb: 'Ten mixed questions and a score, to see where you stand.', art: '<rect x="12" y="11" width="40" height="46" rx="4"/><rect x="24" y="6" width="16" height="9" rx="2"/><path d="M19 26l3 3 5-6M33 26h12M19 37l3 3 5-6M33 37h12M20 47l6 6M26 47l-6 6M33 50h12"/>', group: 'Practise', tint: '#ff9aa2', min_cards: 1, how: 'Ten mixed questions. You see your score at the end.'},
+  {key: 'wheel', label: 'Spin the wheel', blurb: 'Spin to land on a random word, then answer it.', art: '<circle cx="32" cy="36" r="23"/><circle cx="32" cy="36" r="3"/><path d="M32 13v20M32 39v20M9 36h20M35 36h20M15.7 19.700l14 14M34.3 38.300l14 14M48.3 19.700l-14 14M29.7 38.300l-14 14"/><path d="M26 4h12l-6 11z"/>', group: 'Games', tint: '#ffab91', min_cards: 1, how: 'Spin, then answer the word it lands on.'},
+  {key: 'match', label: 'Match pairs', blurb: 'Pair terms with their meanings against the clock.', art: '<path d="M9 19h11a4.5 4.5 0 1 1 9 0h4v9a4.5 4.5 0 1 1 0 9v8H9z"/><path d="M40 26h15v28H31V43a4.5 4.5 0 1 0 0-9"/><path d="M40 13l4 4 8-9"/>', group: 'Games', tint: '#8fd3ff', min_cards: 2, how: 'Tap a word, then its partner. Beat the clock.', fixed_direction: true},
+  {key: 'memory', label: 'Memory', blurb: 'Find pairs among hidden cards, building recall as you play.', art: '<rect x="8" y="8" width="21" height="21" rx="3"/><rect x="35" y="8" width="21" height="21" rx="3"/><rect x="8" y="35" width="21" height="21" rx="3"/><rect x="35" y="35" width="21" height="21" rx="3"/><path d="M41 15c1-3 8-3 9 1 1 3-4 4-4 7M46 25.500v.100"/><path d="M18.5 13l1.8 3.7 4 .600-3 2.8.800 4-3.6-1.9-3.6 1.9.700-4-3-2.8 4.1-.600zM45.5 40l1.8 3.7 4 .600-3 2.8.800 4-3.6-1.9-3.6 1.9.700-4-3-2.8 4.1-.600z"/><path d="M14 41l9 9M23 41l-9 9"/>', group: 'Games', tint: '#c3a6ff', min_cards: 2, how: 'Turn over two cards at a time to find the pairs.', fixed_direction: true},
+  {key: 'speed', label: 'Speed round', blurb: 'As many right answers as you can in 60 seconds, to build speed.', art: '<circle cx="32" cy="36" r="22"/><path d="M26 6h12M32 6v8M49 17l4 4"/><path d="M35 21l-9 16h7l-3 13 10-17h-7z"/>', group: 'Games', tint: '#ffe27a', min_cards: 2, how: 'As many right answers as you can in 60 seconds.'}
 ];
 function find_mode(mode_key) { return MODES.find(mode_item => mode_item.key === mode_key); }
 
@@ -41,13 +41,23 @@ function play_hash(card_set, mode_key) { return '#/play/' + card_set.id + '/' + 
 const DIRECTION_NAMES = {term: 'Term first', definition: 'Definition first', mixed: 'Mixed'};
 function direction_of(card_set) { return card_set.front === 'definition' || card_set.front === 'mixed' ? card_set.front : 'term'; }
 function front_side(card_set, card_index) {
+  study_session.shown_index = card_index;
   const direction_name = direction_of(card_set); if (direction_name !== 'mixed') return direction_name;
   study_session.mixed_sides = study_session.mixed_sides || {};
   if (!study_session.mixed_sides[card_index]) study_session.mixed_sides[card_index] = Math.random() < 0.5 ? 'term' : 'definition';
   return study_session.mixed_sides[card_index];
 }
-function card_sides(card_set, card_index) { const front_key = front_side(card_set, card_index), back_key = front_key === 'term' ? 'definition' : 'term'; return {prompt: card_set.cards[card_index][front_key], answer: card_set.cards[card_index][back_key], back_key}; }
-function direction_button(card_set) { const direction_order = ['term', 'definition', 'mixed']; return el('button', {class: 'direction-button', title: 'Change which side you are shown', onclick: () => { card_set.front = direction_order[(direction_order.indexOf(direction_of(card_set)) + 1) % 3]; save_state(); if (study_session) study_session.mixed_sides = null; view_mode(card_set, study_session ? study_session.mode : 'vocab'); }}, DIRECTION_NAMES[direction_of(card_set)] + ' ⇄'); }
+function card_sides(card_set, card_index) { const front_key = front_side(card_set, card_index), back_key = front_key === 'term' ? 'definition' : 'term'; return {prompt: card_set.cards[card_index][front_key], answer: card_set.cards[card_index][back_key], front_key, back_key}; }
+// Takes effect on the card on screen. Choosing Mixed turns that card over, so the change always shows.
+function set_direction(card_set, new_direction) {
+  if (direction_of(card_set) === new_direction) return;
+  const shown_index = study_session.shown_index, is_shown = shown_index !== undefined, shown_side = is_shown ? front_side(card_set, shown_index) : null;
+  card_set.front = new_direction; save_state();
+  study_session.mixed_sides = new_direction === 'mixed' && is_shown ? {[shown_index]: shown_side === 'term' ? 'definition' : 'term'} : null;
+  view_mode(card_set, study_session.mode);
+}
+function switch_buttons(option_names, current_name, on_pick) { return el('div', {class: 'direction-switch', role: 'group', 'aria-label': 'Which side shows first'}, ...option_names.map(option_name => el('button', {'aria-pressed': String(option_name === current_name), onclick: () => on_pick(option_name)}, DIRECTION_NAMES[option_name]))); }
+function direction_switch(card_set) { return switch_buttons(['term', 'definition', 'mixed'], direction_of(card_set), new_direction => set_direction(card_set, new_direction)); }
 
 // ---- Checking typed answers ----
 function plain_answer(answer_text) { return answer_text.normalize('NFC').toLowerCase().replace(/́/g, '').replace(/[’ʼ`´]/g, "'").replace(/\([^)]*\)/g, ' ').replace(/[.!?*]/g, ' ').replace(/\s+/g, ' ').trim(); }
@@ -71,12 +81,15 @@ function later(run_later, delay_ms) { mode_timers.push(setTimeout(run_later, del
 function mode_frame(card_set, mode_item, top_nodes, body_nodes) {
   clear_mode_timers();
   render(mode_item.label, [el('a', {class: 'button', href: '#/set/' + card_set.id}, 'Done')], [el('div', {class: 'study-wrap mode-wrap', style: tint_style(card_set)},
-    el('div', {class: 'counts'}, el('span', {class: 'muted mode-status'}, ...top_nodes), mode_item.fixed_direction ? null : direction_button(card_set)),
+    el('div', {class: 'counts'}, el('span', {class: 'muted mode-status'}, ...top_nodes), mode_item.fixed_direction ? null : direction_switch(card_set)),
     ...body_nodes,
     mode_item.how ? el('div', {class: 'muted'}, mode_item.how) : null)]);
 }
 function session_progress() { return el('div', {class: 'progress'}, el('div', {style: 'width:' + (100 * study_session.position / Math.max(1, study_session.queue.length)) + '%'})); }
 function prompt_card(prompt_text) { return el('div', {class: 'prompt-card'}, prompt_text); }
+const SIDE_NAMES = {term: 'Term', definition: 'Definition'};
+// Both sides written on the paper's lines, each named in the margin.
+function pair_card(front_key, front_text, back_text) { const back_key = front_key === 'term' ? 'definition' : 'term'; return el('div', {class: 'prompt-card pair-card'}, el('div', {class: 'pair-row'}, el('span', {class: 'pair-label'}, SIDE_NAMES[front_key]), el('div', {class: 'pair-text'}, front_text)), el('div', {class: 'pair-row'}, el('span', {class: 'pair-label'}, SIDE_NAMES[back_key]), el('div', {class: 'pair-text'}, back_text))); }
 function answer_panel(is_right, panel_text, extra_nodes) { return el('div', {class: 'answer-panel ' + (is_right ? 'is-right' : 'is-wrong'), role: 'status'}, el('strong', {}, is_right ? 'Right' : 'Not quite'), panel_text ? el('div', {}, panel_text) : null, ...(extra_nodes || [])); }
 function next_button(run_next) { return el('button', {class: 'primary', 'data-key': 'Enter', onclick: run_next}, 'Next'); }
 function start_mode_session(card_set, mode_key, card_indexes) { study_session = {set_id: card_set.id, mode: mode_key, queue: card_indexes, position: 0, known: [], learning: [], right: 0, wrong: 0, missed: []}; }
@@ -118,7 +131,7 @@ function ask_true_false(card_set, mode_item, card_index, finish) {
   const sides = card_sides(card_set, card_index), wrong_options = other_answers(card_set, card_index, sides.back_key, 1), is_true_pair = !wrong_options.length || Math.random() < 0.5, shown_answer = is_true_pair ? sides.answer : wrong_options[0], result_el = el('div', {class: 'answer-slot'});
   function pick(said_true) { buttons_el.querySelectorAll('button').forEach(button_el => { button_el.disabled = true; }); const is_right = said_true === is_true_pair; if (is_right) { result_el.replaceChildren(answer_panel(true)); later(() => finish(true), 600); return; } const next_el = next_button(() => finish(false)); result_el.replaceChildren(answer_panel(false, sides.prompt + ' = ' + sides.answer, [next_el])); next_el.focus(); }
   const buttons_el = el('div', {class: 'study-buttons'}, el('button', {class: 'learn-button', 'data-key': 'ArrowLeft', onclick: () => pick(false)}, '← False'), el('button', {class: 'know-button', 'data-key': 'ArrowRight', onclick: () => pick(true)}, 'True →'));
-  mode_frame(card_set, mode_item, [position_label()], [session_progress(), el('div', {class: 'prompt-card pair-card'}, el('div', {}, sides.prompt), el('div', {class: 'pair-equals'}, '='), el('div', {}, shown_answer)), buttons_el, result_el]);
+  mode_frame(card_set, mode_item, [position_label()], [session_progress(), pair_card(sides.front_key, sides.prompt, shown_answer), buttons_el, result_el]);
 }
 function ask_scramble(card_set, mode_item, card_index, finish) {
   const sides = card_sides(card_set, card_index), target_text = sides.answer.split(/[\/,;]/)[0].replace(/\([^)]*\)/g, '').trim(), target_letters = Array.from(target_text.replace(/\s+/g, '')), built_el = el('div', {class: 'built-word'}), tiles_el = el('div', {class: 'letter-tiles'}), result_el = el('div', {class: 'answer-slot'}), built_tiles = [];
@@ -144,7 +157,7 @@ function view_vocab(card_set) {
   const rows = card_set.cards.map((card_item, card_index) => { const status_name = card_item.term.trim() && card_item.definition.trim() ? card_status(card_set, card_index) : 'new', answer_el = el('div', {class: 'card-definition' + (hide_answers ? ' hidden-answer' : ''), onclick: click_event => click_event.currentTarget.classList.remove('hidden-answer')}, card_item[other_name]); return el('div', {class: 'card-row'}, el('div', {class: 'line-margin line-number'}), el('div', {}, el('span', {class: 'status-dot status-' + status_name, title: status_names[status_name]}), card_item[direction_name]), answer_el); });
   clear_mode_timers();
   render(mode_item.label, [el('a', {class: 'button', href: '#/set/' + card_set.id}, 'Done')], [
-    el('div', {class: 'button-row'}, el('button', {class: 'direction-button', onclick: () => { card_set.front = other_name; save_state(); view_vocab(card_set); }}, DIRECTION_NAMES[direction_name] + ' ⇄'), el('button', {onclick: () => { view_vocab[hide_key] = !hide_answers; view_vocab(card_set); }}, hide_answers ? 'Show answers' : 'Hide answers'),
+    el('div', {class: 'button-row'}, switch_buttons(['term', 'definition'], direction_name, new_direction => { card_set.front = new_direction; save_state(); view_vocab(card_set); }), el('button', {onclick: () => { view_vocab[hide_key] = !hide_answers; view_vocab(card_set); }}, hide_answers ? 'Show answers' : 'Hide answers'),
       el('span', {class: 'status-key muted'}, ...Object.keys(status_names).map(status_name => el('span', {}, el('span', {class: 'status-dot status-' + status_name}), status_names[status_name])))),
     el('div', {class: 'ruled'}, ...rows)]);
 }
@@ -156,7 +169,7 @@ function view_learn(card_set, mode_item) {
     study_session.steps = batch_cards.map(card_index => ({card_index, stage: 0})); study_session.total_steps = study_session.steps.length * 3; study_session.done_steps = 0; study_session.batch_size = batch_cards.length;
   }
   if (!study_session.steps.length) { const left_count = studyable_indexes(card_set).filter(card_index => card_status(card_set, card_index) !== 'mastered').length; mode_frame(card_set, mode_item, [study_session.batch_size + ' cards practised'], [el('div', {class: 'empty'}, el('h2', {class: 'summary-title'}, 'Batch finished'), el('div', {class: 'muted'}, 'You got ' + study_session.right + ' right and ' + study_session.wrong + ' wrong.'), el('div', {class: 'button-row center-row'}, left_count ? el('button', {class: 'primary', onclick: () => { start_mode_session(card_set, 'learn', []); view_learn(card_set, mode_item); }}, 'Next cards') : null, el('a', {class: 'button', href: '#/set/' + card_set.id}, 'Back to set')))]); return; }
-  const current_step = study_session.steps[0], card_item = card_set.cards[current_step.card_index];
+  const current_step = study_session.steps[0];
   function finish_step(is_right) {
     study_session.steps.shift();
     if (is_right) { study_session.right++; study_session.done_steps++; current_step.stage++; if (current_step.stage < 3) study_session.steps.splice(Math.min(2, study_session.steps.length), 0, current_step); else record_answer(card_set, current_step.card_index, true); }
@@ -165,7 +178,7 @@ function view_learn(card_set, mode_item) {
   }
   study_session.position = study_session.done_steps; study_session.queue = {length: study_session.total_steps};
   const status_text = 'Step ' + (study_session.done_steps + 1) + ' of ' + study_session.total_steps;
-  if (current_step.stage === 0) { const got_it_el = el('button', {class: 'primary', 'data-key': 'Enter', onclick: () => finish_step(true)}, 'Got it'); mode_frame(card_set, Object.assign({}, mode_item, {how: 'Have a good look, then press Got it.'}), [status_text], [session_progress(), el('div', {class: 'prompt-card pair-card'}, el('div', {}, card_item.term), el('div', {class: 'pair-equals'}, '='), el('div', {}, card_item.definition)), got_it_el]); return; }
+  if (current_step.stage === 0) { const pair_sides = card_sides(card_set, current_step.card_index), got_it_el = el('button', {class: 'primary', 'data-key': 'Enter', onclick: () => finish_step(true)}, 'Got it'); mode_frame(card_set, Object.assign({}, mode_item, {how: 'Have a good look, then press Got it.'}), [status_text], [session_progress(), pair_card(pair_sides.front_key, pair_sides.prompt, pair_sides.answer), got_it_el]); return; }
   if (current_step.stage === 1 && studyable_indexes(card_set).length > 1) ask_choice(card_set, mode_item, current_step.card_index, finish_step, {status: status_text}); else if (current_step.stage === 1) finish_step(true); else ask_type(card_set, mode_item, current_step.card_index, finish_step, {status: status_text});
 }
 function view_revise_start(card_set) {
@@ -188,21 +201,23 @@ function view_wheel(card_set, mode_item) {
     const reads_backwards = Math.cos(label_angle * Math.PI / 180) < 0, label_el = svg_el('text', {transform: 'rotate(' + label_angle + ') translate(94 0)' + (reads_backwards ? ' rotate(180)' : ''), 'text-anchor': reads_backwards ? 'start' : 'end', 'dominant-baseline': 'middle', 'font-size': 10, fill: '#1f2937'}); label_el.textContent = label_text; wheel_svg.appendChild(label_el);
   });
   wheel_svg.style.transform = 'rotate(' + study_session.spin_angle + 'deg)';
+  study_session.queue = {length: 1}; study_session.position = 0;
+  // Kept on the session, so changing direction redraws this word rather than going back to the wheel.
+  if (study_session.landed) {
+    const landed_card = study_session.landed.card_index, landed_slice = study_session.landed.picked_slice;
+    return ask_type(card_set, mode_item, landed_card, is_right => {
+      record_answer(card_set, landed_card, is_right); if (is_right) study_session.right++; else study_session.wrong++; study_session.turn++; study_session.landed = null;
+      const replacement_cards = weakest_first(card_set, studyable_indexes(card_set).filter(other_index => !wheel_cards.includes(other_index))); if (is_right && replacement_cards.length) wheel_cards[landed_slice] = replacement_cards[0];
+      view_wheel(card_set, mode_item);
+    }, {status: 'Landed on this word'});
+  }
   const spin_button = el('button', {class: 'primary spin-button', 'data-key': 'Enter', onclick: () => {
     spin_button.disabled = true;
     const picked_slice = Math.floor(Math.random() * wheel_cards.length), slice_offset = (Math.random() * 0.7 + 0.15) * slice_angle, landing_angle = 360 - (picked_slice * slice_angle + slice_offset);
     study_session.spin_angle = study_session.spin_angle - (study_session.spin_angle % 360) + 360 * 5 + landing_angle;
     wheel_svg.style.transform = 'rotate(' + study_session.spin_angle + 'deg)';
-    later(() => {
-      const card_index = wheel_cards[picked_slice];
-      ask_type(card_set, mode_item, card_index, is_right => {
-        record_answer(card_set, card_index, is_right); if (is_right) study_session.right++; else study_session.wrong++; study_session.turn++;
-        const replacement_cards = weakest_first(card_set, studyable_indexes(card_set).filter(other_index => !wheel_cards.includes(other_index))); if (is_right && replacement_cards.length) wheel_cards[picked_slice] = replacement_cards[0];
-        view_wheel(card_set, mode_item);
-      }, {status: 'Landed on this word'});
-    }, 3300);
-  }}, '🎡 Spin');
-  study_session.queue = {length: 1}; study_session.position = 0;
+    later(() => { study_session.landed = {card_index: wheel_cards[picked_slice], picked_slice}; view_wheel(card_set, mode_item); }, 3300);
+  }}, 'Spin');
   mode_frame(card_set, mode_item, [study_session.right + ' right · ' + study_session.wrong + ' wrong'], [el('div', {class: 'wheel-holder'}, el('div', {class: 'wheel-pointer'}), wheel_svg), spin_button]);
 }
 function view_match(card_set, mode_item) {

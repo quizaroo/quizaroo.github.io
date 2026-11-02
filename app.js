@@ -177,8 +177,13 @@ function view_import_conflicts(new_sets, conflicts, identical_count) {
 
 function view_set(card_set) {
   const studyable_count = studyable_indexes(card_set).length, skipped_count = card_set.cards.length - studyable_count, counts = progress_counts(card_set), due_count = due_indexes(card_set).length;
-  function mode_pill(mode_item) { const label_text = mode_item.emoji + ' ' + mode_item.label + (mode_item.key === 'revise' && due_count ? ' (' + due_count + ')' : ''); return studyable_count >= mode_item.min_cards ? el('a', {class: 'mode-pill', style: '--tint:' + mode_item.tint, href: play_hash(card_set, mode_item.key)}, label_text) : el('span', {class: 'mode-pill is-off', title: 'Needs at least ' + mode_item.min_cards + ' complete cards'}, label_text); }
-  function mode_group(group_name) { return el('div', {class: 'mode-group'}, el('h2', {class: 'list-heading'}, group_name), el('div', {class: 'mode-pills'}, ...MODES.filter(mode_item => mode_item.group === group_name).map(mode_pill))); }
+  function mode_tile(mode_item) {
+    const is_open = studyable_count >= mode_item.min_cards, art_el = el('span', {class: 'mode-art', 'aria-hidden': 'true'});
+    art_el.innerHTML = '<svg viewBox="0 0 64 64">' + mode_item.art + '</svg>';
+    const tile_nodes = [art_el, el('span', {class: 'mode-text'}, el('strong', {}, mode_item.label + (mode_item.key === 'revise' && due_count ? ' (' + due_count + ')' : '')), el('span', {class: 'mode-blurb'}, is_open ? mode_item.blurb : 'Needs at least ' + mode_item.min_cards + ' complete card' + (mode_item.min_cards > 1 ? 's.' : '.')))];
+    return is_open ? el('a', {class: 'mode-tile', style: '--tint:' + mode_item.tint, href: play_hash(card_set, mode_item.key)}, ...tile_nodes) : el('span', {class: 'mode-tile is-off', style: '--tint:' + mode_item.tint}, ...tile_nodes);
+  }
+  function mode_group(group_name) { return el('div', {class: 'mode-group'}, el('h2', {class: 'list-heading'}, group_name), el('div', {class: 'mode-tiles'}, ...MODES.filter(mode_item => mode_item.group === group_name).map(mode_tile))); }
   render(card_set.title, [el('a', {class: 'button', href: '#/edit/' + card_set.id}, 'Edit')], [
     el('div', {class: 'set-hero', style: tint_style(card_set)},
       card_set.description ? el('p', {}, card_set.description) : null,
@@ -193,14 +198,14 @@ function view_set(card_set) {
   ]);
 }
 
-// There is always a blank row at the end, so Tab moves term, definition, next term, next definition without stopping. Tabbing out of the blank row moves on to the details and Save.
+// There is always a blank row at the end, so Tab moves term, definition, next term, next definition without stopping. Date and colour are skipped by Tab, so About goes straight to the first term.
 function view_edit(card_set, is_new) {
   const draft_cards = card_set.cards.map(card_item => ({term: card_item.term, definition: card_item.definition}));
   const title_input_el = el('input', {type: 'text', class: 'line-field title-field', value: card_set.title, placeholder: 'Set name', 'aria-label': 'Set name'});
   const description_input_el = el('textarea', {rows: 1, class: 'line-field', placeholder: 'What is this set about? (optional)', 'aria-label': 'Description', oninput: input_event => fit_height(input_event.target)}, card_set.description || '');
-  const created_input_el = el('input', {type: 'date', class: 'line-field detail-field', value: card_set.created || (is_new ? today_text() : ''), 'aria-label': 'Created date'});
+  const created_input_el = el('input', {type: 'date', class: 'line-field detail-field', value: card_set.created || (is_new ? today_text() : ''), 'aria-label': 'Created date', tabindex: -1});
   let picked_colour = card_set.colour;
-  const colour_pick_el = el('div', {class: 'swatches', role: 'radiogroup', 'aria-label': 'Colour'}, ...TINTS.map(tint_item => el('input', {type: 'radio', name: 'set-colour', style: '--tint:' + tint_item[1], title: tint_item[0], 'aria-label': tint_item[0], checked: tint_of(card_set) === tint_item[1], onchange: () => { picked_colour = tint_item[0]; }})));
+  const colour_pick_el = el('div', {class: 'swatches', role: 'radiogroup', 'aria-label': 'Colour'}, ...TINTS.map(tint_item => el('input', {type: 'radio', name: 'set-colour', style: '--tint:' + tint_item[1], title: tint_item[0], 'aria-label': tint_item[0], tabindex: -1, checked: tint_of(card_set) === tint_item[1], onchange: () => { picked_colour = tint_item[0]; }})));
   const rows_el = el('div', {class: 'ruled'}), error_el = el('div', {class: 'form-error', role: 'alert'}, 'Add at least one card before saving.');
   error_el.hidden = true;
   function is_blank(draft_card) { return !draft_card.term.trim() && !draft_card.definition.trim(); }
@@ -230,10 +235,9 @@ function view_edit(card_set, is_new) {
   draw_rows();
   const cancel_hash = is_new ? last_list_hash : '#/set/' + card_set.id;
   render(is_new ? 'New set' : 'Edit set', [el('a', {class: 'button', href: cancel_hash}, 'Cancel'), el('button', {class: 'primary', onclick: save_edits}, 'Save')], [
-    el('div', {class: 'ruled'}, el('div', {class: 'detail-row'}, el('div', {class: 'line-margin'}, 'Name'), title_input_el), el('div', {class: 'detail-row'}, el('div', {class: 'line-margin'}, 'About'), description_input_el)),
+    el('div', {class: 'ruled'}, el('div', {class: 'detail-row'}, el('div', {class: 'line-margin'}, 'Name'), title_input_el), el('div', {class: 'detail-row'}, el('div', {class: 'line-margin'}, 'About'), description_input_el), el('div', {class: 'detail-row'}, el('div', {class: 'line-margin'}, 'Created'), created_input_el), el('div', {class: 'detail-row'}, el('div', {class: 'line-margin'}, 'Colour'), colour_pick_el)),
     el('h2', {class: 'edit-heading'}, 'Cards'), el('div', {class: 'muted'}, 'Press Tab to move from term to definition to the next term. A new row appears as you type.'),
     rows_el, error_el,
-    el('div', {class: 'ruled', style: 'margin-top:22px'}, el('div', {class: 'detail-row'}, el('div', {class: 'line-margin'}, 'Created'), created_input_el), el('div', {class: 'detail-row'}, el('div', {class: 'line-margin'}, 'Colour'), colour_pick_el)),
     el('div', {class: 'button-row'}, el('button', {class: 'primary', onclick: save_edits}, 'Save'), el('button', {onclick: bulk_add}, 'Paste list'),
       el('button', {onclick: () => { draft_cards.forEach(draft_card => { const swapped_term = draft_card.term; draft_card.term = draft_card.definition; draft_card.definition = swapped_term; }); draw_rows(); }}, 'Swap all sides'))
   ]);
@@ -266,7 +270,7 @@ function view_study(card_set) {
   card_el.addEventListener('pointercancel', () => { drag_start = null; inner_el.style.transition = ''; inner_el.style.transform = ''; });
   const done_count = study_session.position, total_count = study_session.queue.length;
   render(find_mode(study_session.mode).label, [el('a', {class: 'button', href: '#/set/' + card_set.id}, 'Done')], [el('div', {class: 'study-wrap', style: tint_style(card_set)},
-    el('div', {class: 'counts'}, el('span', {class: 'muted'}, 'Card ' + (done_count + 1) + ' of ' + total_count), el('span', {class: 'button-row tight-row'}, study_session.mode === 'cards' ? el('button', {class: 'direction-button', onclick: () => { app_state.shuffle = !app_state.shuffle; save_state(); study_session = null; view_mode(card_set, 'cards'); }}, app_state.shuffle ? 'Shuffle on' : 'Shuffle off') : null, direction_button(card_set))),
+    el('div', {class: 'counts'}, el('span', {class: 'muted'}, 'Card ' + (done_count + 1) + ' of ' + total_count), el('span', {class: 'button-row tight-row'}, study_session.mode === 'cards' ? el('button', {class: 'shuffle-button', onclick: () => { app_state.shuffle = !app_state.shuffle; save_state(); study_session = null; view_mode(card_set, 'cards'); }}, app_state.shuffle ? 'Shuffle on' : 'Shuffle off') : null, direction_switch(card_set))),
     el('div', {class: 'progress'}, el('div', {style: 'width:' + (100 * done_count / total_count) + '%'})),
     el('div', {class: 'counts'}, el('span', {class: 'learn'}, study_session.learning.length + ' learning'), el('span', {class: 'know'}, study_session.known.length + ' known')),
     card_el,
