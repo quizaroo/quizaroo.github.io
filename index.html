@@ -5,10 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Flashcards">
-<meta name="theme-color" content="#f4f6fb">
+<meta name="theme-color" content="#0f172a">
 <script>
 // Applied before first paint so the page never flashes the other theme.
-function apply_theme() { var theme_name = 'light', style_name = 'plain'; try { theme_name = localStorage.getItem('open-flashcards:theme') || theme_name; style_name = localStorage.getItem('open-flashcards:style') || style_name; } catch (storage_err) {} document.documentElement.dataset.theme = theme_name; document.documentElement.dataset.style = style_name; document.querySelector('meta[name=theme-color]').content = theme_name === 'glass' ? '#0f172a' : '#f4f6fb'; }
+function apply_theme() { var theme_name = 'glass', style_name = 'plain'; try { theme_name = localStorage.getItem('open-flashcards:theme') || theme_name; style_name = localStorage.getItem('open-flashcards:style') || style_name; } catch (storage_err) {} document.documentElement.dataset.theme = theme_name; document.documentElement.dataset.style = style_name; document.querySelector('meta[name=theme-color]').content = theme_name === 'glass' ? '#0f172a' : '#f4f6fb'; }
 apply_theme();
 </script>
 <link rel="manifest" href="manifest.json">
