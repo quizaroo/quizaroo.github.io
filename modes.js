@@ -179,7 +179,7 @@ function learn_counts(card_set) {
 function view_learn(card_set, mode_item) {
   const stage_list = learn_stage_list(card_set);
   function start_over() { if (!confirm('Start Learn from scratch again on this set? Your revision progress and trophies stay.')) return; card_set.learn_stages = {}; save_state(); start_mode_session(card_set, 'learn', []); view_learn(card_set, mode_item); }
-  function start_over_button() { return el('button', {class: 'link-button', onclick: start_over}, 'Start over'); }
+  function start_over_button() { return el('button', {class: 'link-button', onclick: start_over}, 'Start again'); }
   function status_nodes() { const counts = learn_counts(card_set); return el('span', {class: 'learn-status'}, (counts.done_steps < counts.total_steps ? 'Step ' + (counts.done_steps + 1) + ' of ' + counts.total_steps : 'All steps done') + ' · ' + counts.learned + ' of ' + counts.cards + ' cards learned', start_over_button()); }
   function switch_type(setting_name, is_on) { app_state[setting_name] = is_on; save_state(); study_session.steps = null; view_learn(card_set, mode_item); }
   function type_switches() { return el('div', {class: 'learn-switches'}, studyable_indexes(card_set).length > 1 ? el('label', {class: 'toggle-line'}, el('input', {type: 'checkbox', checked: app_state.learn_choice !== false, onchange: change_event => switch_type('learn_choice', change_event.target.checked)}), 'Multiple choice') : null, el('label', {class: 'toggle-line'}, el('input', {type: 'checkbox', checked: app_state.learn_type !== false, onchange: change_event => switch_type('learn_type', change_event.target.checked)}), 'Typing')); }
@@ -351,7 +351,7 @@ function award_round(card_set, mode_item, right_count, total_count) {
   reached_goals.forEach(goal_item => card_set.trophies.push({image: goal_item.image, line: goal_item.line, goal: goal_item.key, mode: mode_item.label, at: now_ms}));
   save_state();
   const reward_el = el('div', {class: 'reward-card', role: 'status'}, reward_image(picked_reward[0], 'reward-image'), el('div', {}, el('strong', {}, line_text), el('div', {class: 'muted'}, right_count + ' of ' + total_count + ' right. Added to your trophy shelf.')), ...reached_goals.map(goal_item => el('div', {class: 'reward-goal'}, reward_image(goal_item.image, 'reward-image'), el('strong', {}, goal_item.line))));
-  study_session.round_reward = reward_el; later(() => spawn_confetti(reward_el), 60);
+  study_session.round_reward = reward_el; study_session.round_trophy_count = 1 + reached_goals.length; later(() => spawn_confetti(reward_el), 60);
   return reward_el;
 }
 function spawn_confetti(anchor_el) {
