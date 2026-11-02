@@ -8,6 +8,11 @@
 // No `at`: no Show me. PUBLISHED holds when each version went live (UTC), filled in by tools/publish.py.
 const FIRST_SET = ['.set-row .row-title'];
 const WHATS_NEW = {
+  '1.3.08': [
+    {text: 'Plain is now the usual style, listed before Lined under the eye button. If you already picked a style, it stays.', go: '#/', at: '#view-button'},
+    {text: 'Drop-down lists are lighter, to match the page.', go: '#/library', at: '.toggle-line select'},
+    {text: 'Delete set, Reset progress and Start again now act straight away with Undo in the message, instead of asking first.'}
+  ],
   '1.3.07': [
     {text: 'Tap the pill at the top: it explains what it means. If your data is local only, it says what to do, with buttons for Sync and Export all.', go: '#/', at: '#sync-status'},
     {text: 'Settings: a light beside Sync shows its state while the panel is closed: green in sync, amber syncing or offline, red for a problem, and an empty ring when not signed in.', go: '#/settings', at: '#sync-panel-status'},
@@ -91,6 +96,7 @@ const WHATS_NEW = {
   '1.0.00': [{text: 'Open Flashcards goes live: make sets, flip and swipe through them, and import or export them as JSON.'}]
 };
 const PUBLISHED = {
+  '1.3.08': '2026-11-02T20:38:43Z',
   '1.3.07': '2026-11-02T20:34:26Z',
   '1.3.06': '2026-11-02T20:32:35Z',
   '1.3.05': '2026-11-02T19:22:24Z',

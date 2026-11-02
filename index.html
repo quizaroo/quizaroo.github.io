@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#f4f6fb">
 <script>
 // Applied before first paint so the page never flashes the other theme.
-function apply_theme() { var theme_name = 'light', style_name = 'lined'; try { theme_name = localStorage.getItem('open-flashcards:theme') || theme_name; style_name = localStorage.getItem('open-flashcards:style') || style_name; } catch (storage_err) {} document.documentElement.dataset.theme = theme_name; document.documentElement.dataset.style = style_name; document.querySelector('meta[name=theme-color]').content = theme_name === 'glass' ? '#0f172a' : '#f4f6fb'; }
+function apply_theme() { var theme_name = 'light', style_name = 'plain'; try { theme_name = localStorage.getItem('open-flashcards:theme') || theme_name; style_name = localStorage.getItem('open-flashcards:style') || style_name; } catch (storage_err) {} document.documentElement.dataset.theme = theme_name; document.documentElement.dataset.style = style_name; document.querySelector('meta[name=theme-color]').content = theme_name === 'glass' ? '#0f172a' : '#f4f6fb'; }
 apply_theme();
 </script>
 <link rel="manifest" href="manifest.json">

@@ -178,7 +178,7 @@ function learn_counts(card_set) {
 }
 function view_learn(card_set, mode_item) {
   const stage_list = learn_stage_list(card_set);
-  function start_over() { if (!confirm('Start Learn from scratch again on this set? Your revision progress and trophies stay.')) return; card_set.learn_stages = {}; save_state(); start_mode_session(card_set, 'learn', []); view_learn(card_set, mode_item); }
+  function start_over() { const saved_stages = card_set.learn_stages; card_set.learn_stages = {}; save_state(); start_mode_session(card_set, 'learn', []); view_learn(card_set, mode_item); toast('Started again. Revision progress and trophies stay.', {action: 'Undo', ms: 8000, on_action: () => { card_set.learn_stages = saved_stages; save_state(); route(); }}); }
   function start_over_button() { return el('button', {class: 'link-button', onclick: start_over}, 'Start again'); }
   function status_nodes() { const counts = learn_counts(card_set); return el('span', {class: 'learn-status'}, (counts.done_steps < counts.total_steps ? 'Step ' + (counts.done_steps + 1) + ' of ' + counts.total_steps : 'All steps done') + ' · ' + counts.learned + ' of ' + counts.cards + ' cards learned', start_over_button()); }
   function switch_type(setting_name, is_on) { app_state[setting_name] = is_on; save_state(); study_session.steps = null; view_learn(card_set, mode_item); }
