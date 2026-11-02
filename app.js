@@ -1,15 +1,16 @@
 // Open Flashcards: browser-only. Data lives in localStorage; import/export uses the open JSON format described in README.md.
-const STORAGE_KEY = 'open-flashcards:v1', view_el = document.getElementById('view'), topbar_actions_el = document.getElementById('topbar-actions'), import_input_el = document.getElementById('import-file');
-let app_state = load_state(), study_session = null;
+const STORAGE_KEY = 'open-flashcards:v1', THEME_KEY = 'open-flashcards:theme', DEMO_VERSION = 2, view_el = document.getElementById('view'), topbar_actions_el = document.getElementById('topbar-actions'), page_title_el = document.getElementById('page-title'), import_input_el = document.getElementById('import-file');
+// The same twelve soft hues as Sift. A set keeps the colour it was given (`colour`); until then its colour comes from its id, so it never changes.
+const TINTS = [['rose', '#ff9aa2'], ['coral', '#ffab91'], ['peach', '#ffc285'], ['butter', '#ffe27a'], ['lime', '#d4ef8a'], ['mint', '#9be7a8'], ['teal', '#86e3d0'], ['sky', '#8fd3ff'], ['periwinkle', '#a8b8ff'], ['lavender', '#c3a6ff'], ['orchid', '#f4a6e0'], ['sand', '#e3c9a8']];
+let app_state = load_state(), study_session = null, editor_has_changes = null, skip_next_route = false, last_list_hash = '#/';
 
 function load_state() {
   try { const stored_state = JSON.parse(localStorage.getItem(STORAGE_KEY)); if (stored_state && Array.isArray(stored_state.sets)) return stored_state; } catch (storage_err) {}
-  return {sets: [], default_front: 'term', shuffle: true};
+  return {sets: [], shuffle: true, library_sort: 'name', demo_version: DEMO_VERSION};
 }
 function save_state() { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(app_state)); } catch (storage_err) { alert('Could not save: browser storage is full or blocked.'); } }
 function new_id() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
 function find_set(set_id) { return app_state.sets.find(card_set => card_set.id === set_id); }
-function set_front(card_set) { return card_set.front || app_state.default_front; }
 
 // Tiny DOM builder: el('div', {class: 'x', onclick: fn}, child, 'text', ...)
 function el(tag_name, attributes) {
@@ -18,12 +19,31 @@ function el(tag_name, attributes) {
   for (let child_index = 2; child_index < arguments.length; child_index++) { const child_item = arguments[child_index]; if (child_item === null || child_item === undefined || child_item === false) continue; node_el.appendChild(typeof child_item === 'string' || typeof child_item === 'number' ? document.createTextNode(String(child_item)) : child_item); }
   return node_el;
 }
-function render(topbar_buttons, content_nodes) { topbar_actions_el.replaceChildren(); topbar_buttons.forEach(button_el => topbar_actions_el.appendChild(button_el)); view_el.replaceChildren(); content_nodes.forEach(content_node => view_el.appendChild(content_node)); window.scrollTo(0, 0); }
+function render(page_title, topbar_buttons, content_nodes) { page_title_el.textContent = page_title; topbar_actions_el.replaceChildren(); topbar_buttons.forEach(button_el => topbar_actions_el.appendChild(button_el)); view_el.replaceChildren(); content_nodes.forEach(content_node => view_el.appendChild(content_node)); window.scrollTo(0, 0); }
+function plus_button() { const link_el = el('a', {class: 'button primary icon-button', href: '#/new', title: 'New set', 'aria-label': 'New set'}); link_el.innerHTML = '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>'; return link_el; }
+function tint_of(card_set) { const given_tint = TINTS.find(tint_item => tint_item[0] === card_set.colour); if (given_tint) return given_tint[1]; let hash_value = 5381; for (const id_char of String(card_set.id)) hash_value = ((hash_value << 5) + hash_value + id_char.charCodeAt(0)) >>> 0; return TINTS[hash_value % TINTS.length][1]; }
+function tint_style(card_set) { return '--tint:' + tint_of(card_set); }
+// A card needs both sides to be studied.
+function studyable_indexes(card_set) { return card_set.cards.map((card_item, card_index) => card_index).filter(card_index => card_set.cards[card_index].term.trim() && card_set.cards[card_index].definition.trim()); }
+
+// ---- Dates ----
+function format_date(date_text) { const date_parts = date_text.split('-').map(Number); return new Date(date_parts[0], date_parts[1] - 1, date_parts[2]).toLocaleDateString('en-GB', {day: 'numeric', month: 'short', year: 'numeric'}); }
+function today_text() { const now_date = new Date(); return now_date.getFullYear() + '-' + String(now_date.getMonth() + 1).padStart(2, '0') + '-' + String(now_date.getDate()).padStart(2, '0'); }
+function relative_day(time_ms) {
+  const start_of_day = moment_ms => new Date(moment_ms).setHours(0, 0, 0, 0), days_ago = Math.round((start_of_day(Date.now()) - start_of_day(time_ms)) / 86400000);
+  if (days_ago <= 0) return 'today'; if (days_ago === 1) return 'yesterday'; if (days_ago < 14) return days_ago + ' days ago';
+  return new Date(time_ms).toLocaleDateString('en-GB', {day: 'numeric', month: 'short', year: 'numeric'});
+}
+function date_chips(card_set) {
+  return el('span', {class: 'date-chips'},
+    card_set.created ? el('span', {class: 'date-chip'}, 'Created', el('b', {}, format_date(card_set.created))) : null,
+    card_set.last_studied ? el('span', {class: 'date-chip'}, 'Last studied', el('b', {}, relative_day(card_set.last_studied))) : null);
+}
 
 // ---- Import / export ----
 function normalise_set(raw_set) {
   if (!raw_set || !Array.isArray(raw_set.cards)) return null;
-  return {id: String(raw_set.id || new_id()), title: String(raw_set.title || 'Untitled set'), cards: raw_set.cards.filter(raw_card => raw_card && (raw_card.term || raw_card.definition)).map(raw_card => ({term: String(raw_card.term || ''), definition: String(raw_card.definition || '')})), front: raw_set.front === 'definition' ? 'definition' : undefined};
+  return {id: String(raw_set.id || new_id()), title: String(raw_set.title || 'Untitled set'), cards: raw_set.cards.filter(raw_card => raw_card && (raw_card.term || raw_card.definition)).map(raw_card => ({term: String(raw_card.term || ''), definition: String(raw_card.definition || '')})), front: raw_set.front === 'definition' || raw_set.front === 'mixed' ? raw_set.front : undefined, description: raw_set.description ? String(raw_set.description) : undefined, created: /^\d{4}-\d{2}-\d{2}$/.test(raw_set.created) ? raw_set.created : undefined, colour: TINTS.some(tint_item => tint_item[0] === raw_set.colour) ? raw_set.colour : undefined, last_studied: Number(raw_set.last_studied) || undefined, last_opened: Number(raw_set.last_opened) || undefined, progress: raw_set.progress && typeof raw_set.progress === 'object' ? raw_set.progress : undefined, best_speed: Number(raw_set.best_speed) || undefined};
 }
 // Accepts {format, sets:[...]}, a bare array of sets, or a single set object. Sets with an existing id go through compare_sets; nothing is saved until any conflicts are resolved.
 function import_json(json_text) {
@@ -58,7 +78,7 @@ function apply_import(new_sets, conflicts, identical_count) {
   const choice_counts = {merge: 0, replace: 0, both: 0, skip: 0};
   conflicts.forEach(conflict => {
     choice_counts[conflict.choice]++;
-    if (conflict.choice === 'merge') { conflict.comparison.changed_cards.forEach(changed_card => { if (changed_card.use_imported) changed_card.your_card.definition = changed_card.imported_card.definition; }); conflict.your_set.cards.push(...conflict.comparison.new_cards); }
+    if (conflict.choice === 'merge') { conflict.comparison.changed_cards.forEach(changed_card => { if (changed_card.use_imported) changed_card.your_card.definition = changed_card.imported_card.definition; }); conflict.your_set.cards.push(...conflict.comparison.new_cards); conflict.your_set.description = conflict.your_set.description || conflict.imported_set.description; conflict.your_set.created = conflict.your_set.created || conflict.imported_set.created; }
     else if (conflict.choice === 'replace') app_state.sets[app_state.sets.indexOf(conflict.your_set)] = conflict.imported_set;
     else if (conflict.choice === 'both') app_state.sets.push(Object.assign({}, conflict.imported_set, {id: new_id(), title: conflict.imported_set.title + ' (imported)'}));
   });
@@ -81,17 +101,52 @@ function seed_demo_sets() { if (is_first_run()) fetch_demo_sets().then(demo_sets
 // Adds only the demo sets that are missing, so an edited copy is never replaced.
 function add_missing_demo_sets() { fetch_demo_sets().then(demo_sets => { const missing_sets = demo_sets.filter(demo_set => !find_set(demo_set.id)); app_state.sets.push(...missing_sets); save_state(); alert('Added ' + missing_sets.length + ' demo set(s).'); route(); }).catch(() => alert('Could not load the demo sets.')); }
 
+// Browsers seeded before demo sets had descriptions and dates catch up once. A set whose title was changed is left alone.
+function upgrade_demo_sets() {
+  if (app_state.demo_version === DEMO_VERSION || is_first_run()) return;
+  fetch('demo-sets.json').then(demo_response => demo_response.json()).then(demo_json => {
+    demo_json.sets.forEach(demo_set => { const your_set = find_set(demo_set.id); if (!your_set || your_set.title !== demo_set.old_title) return; your_set.title = demo_set.title; your_set.description = your_set.description || demo_set.description; your_set.created = your_set.created || demo_set.created; });
+    app_state.demo_version = DEMO_VERSION; save_state(); if (!editor_has_changes) route();
+  }).catch(() => {});
+}
+
 // ---- Views ----
+function study_pill(card_set) { if (!studyable_indexes(card_set).length) return null; const next_item = next_step(card_set); return el('a', {class: 'button study-pill', href: play_hash(card_set, next_item.mode)}, next_item.label); }
+function set_row(card_set) {
+  return el('div', {class: 'set-row', style: tint_style(card_set)},
+    el('div', {class: 'line-margin'}, el('span', {class: 'count-chip', title: card_set.cards.length + ' cards'}, card_set.cards.length)),
+    el('div', {class: 'row-body'}, el('a', {class: 'row-title', href: '#/set/' + card_set.id}, card_set.title), card_set.description ? el('span', {class: 'row-description'}, card_set.description) : null, date_chips(card_set), progress_meter(card_set)),
+    study_pill(card_set));
+}
+function set_tile(card_set) {
+  return el('div', {class: 'tile', style: tint_style(card_set)},
+    el('div', {class: 'tile-band'}, el('a', {class: 'row-title', href: '#/set/' + card_set.id}, card_set.title)),
+    el('div', {class: 'tile-lines'}, card_set.description ? el('span', {class: 'row-description'}, card_set.description) : null, progress_meter(card_set),
+      el('div', {class: 'tile-foot'}, el('span', {class: 'date-chips'}, el('span', {class: 'date-chip'}, el('b', {}, card_set.cards.length), 'cards'), ...date_chips(card_set).childNodes), study_pill(card_set))));
+}
+function view_home() {
+  const WEEK_MS = 7 * 86400000, shown_ids = new Set(), cards_total = app_state.sets.reduce((card_total, card_set) => card_total + card_set.cards.length, 0), studied_this_week = app_state.sets.filter(card_set => card_set.last_studied > Date.now() - WEEK_MS).length;
+  function top_sets(sort_value) { const top_list = app_state.sets.filter(card_set => sort_value(card_set) && !shown_ids.has(card_set.id)).sort((set_a, set_b) => String(sort_value(set_b)).localeCompare(String(sort_value(set_a)), undefined, {numeric: true})).slice(0, 4); top_list.forEach(card_set => shown_ids.add(card_set.id)); return top_list; }
+  function home_section(heading_text, card_sets) { return card_sets.length ? el('section', {class: 'home-section'}, el('h2', {}, heading_text), el('div', {class: 'tile-grid'}, ...card_sets.map(set_tile))) : null; }
+  const due_sets = top_sets(card_set => due_indexes(card_set).length), studied_sets = top_sets(card_set => card_set.last_studied), opened_sets = top_sets(card_set => card_set.last_opened), newest_sets = top_sets(card_set => card_set.created);
+  render('Home', [plus_button()], app_state.sets.length ? [
+    el('div', {class: 'stat-strip'},
+      el('div', {class: 'stat', style: 'background:#8fd3ff'}, el('strong', {}, app_state.sets.length), 'sets'),
+      el('div', {class: 'stat', style: 'background:#ffe27a'}, el('strong', {}, cards_total), 'cards'),
+      el('div', {class: 'stat', style: 'background:#9be7a8'}, el('strong', {}, studied_this_week), 'studied this week')),
+    home_section('Ready to revise', due_sets), home_section('Recently studied', studied_sets), home_section('Recently opened', opened_sets), home_section('Newest sets', newest_sets),
+    el('p', {class: 'empty-note'}, 'See everything in ', el('a', {href: '#/library'}, 'Your Library'), '.')
+  ].filter(Boolean) : [el('p', {class: 'empty-note'}, 'No sets yet. Press + to make your first one, or import a file in ', el('a', {href: '#/library'}, 'Your Library'), '.')]);
+}
 function view_library() {
-  const sorted_sets = app_state.sets.slice().sort((set_a, set_b) => set_a.title.localeCompare(set_b.title));
-  render([el('button', {onclick: () => import_input_el.click()}, 'Import'), el('button', {onclick: () => download_json('open-flashcards-all.json', app_state.sets)}, 'Export all')], [
-    el('div', {class: 'button-row'}, el('button', {class: 'primary', onclick: () => { const created_set = {id: new_id(), title: 'New set', cards: [{term: '', definition: ''}]}; app_state.sets.push(created_set); save_state(); location.hash = '#/edit/' + created_set.id; }}, '+ New set'), el('button', {onclick: add_missing_demo_sets}, 'Load demo sets'),
-      el('label', {class: 'toggle-line'}, 'Show first:', el('select', {onchange: change_event => { app_state.default_front = change_event.target.value; save_state(); }}, el('option', {value: 'term'}, 'Term'), el('option', {value: 'definition'}, 'Definition')))),
-    sorted_sets.length ? el('div', {class: 'set-list'}) : el('p', {class: 'empty muted'}, 'No sets yet. Create one, or import a .json file.')
+  const sort_rules = {name: (set_a, set_b) => set_a.title.localeCompare(set_b.title), newest: (set_a, set_b) => (set_b.created || '').localeCompare(set_a.created || '') || set_a.title.localeCompare(set_b.title), studied: (set_a, set_b) => (set_b.last_studied || 0) - (set_a.last_studied || 0) || set_a.title.localeCompare(set_b.title)};
+  const library_sort = sort_rules[app_state.library_sort] ? app_state.library_sort : 'name', sorted_sets = app_state.sets.slice().sort(sort_rules[library_sort]);
+  const sort_select_el = el('select', {onchange: change_event => { app_state.library_sort = change_event.target.value; save_state(); view_library(); }}, el('option', {value: 'name'}, 'Name'), el('option', {value: 'newest'}, 'Newest'), el('option', {value: 'studied'}, 'Last studied'));
+  sort_select_el.value = library_sort;
+  render('Your Library', [plus_button()], [
+    el('div', {class: 'button-row'}, el('label', {class: 'toggle-line'}, 'Sort by', sort_select_el), el('button', {onclick: () => import_input_el.click()}, 'Import'), el('button', {onclick: () => download_json('open-flashcards-all.json', app_state.sets)}, 'Export all'), el('button', {onclick: add_missing_demo_sets}, 'Load demo sets')),
+    sorted_sets.length ? el('div', {class: 'ruled'}, ...sorted_sets.map(set_row)) : el('p', {class: 'empty muted'}, 'No sets yet. Press + to make one, or import a .json file.')
   ]);
-  view_el.querySelector('select').value = app_state.default_front;
-  const set_list_el = view_el.querySelector('.set-list');
-  if (set_list_el) sorted_sets.forEach(card_set => set_list_el.appendChild(el('a', {class: 'set-tile', href: '#/set/' + card_set.id}, el('strong', {}, card_set.title), el('span', {class: 'muted'}, card_set.cards.length + ' cards'))));
 }
 
 function view_import_conflicts(new_sets, conflicts, identical_count) {
@@ -113,70 +168,92 @@ function view_import_conflicts(new_sets, conflicts, identical_count) {
       el('label', {class: 'toggle-line'}, 'Action:', conflict.select_el), changed_list_el);
   });
   const apply_all_el = conflicts.length > 1 ? el('label', {class: 'toggle-line'}, 'Apply to all:', el('select', {onchange: change_event => { if (!change_event.target.value) return; conflicts.forEach(conflict => { conflict.choice = change_event.target.value; conflict.select_el.value = conflict.choice; conflict.show_changed(); }); }}, el('option', {value: ''}, 'Choose…'), ...choice_options.map(choice_option => el('option', {value: choice_option[0]}, choice_option[1])))) : null;
-  render([el('button', {onclick: route}, 'Cancel'), el('button', {class: 'primary', onclick: () => apply_import(new_sets, conflicts, identical_count)}, 'Finish import')], [
-    el('h1', {}, 'Resolve import'),
+  render('Resolve import', [el('button', {onclick: route}, 'Cancel'), el('button', {class: 'primary', onclick: () => apply_import(new_sets, conflicts, identical_count)}, 'Finish import')], [
     el('div', {class: 'muted'}, conflicts.length + ' set(s) already exist with different cards. Merge keeps your cards and adds the new ones. Nothing is saved until you finish.'),
     new_sets.length || identical_count ? el('div', {class: 'muted'}, new_sets.length + ' new set(s) will be added, ' + identical_count + ' already up to date.') : null,
-    apply_all_el, el('div', {class: 'set-list'}, ...conflict_panels)
+    apply_all_el, el('div', {class: 'conflict-list'}, ...conflict_panels)
   ]);
 }
 
 function view_set(card_set) {
-  const front_select_el = el('select', {onchange: change_event => { card_set.front = change_event.target.value; save_state(); }}, el('option', {value: 'term'}, 'Term'), el('option', {value: 'definition'}, 'Definition'));
-  front_select_el.value = set_front(card_set);
-  const card_table_el = el('div', {class: 'card-table'});
-  card_set.cards.forEach(card_item => card_table_el.appendChild(el('div', {class: 'card-row'}, el('div', {}, card_item.term), el('div', {class: 'muted'}, card_item.definition))));
-  render([el('a', {class: 'button', href: '#/edit/' + card_set.id}, 'Edit')], [
-    el('h1', {}, card_set.title), el('div', {class: 'muted'}, card_set.cards.length + ' cards'),
-    el('div', {class: 'button-row'}, el('a', {class: 'button primary', href: '#/study/' + card_set.id}, 'Study'),
-      el('label', {class: 'toggle-line'}, 'Show first:', front_select_el),
-      el('label', {class: 'toggle-line'}, el('input', {type: 'checkbox', checked: app_state.shuffle, onchange: change_event => { app_state.shuffle = change_event.target.checked; save_state(); }}), 'Shuffle')),
-    card_table_el,
-    el('div', {class: 'button-row'}, el('button', {onclick: () => download_json(safe_file_name(card_set.title), [card_set])}, 'Export set'),
-      el('button', {onclick: () => { const copied_set = JSON.parse(JSON.stringify(card_set)); copied_set.id = new_id(); copied_set.title = card_set.title + ' (copy)'; app_state.sets.push(copied_set); save_state(); location.hash = '#/set/' + copied_set.id; }}, 'Duplicate'),
-      el('button', {class: 'danger', onclick: () => { if (!confirm('Delete "' + card_set.title + '"? This cannot be undone.')) return; app_state.sets = app_state.sets.filter(other_set => other_set.id !== card_set.id); save_state(); location.hash = '#/'; }}, 'Delete set'))
+  const studyable_count = studyable_indexes(card_set).length, skipped_count = card_set.cards.length - studyable_count, counts = progress_counts(card_set), due_count = due_indexes(card_set).length;
+  function mode_pill(mode_item) { const label_text = mode_item.emoji + ' ' + mode_item.label + (mode_item.key === 'revise' && due_count ? ' (' + due_count + ')' : ''); return studyable_count >= mode_item.min_cards ? el('a', {class: 'mode-pill', style: '--tint:' + mode_item.tint, href: play_hash(card_set, mode_item.key)}, label_text) : el('span', {class: 'mode-pill is-off', title: 'Needs at least ' + mode_item.min_cards + ' complete cards'}, label_text); }
+  function mode_group(group_name) { return el('div', {class: 'mode-group'}, el('h2', {class: 'list-heading'}, group_name), el('div', {class: 'mode-pills'}, ...MODES.filter(mode_item => mode_item.group === group_name).map(mode_pill))); }
+  render(card_set.title, [el('a', {class: 'button', href: '#/edit/' + card_set.id}, 'Edit')], [
+    el('div', {class: 'set-hero', style: tint_style(card_set)},
+      card_set.description ? el('p', {}, card_set.description) : null,
+      el('span', {class: 'date-chips'}, el('span', {class: 'date-chip'}, el('b', {}, card_set.cards.length), 'cards'), ...date_chips(card_set).childNodes),
+      studyable_count ? el('div', {class: 'hero-progress'}, progress_meter(card_set), el('div', {class: 'form-note'}, counts.mastered + ' mastered · ' + counts.familiar + ' familiar · ' + counts.learning + ' learning · ' + counts.new + ' new' + (due_count ? ' · ' + due_count + ' due now' : ''))) : null,
+      !studyable_count ? el('div', {class: 'form-note'}, 'Add at least one card with a term and a definition to start learning.') : skipped_count ? el('div', {class: 'form-note'}, skipped_count + ' card(s) are missing a side and are left out.') : null),
+    mode_group('Learn'), mode_group('Practise'), mode_group('Games'),
+    el('div', {class: 'button-row set-actions'}, el('button', {onclick: () => { if (!confirm('Reset your progress on "' + card_set.title + '"? Every card goes back to new.')) return; delete card_set.progress; delete card_set.best_speed; delete card_set.last_studied; save_state(); view_set(card_set); }}, '↺ Reset progress'),
+      el('button', {onclick: () => download_json(safe_file_name(card_set.title), [card_set])}, 'Export set'),
+      el('button', {onclick: () => { const copied_set = JSON.parse(JSON.stringify(card_set)); copied_set.id = new_id(); copied_set.title = card_set.title + ' (copy)'; delete copied_set.last_studied; delete copied_set.last_opened; delete copied_set.progress; delete copied_set.best_speed; app_state.sets.push(copied_set); save_state(); location.hash = '#/set/' + copied_set.id; }}, 'Duplicate'),
+      el('button', {class: 'danger', onclick: () => { if (!confirm('Delete "' + card_set.title + '"? This cannot be undone.')) return; app_state.sets = app_state.sets.filter(other_set => other_set.id !== card_set.id); save_state(); location.hash = '#/library'; }}, 'Delete set'))
   ]);
 }
 
-function view_edit(card_set) {
+// There is always a blank row at the end, so Tab moves term, definition, next term, next definition without stopping. Tabbing out of the blank row moves on to the details and Save.
+function view_edit(card_set, is_new) {
   const draft_cards = card_set.cards.map(card_item => ({term: card_item.term, definition: card_item.definition}));
-  const title_input_el = el('input', {type: 'text', class: 'title-input', value: card_set.title, placeholder: 'Set title'});
-  const rows_el = el('div', {class: 'card-table'});
-  function draw_rows() {
-    rows_el.replaceChildren();
-    draft_cards.forEach((draft_card, card_index) => rows_el.appendChild(el('div', {class: 'edit-row'},
-      el('textarea', {rows: 1, placeholder: 'Term', oninput: input_event => { draft_card.term = input_event.target.value; }}, draft_card.term),
-      el('textarea', {rows: 1, placeholder: 'Definition', oninput: input_event => { draft_card.definition = input_event.target.value; }}, draft_card.definition),
-      el('button', {title: 'Remove card', onclick: () => { draft_cards.splice(card_index, 1); draw_rows(); }}, '✕'))));
+  const title_input_el = el('input', {type: 'text', class: 'line-field title-field', value: card_set.title, placeholder: 'Set name', 'aria-label': 'Set name'});
+  const description_input_el = el('textarea', {rows: 1, class: 'line-field', placeholder: 'What is this set about? (optional)', 'aria-label': 'Description', oninput: input_event => fit_height(input_event.target)}, card_set.description || '');
+  const created_input_el = el('input', {type: 'date', class: 'line-field detail-field', value: card_set.created || (is_new ? today_text() : ''), 'aria-label': 'Created date'});
+  let picked_colour = card_set.colour;
+  const colour_pick_el = el('div', {class: 'swatches', role: 'radiogroup', 'aria-label': 'Colour'}, ...TINTS.map(tint_item => el('input', {type: 'radio', name: 'set-colour', style: '--tint:' + tint_item[1], title: tint_item[0], 'aria-label': tint_item[0], checked: tint_of(card_set) === tint_item[1], onchange: () => { picked_colour = tint_item[0]; }})));
+  const rows_el = el('div', {class: 'ruled'}), error_el = el('div', {class: 'form-error', role: 'alert'}, 'Add at least one card before saving.');
+  error_el.hidden = true;
+  function is_blank(draft_card) { return !draft_card.term.trim() && !draft_card.definition.trim(); }
+  function fit_height(textarea_el) { if (!textarea_el.isConnected) return; textarea_el.style.height = 'auto'; textarea_el.style.height = textarea_el.scrollHeight + 2 + 'px'; }
+  function card_input(draft_card, side_key, side_label, row_el) { return el('textarea', {rows: 1, class: 'line-field', placeholder: side_label, 'aria-label': side_label, onfocus: focus_event => fit_height(focus_event.target), oninput: input_event => { draft_card[side_key] = input_event.target.value; fit_height(input_event.target); row_el.classList.toggle('blank-row', is_blank(draft_card)); add_blank_row(); error_el.hidden = true; }}, draft_card[side_key]); }
+  function make_row(draft_card) {
+    const row_el = el('div', {class: 'edit-row' + (is_blank(draft_card) ? ' blank-row' : '')}, el('div', {class: 'line-margin line-number'}));
+    row_el.append(card_input(draft_card, 'term', 'Term', row_el), card_input(draft_card, 'definition', 'Definition', row_el), el('button', {class: 'remove-card', title: 'Remove card', 'aria-label': 'Remove card', tabindex: -1, onclick: () => { draft_cards.splice(draft_cards.indexOf(draft_card), 1); row_el.remove(); add_blank_row(); }}, '✕'));
+    rows_el.appendChild(row_el); row_el.querySelectorAll('textarea').forEach(fit_height);
   }
-  function add_card() { draft_cards.push({term: '', definition: ''}); draw_rows(); const textarea_els = rows_el.querySelectorAll('textarea'); textarea_els[textarea_els.length - 2].focus(); }
+  function add_blank_row() { if (draft_cards.length && is_blank(draft_cards[draft_cards.length - 1])) return; const blank_card = {term: '', definition: ''}; draft_cards.push(blank_card); make_row(blank_card); }
+  function draw_rows() { rows_el.replaceChildren(); draft_cards.forEach(make_row); add_blank_row(); }
   function bulk_add() {
     const pasted_text = prompt('Paste one card per line: term, then a Tab (or " - "), then definition.'); if (!pasted_text) return;
+    while (draft_cards.length && is_blank(draft_cards[draft_cards.length - 1])) draft_cards.pop();
     pasted_text.split(/\r?\n/).forEach(pasted_line => { const split_parts = pasted_line.includes('\t') ? pasted_line.split('\t') : pasted_line.split(' - '); if (split_parts[0].trim()) draft_cards.push({term: split_parts[0].trim(), definition: split_parts.slice(1).join(' - ').trim()}); });
     draw_rows();
   }
-  function save_edits() { card_set.title = title_input_el.value.trim() || 'Untitled set'; card_set.cards = draft_cards.filter(draft_card => draft_card.term.trim() || draft_card.definition.trim()); save_state(); location.hash = '#/set/' + card_set.id; }
+  function current_edits() { return JSON.stringify([title_input_el.value.trim(), description_input_el.value.trim(), created_input_el.value, picked_colour, draft_cards.filter(draft_card => !is_blank(draft_card))]); }
+  function save_edits() {
+    const kept_cards = draft_cards.filter(draft_card => !is_blank(draft_card));
+    if (!kept_cards.length) { error_el.hidden = false; rows_el.querySelector('textarea').focus(); return; }
+    card_set.title = title_input_el.value.trim() || 'Untitled set'; card_set.description = description_input_el.value.trim() || undefined; card_set.created = created_input_el.value || undefined; card_set.colour = picked_colour; card_set.cards = kept_cards;
+    if (is_new) app_state.sets.push(card_set);
+    save_state(); editor_has_changes = null; location.hash = '#/set/' + card_set.id;
+  }
   draw_rows();
-  render([el('a', {class: 'button', href: '#/set/' + card_set.id}, 'Cancel'), el('button', {class: 'primary', onclick: save_edits}, 'Save')], [
-    title_input_el, rows_el,
-    el('div', {class: 'button-row'}, el('button', {onclick: add_card}, '+ Add card'), el('button', {onclick: bulk_add}, 'Paste list'),
+  const cancel_hash = is_new ? last_list_hash : '#/set/' + card_set.id;
+  render(is_new ? 'New set' : 'Edit set', [el('a', {class: 'button', href: cancel_hash}, 'Cancel'), el('button', {class: 'primary', onclick: save_edits}, 'Save')], [
+    el('div', {class: 'ruled'}, el('div', {class: 'detail-row'}, el('div', {class: 'line-margin'}, 'Name'), title_input_el), el('div', {class: 'detail-row'}, el('div', {class: 'line-margin'}, 'About'), description_input_el)),
+    el('h2', {class: 'edit-heading'}, 'Cards'), el('div', {class: 'muted'}, 'Press Tab to move from term to definition to the next term. A new row appears as you type.'),
+    rows_el, error_el,
+    el('div', {class: 'ruled', style: 'margin-top:22px'}, el('div', {class: 'detail-row'}, el('div', {class: 'line-margin'}, 'Created'), created_input_el), el('div', {class: 'detail-row'}, el('div', {class: 'line-margin'}, 'Colour'), colour_pick_el)),
+    el('div', {class: 'button-row'}, el('button', {class: 'primary', onclick: save_edits}, 'Save'), el('button', {onclick: bulk_add}, 'Paste list'),
       el('button', {onclick: () => { draft_cards.forEach(draft_card => { const swapped_term = draft_card.term; draft_card.term = draft_card.definition; draft_card.definition = swapped_term; }); draw_rows(); }}, 'Swap all sides'))
   ]);
+  view_el.querySelectorAll('textarea').forEach(fit_height);
+  const starting_edits = current_edits(); editor_has_changes = () => current_edits() !== starting_edits;
+  if (is_new) title_input_el.focus();
 }
 
 // ---- Study ----
 function shuffled(source_items) { const result_items = source_items.slice(); for (let swap_index = result_items.length - 1; swap_index > 0; swap_index--) { const random_index = Math.floor(Math.random() * (swap_index + 1)), held_item = result_items[swap_index]; result_items[swap_index] = result_items[random_index]; result_items[random_index] = held_item; } return result_items; }
-function start_session(card_set, card_indexes) { study_session = {set_id: card_set.id, queue: app_state.shuffle ? shuffled(card_indexes) : card_indexes.slice(), position: 0, known: [], learning: []}; }
+function start_session(card_set, card_indexes, mode_key) { study_session = {set_id: card_set.id, mode: mode_key, queue: card_indexes.slice(), position: 0, known: [], learning: []}; }
 
 function view_study(card_set) {
-  if (!card_set.cards.length) { location.hash = '#/edit/' + card_set.id; return; }
-  if (!study_session || study_session.set_id !== card_set.id) start_session(card_set, card_set.cards.map((card_item, card_index) => card_index));
+  clear_mode_timers();
   if (study_session.position >= study_session.queue.length) return view_study_summary(card_set);
-  const front_key = set_front(card_set), back_key = front_key === 'term' ? 'definition' : 'term', current_card = card_set.cards[study_session.queue[study_session.position]];
+  const current_index = study_session.queue[study_session.position], front_key = front_side(card_set, current_index), back_key = front_key === 'term' ? 'definition' : 'term', current_card = card_set.cards[current_index];
   const learn_hint_el = el('div', {class: 'swipe-hint learn'}, 'STILL LEARNING'), know_hint_el = el('div', {class: 'swipe-hint know'}, 'KNOW');
   const inner_el = el('div', {class: 'flashcard-inner'}, el('div', {class: 'face front'}, current_card[front_key]), el('div', {class: 'face back'}, current_card[back_key]));
   const card_el = el('div', {class: 'flashcard'}, learn_hint_el, know_hint_el, inner_el);
-  function answer(is_known) { (is_known ? study_session.known : study_session.learning).push(study_session.queue[study_session.position]); study_session.position++; view_study(card_set); }
+  function answer(is_known) { record_answer(card_set, current_index, is_known); (is_known ? study_session.known : study_session.learning).push(study_session.queue[study_session.position]); study_session.position++; view_study(card_set); }
   // Tap flips; horizontal swipe answers (right = know, left = still learning).
   let drag_start = null;
   card_el.addEventListener('pointerdown', pointer_event => { drag_start = {x: pointer_event.clientX, y: pointer_event.clientY}; card_el.setPointerCapture(pointer_event.pointerId); inner_el.style.transition = 'none'; });
@@ -188,42 +265,60 @@ function view_study(card_set) {
   });
   card_el.addEventListener('pointercancel', () => { drag_start = null; inner_el.style.transition = ''; inner_el.style.transform = ''; });
   const done_count = study_session.position, total_count = study_session.queue.length;
-  render([el('a', {class: 'button', href: '#/set/' + card_set.id}, 'Done')], [el('div', {class: 'study-wrap'},
-    el('div', {class: 'muted'}, card_set.title + ' · ' + (done_count + 1) + ' / ' + total_count),
+  render(find_mode(study_session.mode).label, [el('a', {class: 'button', href: '#/set/' + card_set.id}, 'Done')], [el('div', {class: 'study-wrap', style: tint_style(card_set)},
+    el('div', {class: 'counts'}, el('span', {class: 'muted'}, 'Card ' + (done_count + 1) + ' of ' + total_count), el('span', {class: 'button-row tight-row'}, study_session.mode === 'cards' ? el('button', {class: 'direction-button', onclick: () => { app_state.shuffle = !app_state.shuffle; save_state(); study_session = null; view_mode(card_set, 'cards'); }}, app_state.shuffle ? 'Shuffle on' : 'Shuffle off') : null, direction_button(card_set))),
     el('div', {class: 'progress'}, el('div', {style: 'width:' + (100 * done_count / total_count) + '%'})),
     el('div', {class: 'counts'}, el('span', {class: 'learn'}, study_session.learning.length + ' learning'), el('span', {class: 'know'}, study_session.known.length + ' known')),
     card_el,
-    el('div', {class: 'study-buttons'}, el('button', {onclick: () => answer(false)}, '← Still learning'), el('button', {onclick: () => card_el.classList.toggle('flipped')}, 'Flip'), el('button', {onclick: () => answer(true)}, 'Know →')),
+    el('div', {class: 'study-buttons'}, el('button', {class: 'learn-button', onclick: () => answer(false)}, '← Still learning'), el('button', {onclick: () => card_el.classList.toggle('flipped')}, 'Flip'), el('button', {class: 'know-button', onclick: () => answer(true)}, 'Know →')),
     el('div', {class: 'muted'}, 'Tap to flip · swipe right if you know it, left if not · keys: space, ← →'))]);
 }
 
 function view_study_summary(card_set) {
   const learning_indexes = study_session.learning.slice();
-  render([el('a', {class: 'button', href: '#/set/' + card_set.id}, 'Done')], [el('div', {class: 'study-wrap empty'},
-    el('h1', {}, learning_indexes.length ? 'Round complete' : 'All known!'),
+  render(find_mode(study_session.mode).label, [el('a', {class: 'button', href: '#/set/' + card_set.id}, 'Done')], [el('div', {class: 'study-wrap empty', style: tint_style(card_set)},
+    el('h2', {class: 'summary-title'}, learning_indexes.length ? 'Round complete' : 'All known!'),
     el('div', {class: 'counts'}, el('span', {class: 'learn'}, learning_indexes.length + ' still learning'), el('span', {class: 'know'}, study_session.known.length + ' known')),
     el('div', {class: 'button-row'},
-      learning_indexes.length ? el('button', {class: 'primary', onclick: () => { start_session(card_set, learning_indexes); view_study(card_set); }}, 'Study the ' + learning_indexes.length + ' again') : null,
-      el('button', {onclick: () => { start_session(card_set, card_set.cards.map((card_item, card_index) => card_index)); view_study(card_set); }}, 'Restart all')))]);
+      learning_indexes.length ? el('button', {class: 'primary', onclick: () => { start_session(card_set, learning_indexes, study_session.mode); view_study(card_set); }}, 'Study the ' + learning_indexes.length + ' again') : null,
+      el('button', {onclick: () => { const session_mode = study_session.mode; study_session = null; view_mode(card_set, session_mode === 'revise' ? 'cards' : session_mode); }}, 'Go through all cards')))]);
 }
 
 document.addEventListener('keydown', key_event => {
-  if (!location.hash.startsWith('#/study/') || key_event.target.tagName === 'INPUT' || key_event.target.tagName === 'TEXTAREA') return;
-  const card_el = view_el.querySelector('.flashcard'); if (!card_el) return;
+  if (!location.hash.startsWith('#/play/')) return;
+  const is_typing = key_event.target.tagName === 'INPUT' || key_event.target.tagName === 'TEXTAREA', key_button = Array.from(view_el.querySelectorAll('[data-key]')).find(button_el => button_el.dataset.key === key_event.key && !button_el.disabled);
+  if (key_button && !is_typing) { key_event.preventDefault(); key_button.click(); return; }
+  const card_el = view_el.querySelector('.flashcard'); if (!card_el || is_typing) return;
   const study_buttons = view_el.querySelectorAll('.study-buttons button');
   if (key_event.key === ' ' || key_event.key === 'ArrowUp' || key_event.key === 'ArrowDown') { key_event.preventDefault(); card_el.classList.toggle('flipped'); }
   else if (key_event.key === 'ArrowLeft') study_buttons[0].click(); else if (key_event.key === 'ArrowRight') study_buttons[2].click();
 });
 
-// ---- Routing: #/ , #/set/<id>, #/edit/<id>, #/study/<id> ----
+// ---- Routing: #/ , #/library, #/new, #/set/<id>, #/edit/<id>, #/play/<id>/<mode> ----
 function route() {
   const route_parts = location.hash.replace(/^#\/?/, '').split('/'), route_name = route_parts[0], route_set = find_set(decodeURIComponent(route_parts[1] || ''));
-  if (route_name !== 'study') study_session = null;
+  const is_home = !['library', 'new', 'set', 'edit', 'play'].includes(route_name) || (['set', 'edit', 'play'].includes(route_name) && !route_set);
+  editor_has_changes = null;
+  study_session = null; clear_mode_timers();
+  if (['set', 'edit', 'play'].includes(route_name) && route_set) { route_set.last_opened = Date.now(); save_state(); }
+  if (is_home) last_list_hash = '#/'; else if (route_name === 'library') last_list_hash = '#/library';
+  document.querySelectorAll('.nav-item').forEach(nav_el => nav_el.classList.toggle('active', nav_el.dataset.nav === (is_home ? 'home' : 'library')));
+  if (['new', 'edit', 'play'].includes(route_name) && !is_home) document.body.dataset.focus = ''; else delete document.body.dataset.focus;
   if (route_name === 'set' && route_set) view_set(route_set);
-  else if (route_name === 'edit' && route_set) view_edit(route_set);
-  else if (route_name === 'study' && route_set) view_study(route_set);
-  else view_library();
+  else if (route_name === 'edit' && route_set) view_edit(route_set, false);
+  else if (route_name === 'play' && route_set) view_mode(route_set, route_parts[2]);
+  else if (route_name === 'new') view_edit({id: new_id(), title: '', cards: []}, true);
+  else if (route_name === 'library') view_library();
+  else view_home();
 }
-window.addEventListener('hashchange', route);
+// Leaving the editor by any route (sidebar, back button) asks first if something would be lost.
+window.addEventListener('hashchange', hash_event => {
+  if (skip_next_route) { skip_next_route = false; return; }
+  if (editor_has_changes && editor_has_changes() && !confirm('Discard your changes?')) { skip_next_route = true; location.hash = new URL(hash_event.oldURL).hash; return; }
+  route();
+});
+window.addEventListener('beforeunload', unload_event => { if (editor_has_changes && editor_has_changes()) unload_event.preventDefault(); });
+document.getElementById('theme-button').addEventListener('click', () => { try { localStorage.setItem(THEME_KEY, document.documentElement.dataset.theme === 'glass' ? 'light' : 'glass'); } catch (storage_err) {} apply_theme(); });
 route();
 seed_demo_sets();
+upgrade_demo_sets();

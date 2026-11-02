@@ -5,16 +5,29 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Flashcards">
-<meta name="theme-color" content="#f5f4f0">
+<meta name="theme-color" content="#f4f6fb">
+<script>
+// Applied before first paint so the page never flashes the other theme.
+function apply_theme() { var theme_name = 'light'; try { theme_name = localStorage.getItem('open-flashcards:theme') || theme_name; } catch (storage_err) {} document.documentElement.dataset.theme = theme_name; document.querySelector('meta[name=theme-color]').content = theme_name === 'glass' ? '#0f172a' : '#f4f6fb'; }
+apply_theme();
+</script>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon.svg">
 <link rel="stylesheet" href="style.css">
 <title>Open Flashcards</title>
 </head>
 <body>
-<header id="topbar"><a href="#/" id="home-link">Open Flashcards</a><div id="topbar-actions"></div></header>
-<main id="view"></main>
+<nav id="sidebar" aria-label="Main">
+  <a href="#/" id="wordmark"><img src="icon.svg" alt="" width="30" height="30">Open Flashcards</a>
+  <a href="#/" class="nav-item" data-nav="home"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></svg>Home</a>
+  <a href="#/library" class="nav-item" data-nav="library"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="3" width="4" height="18" rx="1"/><rect x="10" y="3" width="4" height="18" rx="1"/><path d="M16.5 4.5l3.8 1-4 15.6-3.8-1"/></svg>Your Library</a>
+</nav>
+<div id="page">
+  <header id="topbar"><h1 id="page-title"></h1><button id="theme-button" class="icon-button" title="Switch between light and dark" aria-label="Switch between light and dark"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M5 19l1.5-1.5M17.5 6.5L19 5"/></svg></button><div id="topbar-actions"></div></header>
+  <main id="view"></main>
+</div>
 <input type="file" id="import-file" accept=".json,application/json" hidden>
+<script src="modes.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
