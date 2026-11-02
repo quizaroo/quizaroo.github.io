@@ -8,6 +8,9 @@
 // No `at`: no Show me. PUBLISHED holds when each version went live (UTC), filled in by tools/publish.py.
 const FIRST_SET = ['.set-row .row-title'];
 const WHATS_NEW = {
+  '1.3.10': [
+    {text: 'Android, and Chrome or Edge on a computer: one tap to install the app, from a bar at the top, the pill at the top, or Settings. iPhone and iPad keep their steps, because Safari has no install button.', go: '#/settings', at: '#install-section'},
+    {text: 'iPhone and iPad: clearer steps for adding the app to your Home Screen, with a picture of each button.', go: '#/settings', at: '#install-section'}],
   '1.3.09': [
     {text: 'Your Library: Import, Export all and Load demo sets have moved into the ⋯ menu at the top.', go: '#/library', at: '#more-button'},
     {text: 'Your Library no longer gets stuck when it is empty, or when a new browser opens straight on it. Fixed.'}
@@ -100,6 +103,7 @@ const WHATS_NEW = {
   '1.0.00': [{text: 'Open Flashcards goes live: make sets, flip and swipe through them, and import or export them as JSON.'}]
 };
 const PUBLISHED = {
+  '1.3.10': '2026-11-02T20:51:23Z',
   '1.3.09': '2026-11-02T20:42:31Z',
   '1.3.08': '2026-11-02T20:38:43Z',
   '1.3.07': '2026-11-02T20:34:26Z',

@@ -12,6 +12,7 @@ function settings_panel(panel_key, title_text, status_el, panel_attributes, ...b
 function sync_pill() {
   const pill_el = document.getElementById('sync-status');
   const settings_nav_el = document.querySelector('.nav-item[data-nav="settings"]');
+  addEventListener('hashchange', close_sync_popup);
   pill_el.addEventListener('click', () => { if (document.querySelector('.sync-popup')) close_sync_popup(); else open_sync_popup(); });
   sync_engine.on_status(sync_status => {
     settings_nav_el.classList.toggle('has-alert', !!(sync_status.admin && sync_status.admin.new_accounts));
@@ -45,13 +46,13 @@ function open_sync_popup() {
       el('li', {}, el('b', {}, 'Sync'), ': create an account under Settings, Sync, then sign in on your other devices.'),
       el('li', {}, el('b', {}, 'Export all'), ': save everything to one file as a backup.'),
       install_warning() ? el('li', {}, el('b', {}, 'Add to Home Screen'), ': otherwise Safari may delete your data after 7 days.') : null),
-    el('div', {class: 'button-row'}, set_up_button, el('button', {onclick: () => { close_sync_popup(); download_json('open-flashcards-all.json', app_state.sets); }}, 'Export all'), install_warning() ? el('button', {onclick: () => { close_sync_popup(); go_to_settings_panel('install', '#install-section'); }}, 'Add to Home Screen') : null)
+    el('div', {class: 'button-row'}, set_up_button, el('button', {onclick: () => { close_sync_popup(); download_json('open-flashcards-all.json', app_state.sets); }}, 'Export all'), install_warning() ? el('button', {onclick: () => { close_sync_popup(); go_to_settings_panel('install', '#install-section'); }}, 'Add to Home Screen') : can_prompt_install() ? install_button('') : null)
   ] : [
     el('h3', {}, pill_el.textContent),
     el('p', {}, sync_state_text(sync_status) || 'Sync is on.'),
     el('div', {class: 'button-row'}, set_up_button)
   ];
-  const popup_el = el('div', {class: 'view-menu sync-popup', role: 'dialog', 'aria-label': 'Sync status', style: 'top:' + (pill_rect.bottom + 8) + 'px;right:' + Math.max(12, Math.min(innerWidth - pill_rect.right, innerWidth - 320 - 12)) + 'px'}, ...nodes);
+  const popup_el = el('div', {class: 'sync-popup', role: 'dialog', 'aria-label': 'Sync status', style: 'top:' + (pill_rect.bottom + 8) + 'px;right:' + Math.max(12, Math.min(innerWidth - pill_rect.right, innerWidth - 320 - 12)) + 'px'}, ...nodes);
   document.body.appendChild(popup_el); pill_el.setAttribute('aria-expanded', 'true');
   addEventListener('pointerdown', close_popup_if_outside, true); addEventListener('keydown', close_popup_on_escape, true);
 }
