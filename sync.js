@@ -7,6 +7,8 @@
 // Runs on start, on regaining network, a few seconds after a change, every 30 seconds on screen (5 minutes off screen), and on Sync now.
 // Records: sets, cards, progress, trophies, settings and attachments. Files (photos) travel separately in their own queue, so a big file never holds up the text.
 const sync_engine = (() => {
+  const DEFAULT_SERVER = 'https://flashcards.hazymat.co.uk', ADMIN_NOTICE_KEY = 'open-flashcards:admin-notice';
+  let is_admin = null;
   const DB_NAME = 'open-flashcards-sync', COLLECTIONS = ['sets', 'cards', 'progress', 'trophies', 'settings', 'attachments'], RESERVED_FIELDS = new Set(['id', 'deleted_at', '_field_clocks', '_server_seq']);
   const SYNCED_SETTINGS = ['shuffle', 'keep_score', 'library_order', 'mode_layout', 'learn_choice', 'learn_type'], MAX_FILE = 25 * 1024 * 1024, MAX_AUTO_DOWNLOAD = 5 * 1024 * 1024;
   let changed_while_running = false, keys = null, account = null, records = new Map(), database = null, device_id = '', last_clock = {wall: 0, counter: 0}, running = null, timer = null, failures = 0, wired = false, files_running = null, mark_ready;
@@ -254,6 +256,7 @@ const sync_engine = (() => {
     records.forEach(record_item => { record_item._server_seq = 0; });
     await persist_records(Array.from(records.keys()), true);
     keys = joining_keys;
+    is_admin = null;
     account = {server: server_url, email: email_text, user_id: login_reply.user_id, token: login_reply.token, device_id: login_reply.device_id};
     await meta_set('sync_last_seq', 0); await meta_set('sync_keys', keys); await meta_set('sync_account', account);
   }
@@ -301,11 +304,12 @@ const sync_engine = (() => {
   async function start() { wire_triggers(); set_status({state: 'idle', pending: await outbox_size(), error: null}); schedule_sync(0); }
   async function sign_out() {
     try { await api('POST', '/api/logout'); } catch (logout_err) {}
-    keys = null; account = null;
+    keys = null; account = null; is_admin = null;
+    set_status({usage: null, admin: null});
     await meta_set('sync_keys', undefined); await meta_set('sync_account', undefined); await meta_set('sync_last_seq', undefined);
     clearTimeout(timer); set_status({state: 'off', error: null});
   }
-  function signed_in() { return account ? {server: account.server, email: account.email} : null; }
+  function signed_in() { return account ? {server: account.server, email: account.email, is_own_server: account.server !== DEFAULT_SERVER} : null; }
   async function devices() { return (await api('GET', '/api/devices')).devices; }
 
   // ---- The sync itself ----
@@ -391,6 +395,7 @@ const sync_engine = (() => {
         set_status({state: 'ok', last: new Date().toISOString(), pending: await outbox_size(), error: null, received: changed_count});
         failures = 0;
         sync_files();
+        check_extras();
       } catch (sync_err) {
         const is_offline = !navigator.onLine || sync_err instanceof TypeError; // fetch failed: no network, or the server can't be reached
         set_status({state: is_offline ? 'offline' : 'error', error: is_offline ? null : sync_err.message, pending: await outbox_size()});
@@ -404,6 +409,24 @@ const sync_engine = (() => {
     })();
     return running;
   }
+  // How much of this account's storage is used and, for the server's admin, who has signed up. Neither holds up the sync.
+  async function check_extras() {
+    try {
+      set_status({usage: await api('GET', '/api/usage')});
+      if (is_admin === false) return;
+      const admin_summary = await api('GET', '/api/admin/summary');
+      is_admin = true;
+      set_status({admin: admin_summary});
+      notify_new_signups(admin_summary.new_accounts);
+    } catch (extras_err) { if (extras_err.status === 403 || extras_err.status === 404) is_admin = false; }
+  }
+  // Told once for each new number; opening the admin page clears it.
+  function notify_new_signups(new_count) {
+    let told_count = 0;
+    try { told_count = Number(localStorage.getItem(ADMIN_NOTICE_KEY)) || 0; localStorage.setItem(ADMIN_NOTICE_KEY, String(new_count)); } catch (storage_err) {}
+    if (new_count > told_count) toast(new_count + ' new sign-up' + (new_count === 1 ? '' : 's') + ' on your sync server', {action: 'Open admin', on_action: () => window.open(admin_url(), '_blank', 'noopener'), ms: 10000});
+  }
+  function admin_url() { return account ? account.server + '/admin' : ''; }
   function schedule_sync(delay_ms) { clearTimeout(timer); timer = setTimeout(sync_now, delay_ms); }
   function note_change() { if (!account) return; changed_while_running = !!running; set_status({pending: status.pending + 1}); schedule_sync(4000); }
   function wire_triggers() {
@@ -564,5 +587,5 @@ const sync_engine = (() => {
       catch_up();
     });
   }
-  return {ready, init, watch_other_tabs, on_status, get status() { return status; }, sync_now, note_change, check_link, server_info, register, recover, change_password, sign_in, sign_out, start, signed_in, devices, data_code, add_file, remove_file, files_on, get_file};
+  return {DEFAULT_SERVER, admin_url, ready, init, watch_other_tabs, on_status, get status() { return status; }, sync_now, note_change, check_link, server_info, register, recover, change_password, sign_in, sign_out, start, signed_in, devices, data_code, add_file, remove_file, files_on, get_file};
 })();

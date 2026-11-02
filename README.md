@@ -15,13 +15,25 @@ A simple, open-source flashcards app that runs in your browser. No tracking, no 
 - The app remembers how well you know each card and brings the hard ones back sooner, with a longer gap each time you get one right
 - Switch between term first, definition first or mixed inside any mode, and swap all sides of a set
 - Import and export single sets or everything as JSON
-- Your sets are stored in your browser (localStorage). Export regularly if you want a backup.
-- Optional sync through your own server keeps your sets, progress, rewards and settings in step across your devices. Everything is encrypted on the device first, so the server can't read it. Settings → Sync signs you in, and the pill at the top right shows how it's doing. To set up a server, see [server/README.md](server/README.md).
+- Your sets are stored in your browser (localStorage). Your Library's Export all downloads everything to one JSON file, for a backup
+- Your sets, progress, rewards and settings can sync across your devices, encrypted on the device first. See [below](#sync-between-your-devices)
 - A browser with nothing saved starts with the demo sets from `demo-sets.json`. "Load demo sets" adds any that are missing and never changes your existing sets.
 
 A bar tells you when a new version is ready, and Settings lets you check for updates and read what changed in every version. Once loaded, it works without a connection.
 
 Add it to your phone's home screen from the browser's Share menu to use it like an app.
+
+## Sync between your devices
+
+**You don't need an account.** The app works fully without signing in, and you won't lose your data as long as you keep a backup: one button, Export all in Your Library, downloads everything to a single JSON file.
+
+If you'd like your phone and laptop to stay in step, I'm trying out a new sync server, and you're welcome to use it for free. Just sign up in the app, under Settings → Sync.
+
+- **It's a trial.** If you'd like to keep using it after 24 hours, please email me at <hazymat@gmail.com>. Otherwise your account may be deleted, though not within its first 24 hours unless the server has to be closed because of abuse. Your own devices keep their copies either way.
+- **Private by design.** Everything is encrypted on your device first, with a key made from your password. The server can't read your data, and nobody can reset your password, so save the recovery code it gives you.
+- **Small limits for now.** Each account has a few MB, which is plenty for many sets, and only a few new accounts are taken each day. If today's have gone, try again tomorrow.
+
+Prefer to run your own? The server is open source: see [server/README.md](server/README.md), then choose Use your own server in Settings → Sync.
 
 ## File format
 
