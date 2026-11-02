@@ -21,15 +21,15 @@ A simple, open-source flashcards app that runs in your browser. No tracking, no 
 
 A bar tells you when a new version is ready, and Settings lets you check for updates and read what changed in every version. Once loaded, it works without a connection.
 
-Add it to your phone's home screen from the browser's Share menu to use it like an app.
+Add it to your phone's home screen from the browser's Share menu to use it like an app. On an iPhone or iPad this also keeps your sets safe, because Safari can clear a website's saved data after about a week away from it.
 
 ## Sync between your devices
 
 **You don't need an account.** The app works fully without signing in, and you won't lose your data as long as you keep a backup: one button, Export all in Your Library, downloads everything to a single JSON file.
 
-If you'd like your phone and laptop to stay in step, I'm trying out a new sync server, and you're welcome to use it for free. Just sign up in the app, under Settings → Sync.
+**This app is free.** If you'd like your phone and laptop to stay in step, sync is open to you too. Just sign up in the app, under Settings → Sync.
 
-- **It's a trial.** If you'd like to keep using it after 24 hours, please email me at <hazymat@gmail.com>. Otherwise your account may be deleted, though not within its first 24 hours unless the server has to be closed because of abuse. Your own devices keep their copies either way.
+- **Please email me to keep it.** To keep using sync after 24 hours, email <hazymat@gmail.com>. Otherwise your account may be deleted, though not within its first 24 hours unless the server has to be closed because of abuse. You won't lose anything if it is: your data stays on your device, and it just stops syncing.
 - **Private by design.** Everything is encrypted on your device first, with a key made from your password. The server can't read your data, and nobody can reset your password, so save the recovery code it gives you.
 - **Small limits for now.** Each account has a few MB, which is plenty for many sets, and only a few new accounts are taken each day. If today's have gone, try again tomorrow.
 

@@ -146,14 +146,14 @@ function view_home() {
   function top_sets(sort_value) { const top_list = app_state.sets.filter(card_set => sort_value(card_set) && !shown_ids.has(card_set.id)).sort((set_a, set_b) => String(sort_value(set_b)).localeCompare(String(sort_value(set_a)), undefined, {numeric: true})).slice(0, 4); top_list.forEach(card_set => shown_ids.add(card_set.id)); return top_list; }
   function home_section(heading_text, card_sets) { return card_sets.length ? el('section', {class: 'home-section'}, el('h2', {}, heading_text), el('div', {class: 'tile-grid'}, ...card_sets.map(set_tile))) : null; }
   const due_sets = top_sets(card_set => due_indexes(card_set).length), studied_sets = top_sets(card_set => card_set.last_studied), opened_sets = top_sets(card_set => card_set.last_opened), newest_sets = top_sets(card_set => card_set.created);
-  render([menu_crumb('home', '#/')], [plus_button()], app_state.sets.length ? [
+  render([menu_crumb('home', '#/')], [plus_button()], [home_screen_tip()].concat(app_state.sets.length ? [
     el('div', {class: 'stat-strip'},
       el('div', {class: 'stat', style: 'background:#8fd3ff'}, el('strong', {}, app_state.sets.length), 'sets'),
       el('div', {class: 'stat', style: 'background:#ffe27a'}, el('strong', {}, cards_total), 'cards'),
       el('div', {class: 'stat', style: 'background:#9be7a8'}, el('strong', {}, studied_this_week), 'studied this week')),
     home_section('Ready to revise', due_sets), home_section('Recently studied', studied_sets), home_section('Recently opened', opened_sets), home_section('Newest sets', newest_sets),
     el('p', {class: 'empty-note'}, 'See everything in ', el('a', {href: '#/library'}, 'Your Library'), '.')
-  ].filter(Boolean) : [el('p', {class: 'empty-note'}, 'No sets yet. Press + to make your first one, or import a file in ', el('a', {href: '#/library'}, 'Your Library'), '.')]);
+  ].filter(Boolean) : [el('p', {class: 'empty-note'}, 'No sets yet. Press + to make your first one, or import a file in ', el('a', {href: '#/library'}, 'Your Library'), '.')]).filter(Boolean));
 }
 function view_library() {
   const sort_rules = {name: (set_a, set_b) => set_a.title.localeCompare(set_b.title), newest: (set_a, set_b) => (set_b.created || '').localeCompare(set_a.created || '') || set_a.title.localeCompare(set_b.title), studied: (set_a, set_b) => (set_b.last_studied || 0) - (set_a.last_studied || 0) || set_a.title.localeCompare(set_b.title)};

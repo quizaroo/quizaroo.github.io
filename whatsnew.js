@@ -8,6 +8,10 @@
 // No `at`: no Show me. PUBLISHED holds when each version went live (UTC), filled in by tools/publish.py.
 const FIRST_SET = ['.set-row .row-title'];
 const WHATS_NEW = {
+  '1.3.04': [
+    {text: 'Sync: clearer wording before you sign in, including the address to email to keep using it after 24 hours.', go: '#/settings', at: '#sync-section'},
+    {text: 'iPhone and iPad: a tip on Home to add the app to your Home Screen, because Safari can clear saved data after about a week away.'}
+  ],
   '1.3.03': [{text: 'Your Library and Edit a set: dragging several selected items now picks them all up together and opens a gap big enough for them. They land side by side, in the order they were in. Fixed.', go: '#/library', at: '.library-hint'}],
   '1.3.02': [
     {text: 'Your Library: press and hold a set to drag it, or let go to select it and tap others. Drag sets to reorder them and the sort becomes Custom, which is kept when you try other sorts.', go: '#/library', at: '.set-row'},
@@ -74,6 +78,7 @@ const WHATS_NEW = {
   '1.0.00': [{text: 'Open Flashcards goes live: make sets, flip and swipe through them, and import or export them as JSON.'}]
 };
 const PUBLISHED = {
+  '1.3.04': '2026-11-02T19:17:34Z',
   '1.3.03': '2026-11-02T17:58:13Z',
   '1.3.02': '2026-11-02T17:50:20Z',
   '1.3.01': '2026-11-02T17:28:02Z',
