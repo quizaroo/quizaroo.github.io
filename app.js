@@ -350,7 +350,7 @@ function open_view_menu() {
   const button_rect = view_button_el.getBoundingClientRect(), root_data = document.documentElement.dataset;
   const menu_el = el('div', {class: 'view-menu', role: 'dialog', 'aria-label': 'View settings', style: 'top:' + (button_rect.bottom + 8) + 'px;right:' + Math.max(12, innerWidth - button_rect.right) + 'px'},
     el('h3', {}, 'Style'), choice_row(STYLE_KEY, root_data.style, [{value: 'lined', label: 'Lined', sample: el('span', {class: 'view-sample lined'})}, {value: 'plain', label: 'Plain', sample: el('span', {class: 'view-sample plain'}, el('i'), el('i'))}]),
-    el('h3', {}, 'Day or night'), choice_row(THEME_KEY, root_data.theme, [{value: 'light', label: '☀ Day'}, {value: 'glass', label: '☾ Night'}]));
+    el('h3', {}, 'View mode'), choice_row(THEME_KEY, root_data.theme, [{value: 'light', label: '☀ Dawn'}, {value: 'glass', label: '☾ Dusk'}]));
   document.body.appendChild(menu_el); view_button_el.setAttribute('aria-expanded', 'true');
   addEventListener('pointerdown', close_if_outside, true); addEventListener('keydown', close_on_escape, true);
 }

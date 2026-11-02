@@ -8,6 +8,7 @@
 // No `at`: no Show me. PUBLISHED holds when each version went live (UTC), filled in by tools/publish.py.
 const FIRST_SET = ['.set-row .row-title'];
 const WHATS_NEW = {
+  '1.1.03': [{text: 'The eye button: Day or Night is now called View mode, with Dawn and Dusk.', go: '#/', at: '#view-button'}],
   '1.1.02': [
     {text: 'The eye button at the top replaces day and night. It holds Day or Night, and a choice of two styles: Lined, or Plain with rounded cards.', go: '#/', at: '#view-button'},
     {text: 'Each set: press and hold a tile, then drag it anywhere to rearrange. The others move aside, and a blue dashed outline shows where it will land.', go: '#/library', open: FIRST_SET, at: '.mode-tiles', more: 'The order you choose applies to every set.'},
@@ -46,6 +47,7 @@ const WHATS_NEW = {
   '1.0.00': [{text: 'Open Flashcards goes live: make sets, flip and swipe through them, and import or export them as JSON.'}]
 };
 const PUBLISHED = {
+  '1.1.03': '2026-11-02T15:39:54Z',
   '1.1.02': '2026-11-02T14:29:30Z',
   '1.1.01': '2026-11-02T14:06:17Z',
   '1.1.00': '2026-11-02T13:36:09Z',
