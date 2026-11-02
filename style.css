@@ -311,12 +311,12 @@ body.is-carrying .select-bar { opacity: 0; pointer-events: none; }
 
 /* ---- A right answer: a circle round it and a little flash ---- */
 .prompt-card { position: relative; }
-.right-ring { position: fixed; z-index: 4; overflow: visible; pointer-events: none; }
+.mode-wrap { position: relative; }
+.right-ring { position: absolute; z-index: 4; overflow: visible; pointer-events: none; }
 .right-ring path { fill: none; stroke: #2fb36b; stroke-width: 3; stroke-linecap: round; stroke-dasharray: 1; stroke-dashoffset: 1; animation: ring-draw .3s ease-out forwards; }
 @keyframes ring-draw { to { stroke-dashoffset: 0; } }
 .right-flash { opacity: 1 !important; animation: right-flash .55s ease-out; }
 @keyframes right-flash { 0% { box-shadow: 0 0 0 0 rgb(47 179 107 / 0); } 35% { box-shadow: 0 0 0 5px rgb(47 179 107 / .35), 0 0 26px 6px rgb(47 179 107 / .55); } 100% { box-shadow: 0 0 0 0 rgb(47 179 107 / 0); } }
-.answer-input:disabled { color: var(--text); -webkit-text-fill-color: var(--text); opacity: 1; }
 @media (prefers-reduced-motion: reduce) { .right-ring path { animation: none; stroke-dashoffset: 0; } .right-flash { animation: none; } }
 
 /* ---- Rewards ---- */

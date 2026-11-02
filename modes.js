@@ -127,9 +127,10 @@ function celebrate_right(answer_el, run_next) {
   const answer_rect = words_rect(answer_el), ring_width = answer_rect.width + 30, ring_height = answer_rect.height + 18, at_x = fraction_x => (fraction_x * ring_width).toFixed(1), at_y = fraction_y => (fraction_y * ring_height).toFixed(1);
   const ring_el = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   ring_el.setAttribute('class', 'right-ring'); ring_el.setAttribute('aria-hidden', 'true'); ring_el.setAttribute('viewBox', '0 0 ' + ring_width + ' ' + ring_height);
-  Object.assign(ring_el.style, {left: answer_rect.left - 15 + 'px', top: answer_rect.top - 9 + 'px', width: ring_width + 'px', height: ring_height + 'px'});
+  const wrap_el = answer_el.closest('.mode-wrap'), wrap_rect = wrap_el.getBoundingClientRect();
+  Object.assign(ring_el.style, {left: answer_rect.left - wrap_rect.left - 15 + 'px', top: answer_rect.top - wrap_rect.top - 9 + 'px', width: ring_width + 'px', height: ring_height + 'px'});
   ring_el.innerHTML = '<path pathLength="1" d="M' + at_x(0.1) + ' ' + at_y(0.26) + 'C' + at_x(0.3) + ' ' + at_y(0.02) + ' ' + at_x(0.8) + ' ' + at_y(0) + ' ' + at_x(0.95) + ' ' + at_y(0.3) + 'C' + at_x(1.02) + ' ' + at_y(0.68) + ' ' + at_x(0.72) + ' ' + at_y(0.98) + ' ' + at_x(0.42) + ' ' + at_y(0.96) + 'C' + at_x(0.08) + ' ' + at_y(0.96) + ' ' + at_x(-0.03) + ' ' + at_y(0.56) + ' ' + at_x(0.14) + ' ' + at_y(0.18) + '"/>';
-  document.body.appendChild(ring_el);
+  wrap_el.appendChild(ring_el);
   answer_el.classList.add('right-flash');
   later(run_next, 620);
 }
@@ -171,7 +172,7 @@ function position_label() { return 'Question ' + (study_session.position + 1) + 
 function ask_type(card_set, mode_item, card_index, finish, ask_options) {
   const sides = (ask_options && ask_options.sides) || card_sides(card_set, card_index), input_el = el('input', {type: 'text', class: 'answer-input', placeholder: 'Type the answer', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false', 'aria-label': 'Your answer'}), result_el = el('div', {class: 'answer-slot'});
   let tried_close = false, is_answered = false;
-  function show_result(is_right, extra_nodes) { is_answered = true; input_el.disabled = true; form_button.hidden = true; if (is_right) { celebrate_right(input_el, () => finish(true)); return; } play_sound('wrong'); const next_el = next_button(() => finish(false)); result_el.replaceChildren(answer_panel(false, 'The answer is: ' + sides.answer, [el('div', {class: 'button-row'}, next_el, el('button', {onclick: () => finish(true)}, 'I was right'))])); next_el.focus(); }
+  function show_result(is_right, extra_nodes) { is_answered = true; input_el.readOnly = true; form_button.hidden = true; if (is_right) { celebrate_right(input_el, () => finish(true)); return; } play_sound('wrong'); const next_el = next_button(() => finish(false)); result_el.replaceChildren(answer_panel(false, 'The answer is: ' + sides.answer, [el('div', {class: 'button-row'}, next_el, el('button', {onclick: () => finish(true)}, 'I was right'))])); next_el.focus(); }
   const form_button = el('button', {class: 'primary', type: 'submit'}, 'Check');
   const form_el = el('form', {class: 'answer-form', onsubmit: submit_event => { submit_event.preventDefault(); if (is_answered) return; const verdict = check_answer(input_el.value, sides.answer); if (verdict === 'close' && !tried_close) { tried_close = true; result_el.replaceChildren(el('div', {class: 'answer-panel is-close', role: 'status'}, 'So close. Check the spelling and try again.')); input_el.focus(); return; } show_result(verdict !== 'wrong'); }}, input_el, form_button);
   mode_frame(card_set, mode_item, [(ask_options && ask_options.status) || position_label()], [session_progress(), (ask_options && ask_options.prompt_node) || prompt_card(sides.prompt), form_el, result_el, ask_options && ask_options.footer]);
