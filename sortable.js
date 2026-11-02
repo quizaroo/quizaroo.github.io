@@ -1,5 +1,5 @@
 // Press and hold to pick something up and drag it, the same as in Sift. A shading spreads from the finger while it is held; then the item lifts with a wobble, follows the finger, the others slide aside, and a blue dashed outline shows where it will land. A tap, or moving first (scrolling), is left alone. Esc puts it back.
-//   press_and_drag(root_el, {item_selector, fixed_selector, skip_selector, same_parent, one_axis, on_drop(item_el), on_lift(item_el), on_still(item_el), on_cancel(item_el)})
+//   press_and_drag(root_el, {item_selector, fixed_selector, skip_selector, same_parent, one_axis, on_drop(item_el), on_lift(item_el) (may set item_el.stack_above and stack_below, the room a clump needs around it), on_still(item_el), on_cancel(item_el)})
 //   fixed_selector: items that can't be lifted or dropped on. skip_selector: where a press never lifts. same_parent: stays among the items in its own box. one_axis: moves up and down only. on_lift: it has lifted. on_still: held and let go without moving (instead of on_drop). on_cancel: put back.
 const HOLD_MS = 300, CARRY_TILT = -0.8;
 let carrying_count = 0;
@@ -14,7 +14,7 @@ function press_marks(item_el, pointer_x, pointer_y) {
 function press_and_drag(root_el, drag_options) {
   let has_moved = false, lift_x = 0, lift_y = 0, pressed = null, dragging_el = null, slot_el = null, origin = null, offset_x = 0, offset_y = 0, last_x = 0, last_y = 0, quiet_until = 0, scroll_timer = null;
   const fixed_selector = drag_options.fixed_selector || null;
-  const other_items = () => Array.from(root_el.querySelectorAll(drag_options.item_selector)).filter(item_el => item_el !== dragging_el && !(fixed_selector && item_el.matches(fixed_selector)) && !(drag_options.same_parent && dragging_el && item_el.parentNode !== dragging_el.parentNode) && item_el.getClientRects().length);
+  const other_items = () => Array.from(root_el.querySelectorAll(drag_options.item_selector)).filter(item_el => !(dragging_el && dragging_el.contains(item_el)) && !(fixed_selector && item_el.matches(fixed_selector)) && !(drag_options.same_parent && dragging_el && item_el.parentNode !== dragging_el.parentNode) && item_el.getClientRects().length);
   // An item's place once it has finished sliding.
   function settled_rect(item_el) { const rect_now = item_el.getBoundingClientRect(), transform_text = getComputedStyle(item_el).transform, slide_matrix = transform_text !== 'none' && item_el.getAnimations().some(animation_item => animation_item.id === 'make-room') ? new DOMMatrixReadOnly(transform_text) : null, shift_x = slide_matrix ? slide_matrix.m41 : 0, shift_y = slide_matrix ? slide_matrix.m42 : 0; return {left: rect_now.left - shift_x, right: rect_now.right - shift_x, top: rect_now.top - shift_y, bottom: rect_now.bottom - shift_y, width: rect_now.width, height: rect_now.height}; }
   // The others slide to their new places rather than jump.
@@ -25,14 +25,15 @@ function press_and_drag(root_el, drag_options) {
     others.forEach(item_el => { const rect_now = item_el.getBoundingClientRect(), move_x = old_places.get(item_el).left - rect_now.left, move_y = old_places.get(item_el).top - rect_now.top; if (Math.abs(move_x) > 1 || Math.abs(move_y) > 1) item_el.animate([{transform: 'translate(' + move_x + 'px, ' + move_y + 'px)'}, {transform: 'none'}], {duration: 150, easing: 'cubic-bezier(.2, .8, .2, 1)', id: 'make-room'}); });
   }
   function place_item() {
-    const middle_x = drag_options.one_axis ? dragging_el.getBoundingClientRect().left + dragging_el.offsetWidth / 2 : last_x - offset_x + dragging_el.offsetWidth / 2, middle_y = last_y - offset_y + dragging_el.offsetHeight / 2;
+    const middle_x = drag_options.one_axis ? dragging_el.getBoundingClientRect().left + dragging_el.offsetWidth / 2 : last_x - offset_x + dragging_el.offsetWidth / 2, stack_above = dragging_el.stack_above || 0, stack_below = dragging_el.stack_below || 0, middle_y = last_y - offset_y + (dragging_el.offsetHeight + stack_below - stack_above) / 2;
     const under_el = other_items().find(item_el => { const rect_now = settled_rect(item_el); return middle_x > rect_now.left + rect_now.width * 0.2 && middle_x < rect_now.right - rect_now.width * 0.2 && middle_y > rect_now.top + rect_now.height * 0.2 && middle_y < rect_now.bottom - rect_now.height * 0.2; });
     if (under_el) slide_others(() => { if (dragging_el.compareDocumentPosition(under_el) & Node.DOCUMENT_POSITION_PRECEDING) under_el.parentNode.insertBefore(dragging_el, under_el); else under_el.after(dragging_el); });
   }
   function follow_pointer() {
     dragging_el.style.transform = '';
     const turned_rect = dragging_el.getBoundingClientRect(), item_width = dragging_el.offsetWidth, item_height = dragging_el.offsetHeight, box_left = turned_rect.left + turned_rect.width / 2 - item_width / 2, box_top = turned_rect.top + turned_rect.height / 2 - item_height / 2;
-    Object.assign(slot_el.style, {left: box_left + 'px', top: box_top + 'px', width: item_width + 'px', height: item_height + 'px'});
+    const stack_above = dragging_el.stack_above || 0, stack_below = dragging_el.stack_below || 0;
+    Object.assign(slot_el.style, {left: box_left + 'px', top: box_top - stack_above + 'px', width: item_width + 'px', height: item_height + stack_above + stack_below + 'px'});
     dragging_el.style.transform = 'translate(' + (drag_options.one_axis ? 0 : last_x - offset_x - box_left) + 'px, ' + (last_y - offset_y - box_top) + 'px)';
   }
   function cancel_press() { if (!pressed) return; clearTimeout(pressed.timer); pressed.item_el.classList.remove('holding'); pressed.wave_el.remove(); pressed = null; }
@@ -41,7 +42,7 @@ function press_and_drag(root_el, drag_options) {
     try { root_el.setPointerCapture(pressed.pointer_id); } catch (capture_err) {}
     clearTimeout(pressed.timer); pressed = null;
     if (document.activeElement && item_el.contains(document.activeElement)) document.activeElement.blur();
-    dragging_el = item_el; item_el.hold_wave = wave_el; origin = {parent_el: item_el.parentNode, next_el: item_el.nextSibling}; offset_x = last_x - item_rect.left; offset_y = last_y - item_rect.top; quiet_until = Infinity; carrying_count++; has_moved = false; lift_x = last_x; lift_y = last_y; if (drag_options.on_lift) drag_options.on_lift(item_el);
+    dragging_el = item_el; item_el.hold_wave = wave_el; origin = {parent_el: item_el.parentNode, next_el: item_el.nextSibling}; offset_x = last_x - item_rect.left; offset_y = last_y - item_rect.top; quiet_until = Infinity; carrying_count++; has_moved = false; lift_x = last_x; lift_y = last_y; if (drag_options.on_lift) slide_others(() => drag_options.on_lift(item_el));
     item_el.classList.add('dragging'); document.body.classList.add('is-carrying'); item_el.style.transition = 'none'; item_el.style.rotate = CARRY_TILT + 'deg'; item_el.animate(wobble_frames(0, CARRY_TILT, -2.2), {duration: 700});
     slot_el = el('div', {class: 'drop-slot', 'aria-hidden': 'true'}); slot_el.style.borderRadius = getComputedStyle(item_el).borderRadius; document.body.appendChild(slot_el);
     follow_pointer(); if (navigator.vibrate) navigator.vibrate(10);
@@ -140,10 +141,27 @@ function selectable_list(rows_el, list_options) {
       return true;
     };
   }
-  function end_carrying(row_el) { carried_rows.forEach(other_row => other_row.classList.remove('carried-along')); carried_rows = []; delete row_el.dataset.carrying; }
+  // Everything selected is picked up together: copies of the others gather around the held row in their order, flying in from where they were, and the row keeps room for them all, so the gap is as big as the clump.
+  function clump_around(row_el) {
+    const held_index = carried_rows.indexOf(row_el), row_gap = parseFloat(getComputedStyle(rows_el).rowGap) || 0, old_tops = carried_rows.map(other_row => other_row.getBoundingClientRect().top), held_rect = row_el.getBoundingClientRect();
+    let stack_above = 0, stack_below = 0;
+    const copies = carried_rows.map((other_row, row_index) => {
+      if (other_row === row_el) return null;
+      const copy_el = other_row.cloneNode(true), row_height = other_row.offsetHeight;
+      other_row.querySelectorAll('textarea').forEach((textarea_el, field_index) => { copy_el.querySelectorAll('textarea')[field_index].value = textarea_el.value; });
+      copy_el.classList.add('clump-copy'); copy_el.setAttribute('aria-hidden', 'true'); copy_el.querySelectorAll('.hold-marks').forEach(mark_el => mark_el.remove());
+      return {copy_el, row_height, row_index};
+    });
+    copies.slice(0, held_index).reverse().forEach(copy_item => { if (!copy_item) return; stack_above += copy_item.row_height + row_gap; copy_item.copy_el.style.top = -stack_above + 'px'; });
+    copies.slice(held_index + 1).forEach(copy_item => { if (!copy_item) return; copy_item.copy_el.style.top = row_el.offsetHeight + row_gap + stack_below + 'px'; stack_below += copy_item.row_height + row_gap; });
+    carried_rows.forEach(other_row => { if (other_row !== row_el) other_row.classList.add('carried-along'); });
+    row_el.stack_above = stack_above; row_el.stack_below = stack_below; row_el.style.marginTop = stack_above + 'px'; row_el.style.marginBottom = stack_below + 'px'; row_el.dataset.carrying = carried_rows.length + ' ' + list_options.noun + 's';
+    copies.forEach(copy_item => { if (!copy_item) return; row_el.appendChild(copy_item.copy_el); const copy_top = held_rect.top + parseFloat(copy_item.copy_el.style.top); copy_item.copy_el.animate([{transform: 'translateY(' + (old_tops[copy_item.row_index] - copy_top) + 'px)', opacity: 0.6}, {transform: 'none', opacity: 1}], {duration: 220, easing: 'cubic-bezier(.2, .8, .2, 1)'}); });
+  }
+  function end_carrying(row_el) { carried_rows.forEach(other_row => other_row.classList.remove('carried-along')); carried_rows = []; row_el.querySelectorAll('.clump-copy').forEach(copy_el => copy_el.remove()); delete row_el.dataset.carrying; row_el.stack_above = row_el.stack_below = 0; row_el.style.marginTop = ''; row_el.style.marginBottom = ''; }
   rows_el.addEventListener('mousedown', mouse_event => { if (selected_items.size && !(list_options.skip_selector && mouse_event.target.closest(list_options.skip_selector))) mouse_event.preventDefault(); });
   press_and_drag(rows_el, {item_selector: list_options.item_selector, fixed_selector, skip_selector: list_options.skip_selector, one_axis: true,
-    on_lift: row_el => { carried_rows = selected_items.has(row_el.list_item) && selected_items.size > 1 ? item_rows().filter(other_row => selected_items.has(other_row.list_item)) : []; carried_rows.forEach(other_row => { if (other_row !== row_el) other_row.classList.add('carried-along'); }); if (carried_rows.length) row_el.dataset.carrying = carried_rows.length + ' ' + list_options.noun + 's'; },
+    on_lift: row_el => { carried_rows = selected_items.has(row_el.list_item) && selected_items.size > 1 ? item_rows().filter(other_row => selected_items.has(other_row.list_item)) : []; if (carried_rows.length) clump_around(row_el); },
     on_still: row_el => { end_carrying(row_el); if (document.activeElement) document.activeElement.blur(); if (!selected_items.has(row_el.list_item)) pick_item(row_el.list_item, false); },
     on_cancel: row_el => end_carrying(row_el),
     on_drop: row_el => { const held_index = carried_rows.indexOf(row_el); carried_rows.slice(0, held_index).forEach(other_row => row_el.before(other_row)); carried_rows.slice(held_index + 1).reverse().forEach(other_row => row_el.after(other_row)); end_carrying(row_el); list_options.on_reorder(); }});
