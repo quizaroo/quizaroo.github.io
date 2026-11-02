@@ -6,7 +6,7 @@ let app_state = load_state(), study_session = null, editor_has_changes = null, s
 
 function load_state() {
   try { const stored_state = JSON.parse(localStorage.getItem(STORAGE_KEY)); if (stored_state && Array.isArray(stored_state.sets)) return stored_state; } catch (storage_err) {}
-  return {sets: [], shuffle: true, library_sort: 'name', demo_version: DEMO_VERSION};
+  return {sets: [], shuffle: true, demo_version: DEMO_VERSION, seen_version: APP_VERSION};
 }
 function save_state() { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(app_state)); } catch (storage_err) { alert('Could not save: browser storage is full or blocked.'); } }
 function new_id() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
@@ -37,13 +37,14 @@ function relative_day(time_ms) {
 function date_chips(card_set) {
   return el('span', {class: 'date-chips'},
     card_set.created ? el('span', {class: 'date-chip'}, 'Created', el('b', {}, format_date(card_set.created))) : null,
-    card_set.last_studied ? el('span', {class: 'date-chip'}, 'Last studied', el('b', {}, relative_day(card_set.last_studied))) : null);
+    card_set.last_studied ? el('span', {class: 'date-chip'}, 'Last studied', el('b', {}, relative_day(card_set.last_studied))) : null,
+    (card_set.trophies || []).length ? el('span', {class: 'date-chip'}, 'Trophies', el('b', {}, card_set.trophies.length)) : null);
 }
 
 // ---- Import / export ----
 function normalise_set(raw_set) {
   if (!raw_set || !Array.isArray(raw_set.cards)) return null;
-  return {id: String(raw_set.id || new_id()), title: String(raw_set.title || 'Untitled set'), cards: raw_set.cards.filter(raw_card => raw_card && (raw_card.term || raw_card.definition)).map(raw_card => ({term: String(raw_card.term || ''), definition: String(raw_card.definition || '')})), front: raw_set.front === 'definition' || raw_set.front === 'mixed' ? raw_set.front : undefined, description: raw_set.description ? String(raw_set.description) : undefined, created: /^\d{4}-\d{2}-\d{2}$/.test(raw_set.created) ? raw_set.created : undefined, colour: TINTS.some(tint_item => tint_item[0] === raw_set.colour) ? raw_set.colour : undefined, last_studied: Number(raw_set.last_studied) || undefined, last_opened: Number(raw_set.last_opened) || undefined, progress: raw_set.progress && typeof raw_set.progress === 'object' ? raw_set.progress : undefined, best_speed: Number(raw_set.best_speed) || undefined};
+  return {id: String(raw_set.id || new_id()), title: String(raw_set.title || 'Untitled set'), cards: raw_set.cards.filter(raw_card => raw_card && (raw_card.term || raw_card.definition)).map(raw_card => ({term: String(raw_card.term || ''), definition: String(raw_card.definition || '')})), front: raw_set.front === 'definition' || raw_set.front === 'mixed' ? raw_set.front : undefined, description: raw_set.description ? String(raw_set.description) : undefined, created: /^\d{4}-\d{2}-\d{2}$/.test(raw_set.created) ? raw_set.created : undefined, colour: TINTS.some(tint_item => tint_item[0] === raw_set.colour) ? raw_set.colour : undefined, last_studied: Number(raw_set.last_studied) || undefined, last_opened: Number(raw_set.last_opened) || undefined, trophies: Array.isArray(raw_set.trophies) ? raw_set.trophies.filter(trophy_item => trophy_item && /^[a-z-]+$/.test(trophy_item.image) && typeof trophy_item.line === 'string').map(trophy_item => ({image: trophy_item.image, line: trophy_item.line, goal: trophy_item.goal ? String(trophy_item.goal) : undefined, mode: String(trophy_item.mode || ''), right: Number(trophy_item.right) || 0, total: Number(trophy_item.total) || 0, at: Number(trophy_item.at) || Date.now()})) : undefined, progress: raw_set.progress && typeof raw_set.progress === 'object' ? raw_set.progress : undefined, best_speed: Number(raw_set.best_speed) || undefined};
 }
 // Accepts {format, sets:[...]}, a bare array of sets, or a single set object. Sets with an existing id go through compare_sets; nothing is saved until any conflicts are resolved.
 function import_json(json_text) {
@@ -140,8 +141,8 @@ function view_home() {
 }
 function view_library() {
   const sort_rules = {name: (set_a, set_b) => set_a.title.localeCompare(set_b.title), newest: (set_a, set_b) => (set_b.created || '').localeCompare(set_a.created || '') || set_a.title.localeCompare(set_b.title), studied: (set_a, set_b) => (set_b.last_studied || 0) - (set_a.last_studied || 0) || set_a.title.localeCompare(set_b.title)};
-  const library_sort = sort_rules[app_state.library_sort] ? app_state.library_sort : 'name', sorted_sets = app_state.sets.slice().sort(sort_rules[library_sort]);
-  const sort_select_el = el('select', {onchange: change_event => { app_state.library_sort = change_event.target.value; save_state(); view_library(); }}, el('option', {value: 'name'}, 'Name'), el('option', {value: 'newest'}, 'Newest'), el('option', {value: 'studied'}, 'Last studied'));
+  const library_sort = sort_rules[app_state.library_order] ? app_state.library_order : 'newest', sorted_sets = app_state.sets.slice().sort(sort_rules[library_sort]);
+  const sort_select_el = el('select', {onchange: change_event => { app_state.library_order = change_event.target.value; save_state(); view_library(); }}, el('option', {value: 'newest'}, 'Newest'), el('option', {value: 'name'}, 'Name'), el('option', {value: 'studied'}, 'Last studied'));
   sort_select_el.value = library_sort;
   render('Your Library', [plus_button()], [
     el('div', {class: 'button-row'}, el('label', {class: 'toggle-line'}, 'Sort by', sort_select_el), el('button', {onclick: () => import_input_el.click()}, 'Import'), el('button', {onclick: () => download_json('open-flashcards-all.json', app_state.sets)}, 'Export all'), el('button', {onclick: add_missing_demo_sets}, 'Load demo sets')),
@@ -177,30 +178,35 @@ function view_import_conflicts(new_sets, conflicts, identical_count) {
 
 function view_set(card_set) {
   const studyable_count = studyable_indexes(card_set).length, skipped_count = card_set.cards.length - studyable_count, counts = progress_counts(card_set), due_count = due_indexes(card_set).length;
-  function mode_pill(mode_item) { const label_text = mode_item.emoji + ' ' + mode_item.label + (mode_item.key === 'revise' && due_count ? ' (' + due_count + ')' : ''); return studyable_count >= mode_item.min_cards ? el('a', {class: 'mode-pill', style: '--tint:' + mode_item.tint, href: play_hash(card_set, mode_item.key)}, label_text) : el('span', {class: 'mode-pill is-off', title: 'Needs at least ' + mode_item.min_cards + ' complete cards'}, label_text); }
-  function mode_group(group_name) { return el('div', {class: 'mode-group'}, el('h2', {class: 'list-heading'}, group_name), el('div', {class: 'mode-pills'}, ...MODES.filter(mode_item => mode_item.group === group_name).map(mode_pill))); }
+  function mode_tile(mode_item) {
+    const is_open = studyable_count >= mode_item.min_cards, art_el = el('span', {class: 'mode-art', 'aria-hidden': 'true'});
+    art_el.innerHTML = '<svg viewBox="0 0 64 64">' + mode_item.art + '</svg>';
+    const tile_nodes = [art_el, el('span', {class: 'mode-text'}, el('strong', {}, mode_item.label + (mode_item.key === 'revise' && due_count ? ' (' + due_count + ')' : '')), el('span', {class: 'mode-blurb'}, is_open ? mode_item.blurb : 'Needs at least ' + mode_item.min_cards + ' complete card' + (mode_item.min_cards > 1 ? 's.' : '.')))];
+    return is_open ? el('a', {class: 'mode-tile', style: '--tint:' + mode_item.tint, href: play_hash(card_set, mode_item.key)}, ...tile_nodes) : el('span', {class: 'mode-tile is-off', style: '--tint:' + mode_item.tint}, ...tile_nodes);
+  }
+  function mode_group(group_name) { return el('div', {class: 'mode-group'}, el('h2', {class: 'list-heading'}, group_name), el('div', {class: 'mode-tiles'}, ...MODES.filter(mode_item => mode_item.group === group_name).map(mode_tile))); }
   render(card_set.title, [el('a', {class: 'button', href: '#/edit/' + card_set.id}, 'Edit')], [
     el('div', {class: 'set-hero', style: tint_style(card_set)},
       card_set.description ? el('p', {}, card_set.description) : null,
       el('span', {class: 'date-chips'}, el('span', {class: 'date-chip'}, el('b', {}, card_set.cards.length), 'cards'), ...date_chips(card_set).childNodes),
       studyable_count ? el('div', {class: 'hero-progress'}, progress_meter(card_set), el('div', {class: 'form-note'}, counts.mastered + ' mastered · ' + counts.familiar + ' familiar · ' + counts.learning + ' learning · ' + counts.new + ' new' + (due_count ? ' · ' + due_count + ' due now' : ''))) : null,
       !studyable_count ? el('div', {class: 'form-note'}, 'Add at least one card with a term and a definition to start learning.') : skipped_count ? el('div', {class: 'form-note'}, skipped_count + ' card(s) are missing a side and are left out.') : null),
-    mode_group('Learn'), mode_group('Practise'), mode_group('Games'),
-    el('div', {class: 'button-row set-actions'}, el('button', {onclick: () => { if (!confirm('Reset your progress on "' + card_set.title + '"? Every card goes back to new.')) return; delete card_set.progress; delete card_set.best_speed; delete card_set.last_studied; save_state(); view_set(card_set); }}, '↺ Reset progress'),
+    trophy_shelf(card_set), mode_group('Learn'), mode_group('Practise'), mode_group('Games'),
+    el('div', {class: 'button-row set-actions'}, el('button', {onclick: () => { if (!confirm('Reset your progress on "' + card_set.title + '"? Every card goes back to new. Your trophies stay.')) return; delete card_set.progress; delete card_set.best_speed; delete card_set.last_studied; save_state(); view_set(card_set); }}, '↺ Reset progress'),
       el('button', {onclick: () => download_json(safe_file_name(card_set.title), [card_set])}, 'Export set'),
-      el('button', {onclick: () => { const copied_set = JSON.parse(JSON.stringify(card_set)); copied_set.id = new_id(); copied_set.title = card_set.title + ' (copy)'; delete copied_set.last_studied; delete copied_set.last_opened; delete copied_set.progress; delete copied_set.best_speed; app_state.sets.push(copied_set); save_state(); location.hash = '#/set/' + copied_set.id; }}, 'Duplicate'),
+      el('button', {onclick: () => { const copied_set = JSON.parse(JSON.stringify(card_set)); copied_set.id = new_id(); copied_set.title = card_set.title + ' (copy)'; delete copied_set.last_studied; delete copied_set.last_opened; delete copied_set.progress; delete copied_set.best_speed; delete copied_set.trophies; app_state.sets.push(copied_set); save_state(); location.hash = '#/set/' + copied_set.id; }}, 'Duplicate'),
       el('button', {class: 'danger', onclick: () => { if (!confirm('Delete "' + card_set.title + '"? This cannot be undone.')) return; app_state.sets = app_state.sets.filter(other_set => other_set.id !== card_set.id); save_state(); location.hash = '#/library'; }}, 'Delete set'))
   ]);
 }
 
-// There is always a blank row at the end, so Tab moves term, definition, next term, next definition without stopping. Tabbing out of the blank row moves on to the details and Save.
+// There is always a blank row at the end, so Tab moves term, definition, next term, next definition without stopping. Date and colour are skipped by Tab, so About goes straight to the first term.
 function view_edit(card_set, is_new) {
   const draft_cards = card_set.cards.map(card_item => ({term: card_item.term, definition: card_item.definition}));
   const title_input_el = el('input', {type: 'text', class: 'line-field title-field', value: card_set.title, placeholder: 'Set name', 'aria-label': 'Set name'});
   const description_input_el = el('textarea', {rows: 1, class: 'line-field', placeholder: 'What is this set about? (optional)', 'aria-label': 'Description', oninput: input_event => fit_height(input_event.target)}, card_set.description || '');
-  const created_input_el = el('input', {type: 'date', class: 'line-field detail-field', value: card_set.created || (is_new ? today_text() : ''), 'aria-label': 'Created date'});
+  const created_input_el = el('input', {type: 'date', class: 'line-field detail-field', value: card_set.created || (is_new ? today_text() : ''), 'aria-label': 'Created date', tabindex: -1});
   let picked_colour = card_set.colour;
-  const colour_pick_el = el('div', {class: 'swatches', role: 'radiogroup', 'aria-label': 'Colour'}, ...TINTS.map(tint_item => el('input', {type: 'radio', name: 'set-colour', style: '--tint:' + tint_item[1], title: tint_item[0], 'aria-label': tint_item[0], checked: tint_of(card_set) === tint_item[1], onchange: () => { picked_colour = tint_item[0]; }})));
+  const colour_pick_el = el('div', {class: 'swatches', role: 'radiogroup', 'aria-label': 'Colour'}, ...TINTS.map(tint_item => el('input', {type: 'radio', name: 'set-colour', style: '--tint:' + tint_item[1], title: tint_item[0], 'aria-label': tint_item[0], tabindex: -1, checked: tint_of(card_set) === tint_item[1], onchange: () => { picked_colour = tint_item[0]; }})));
   const rows_el = el('div', {class: 'ruled'}), error_el = el('div', {class: 'form-error', role: 'alert'}, 'Add at least one card before saving.');
   error_el.hidden = true;
   function is_blank(draft_card) { return !draft_card.term.trim() && !draft_card.definition.trim(); }
@@ -230,10 +236,9 @@ function view_edit(card_set, is_new) {
   draw_rows();
   const cancel_hash = is_new ? last_list_hash : '#/set/' + card_set.id;
   render(is_new ? 'New set' : 'Edit set', [el('a', {class: 'button', href: cancel_hash}, 'Cancel'), el('button', {class: 'primary', onclick: save_edits}, 'Save')], [
-    el('div', {class: 'ruled'}, el('div', {class: 'detail-row'}, el('div', {class: 'line-margin'}, 'Name'), title_input_el), el('div', {class: 'detail-row'}, el('div', {class: 'line-margin'}, 'About'), description_input_el)),
+    el('div', {class: 'ruled'}, el('div', {class: 'detail-row'}, el('div', {class: 'line-margin'}, 'Name'), title_input_el), el('div', {class: 'detail-row'}, el('div', {class: 'line-margin'}, 'About'), description_input_el), el('div', {class: 'detail-row'}, el('div', {class: 'line-margin'}, 'Created'), created_input_el), el('div', {class: 'detail-row'}, el('div', {class: 'line-margin'}, 'Colour'), colour_pick_el)),
     el('h2', {class: 'edit-heading'}, 'Cards'), el('div', {class: 'muted'}, 'Press Tab to move from term to definition to the next term. A new row appears as you type.'),
     rows_el, error_el,
-    el('div', {class: 'ruled', style: 'margin-top:22px'}, el('div', {class: 'detail-row'}, el('div', {class: 'line-margin'}, 'Created'), created_input_el), el('div', {class: 'detail-row'}, el('div', {class: 'line-margin'}, 'Colour'), colour_pick_el)),
     el('div', {class: 'button-row'}, el('button', {class: 'primary', onclick: save_edits}, 'Save'), el('button', {onclick: bulk_add}, 'Paste list'),
       el('button', {onclick: () => { draft_cards.forEach(draft_card => { const swapped_term = draft_card.term; draft_card.term = draft_card.definition; draft_card.definition = swapped_term; }); draw_rows(); }}, 'Swap all sides'))
   ]);
@@ -266,7 +271,7 @@ function view_study(card_set) {
   card_el.addEventListener('pointercancel', () => { drag_start = null; inner_el.style.transition = ''; inner_el.style.transform = ''; });
   const done_count = study_session.position, total_count = study_session.queue.length;
   render(find_mode(study_session.mode).label, [el('a', {class: 'button', href: '#/set/' + card_set.id}, 'Done')], [el('div', {class: 'study-wrap', style: tint_style(card_set)},
-    el('div', {class: 'counts'}, el('span', {class: 'muted'}, 'Card ' + (done_count + 1) + ' of ' + total_count), el('span', {class: 'button-row tight-row'}, study_session.mode === 'cards' ? el('button', {class: 'direction-button', onclick: () => { app_state.shuffle = !app_state.shuffle; save_state(); study_session = null; view_mode(card_set, 'cards'); }}, app_state.shuffle ? 'Shuffle on' : 'Shuffle off') : null, direction_button(card_set))),
+    el('div', {class: 'counts'}, el('span', {class: 'muted'}, 'Card ' + (done_count + 1) + ' of ' + total_count), el('span', {class: 'button-row tight-row'}, study_session.mode === 'cards' ? el('button', {class: 'shuffle-button', onclick: () => { app_state.shuffle = !app_state.shuffle; save_state(); study_session = null; view_mode(card_set, 'cards'); }}, app_state.shuffle ? 'Shuffle on' : 'Shuffle off') : null, direction_switch(card_set))),
     el('div', {class: 'progress'}, el('div', {style: 'width:' + (100 * done_count / total_count) + '%'})),
     el('div', {class: 'counts'}, el('span', {class: 'learn'}, study_session.learning.length + ' learning'), el('span', {class: 'know'}, study_session.known.length + ' known')),
     card_el,
@@ -275,9 +280,9 @@ function view_study(card_set) {
 }
 
 function view_study_summary(card_set) {
-  const learning_indexes = study_session.learning.slice();
+  const learning_indexes = study_session.learning.slice(), reward_el = award_round(card_set, find_mode(study_session.mode), study_session.known.length, study_session.known.length + learning_indexes.length);
   render(find_mode(study_session.mode).label, [el('a', {class: 'button', href: '#/set/' + card_set.id}, 'Done')], [el('div', {class: 'study-wrap empty', style: tint_style(card_set)},
-    el('h2', {class: 'summary-title'}, learning_indexes.length ? 'Round complete' : 'All known!'),
+    el('h2', {class: 'summary-title'}, learning_indexes.length ? 'Round complete' : 'All known!'), reward_el,
     el('div', {class: 'counts'}, el('span', {class: 'learn'}, learning_indexes.length + ' still learning'), el('span', {class: 'know'}, study_session.known.length + ' known')),
     el('div', {class: 'button-row'},
       learning_indexes.length ? el('button', {class: 'primary', onclick: () => { start_session(card_set, learning_indexes, study_session.mode); view_study(card_set); }}, 'Study the ' + learning_indexes.length + ' again') : null,
@@ -294,21 +299,36 @@ document.addEventListener('keydown', key_event => {
   else if (key_event.key === 'ArrowLeft') study_buttons[0].click(); else if (key_event.key === 'ArrowRight') study_buttons[2].click();
 });
 
-// ---- Routing: #/ , #/library, #/new, #/set/<id>, #/edit/<id>, #/play/<id>/<mode> ----
+function view_settings() {
+  const check_button = el('button', {onclick: async () => {
+    check_button.disabled = true; check_button.textContent = 'Checking…';
+    const check_result = await check_for_update();
+    if (check_result === 'ready') { toast('Updating…'); await apply_update(); return; }
+    check_button.disabled = false; check_button.textContent = 'Check for updates';
+    toast(check_result === 'offline' ? 'Could not reach the server. Try again when you are online.' : 'You have the latest version.');
+  }}, 'Check for updates');
+  render('Settings', [], [el('section', {class: 'updates-section'}, el('h2', {class: 'list-heading'}, 'Updates'),
+    el('div', {class: 'ruled'},
+      el('div', {class: 'detail-row'}, el('div', {class: 'line-margin'}, 'Version'), el('div', {class: 'settings-line'}, el('span', {}, 'Open Flashcards v' + APP_VERSION), check_button, el('button', {onclick: () => show_whats_new(app_state.whatsnew_last || APP_VERSION)}, "What's new"))),
+      el('div', {class: 'detail-row'}, el('div', {class: 'line-margin'}, 'After'), el('label', {class: 'settings-line'}, el('input', {type: 'checkbox', checked: app_state.show_update_info !== false, onchange: change_event => { app_state.show_update_info = change_event.target.checked; save_state(); toast(change_event.target.checked ? "What's new shows after each update." : "What's new won't show after updates."); }}), 'Show update info', el('span', {class: 'muted'}, 'After an update, a list of what changed, each with Show me.')))))]);
+}
+
+// ---- Routing: #/ , #/library, #/settings, #/new, #/set/<id>, #/edit/<id>, #/play/<id>/<mode> ----
 function route() {
   const route_parts = location.hash.replace(/^#\/?/, '').split('/'), route_name = route_parts[0], route_set = find_set(decodeURIComponent(route_parts[1] || ''));
-  const is_home = !['library', 'new', 'set', 'edit', 'play'].includes(route_name) || (['set', 'edit', 'play'].includes(route_name) && !route_set);
+  const is_home = !['library', 'settings', 'new', 'set', 'edit', 'play'].includes(route_name) || (['set', 'edit', 'play'].includes(route_name) && !route_set);
   editor_has_changes = null;
   study_session = null; clear_mode_timers();
   if (['set', 'edit', 'play'].includes(route_name) && route_set) { route_set.last_opened = Date.now(); save_state(); }
   if (is_home) last_list_hash = '#/'; else if (route_name === 'library') last_list_hash = '#/library';
-  document.querySelectorAll('.nav-item').forEach(nav_el => nav_el.classList.toggle('active', nav_el.dataset.nav === (is_home ? 'home' : 'library')));
+  document.querySelectorAll('.nav-item').forEach(nav_el => nav_el.classList.toggle('active', nav_el.dataset.nav === (is_home ? 'home' : route_name === 'settings' ? 'settings' : 'library')));
   if (['new', 'edit', 'play'].includes(route_name) && !is_home) document.body.dataset.focus = ''; else delete document.body.dataset.focus;
   if (route_name === 'set' && route_set) view_set(route_set);
   else if (route_name === 'edit' && route_set) view_edit(route_set, false);
   else if (route_name === 'play' && route_set) view_mode(route_set, route_parts[2]);
   else if (route_name === 'new') view_edit({id: new_id(), title: '', cards: []}, true);
   else if (route_name === 'library') view_library();
+  else if (route_name === 'settings') view_settings();
   else view_home();
 }
 // Leaving the editor by any route (sidebar, back button) asks first if something would be lost.
@@ -322,3 +342,5 @@ document.getElementById('theme-button').addEventListener('click', () => { try { 
 route();
 seed_demo_sets();
 upgrade_demo_sets();
+after_update();
+register_service_worker();
