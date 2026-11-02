@@ -8,6 +8,13 @@
 // No `at`: no Show me. PUBLISHED holds when each version went live (UTC), filled in by tools/publish.py.
 const FIRST_SET = ['.set-row .row-title'];
 const WHATS_NEW = {
+  '1.2.01': [
+    {text: 'Learn from scratch now remembers where you got to, shows your progress on its tile, and has Start over next to the step count.', go: '#/library', open: FIRST_SET, at: '[data-mode="learn"]'},
+    {text: 'Learn from scratch: switches to turn multiple choice or typing off, if you would rather not type.'},
+    {text: 'Each set: Revise now explains what it does.', go: '#/library', open: FIRST_SET, at: '[data-mode="revise"]'},
+    {text: 'The top title is now breadcrumbs that start from the left menu, with its icon. Click Your Library to go back.', go: '#/library', open: FIRST_SET, at: '#page-title'},
+    {text: 'Each set: tiles now stay under their own heading, and Reset puts them back in the usual order.', go: '#/library', open: FIRST_SET, at: '.mode-hint'}
+  ],
   '1.2.00': [
     {text: 'Settings: Sync keeps your sets, progress, rewards and settings in step across your devices, through your own server. Everything is encrypted on the device first, so the server cannot read it.', go: '#/settings', at: '#sync-section', more: 'It is optional. Files such as photos can sync too, ready for when cards have them. The server guide is in server/README.md.'},
     {text: 'The pill at the top right shows whether this device is in sync, syncing, offline or local only.', go: '#/', at: '#sync-status'}
@@ -56,6 +63,7 @@ const WHATS_NEW = {
   '1.0.00': [{text: 'Open Flashcards goes live: make sets, flip and swipe through them, and import or export them as JSON.'}]
 };
 const PUBLISHED = {
+  '1.2.01': '2026-11-02T17:10:20Z',
   '1.2.00': '2026-11-02T15:52:25Z',
   '1.1.04': '2026-11-02T15:44:50Z',
   '1.1.03': '2026-11-02T15:39:54Z',

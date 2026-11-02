@@ -35,7 +35,7 @@ Add it to your phone's home screen from the browser's Share menu to use it like 
 }
 ```
 
-Import also accepts a bare array of sets, or a single set object. If a set's `id` already exists and its cards differ, the app asks whether to merge, replace, keep both or skip. Identical sets are skipped. Optional fields on a set: `"description"`, `"created"` (`YYYY-MM-DD`), `"colour"` (`rose`, `coral`, `peach`, `butter`, `lime`, `mint`, `teal`, `sky`, `periwinkle`, `lavender`, `orchid` or `sand`), `"last_studied"` and `"last_opened"` (milliseconds since 1970), `"front"` (`definition` or `mixed`) for which side shows first, plus `"progress"`, `"trophies"` and `"best_speed"`, which the app writes to record how well you know each card.
+Import also accepts a bare array of sets, or a single set object. If a set's `id` already exists and its cards differ, the app asks whether to merge, replace, keep both or skip. Identical sets are skipped. Optional fields on a set: `"description"`, `"created"` (`YYYY-MM-DD`), `"colour"` (`rose`, `coral`, `peach`, `butter`, `lime`, `mint`, `teal`, `sky`, `periwinkle`, `lavender`, `orchid` or `sand`), `"last_studied"` and `"last_opened"` (milliseconds since 1970), `"front"` (`definition` or `mixed`) for which side shows first, plus `"progress"`, `"learn_stages"`, `"trophies"` and `"best_speed"`, which the app writes to record how well you know each card.
 
 ## Publishing a version
 
