@@ -204,7 +204,7 @@ function view_vocab(card_set) {
     el('div', {class: 'muted vocab-hint'}, 'Tap a word to see it as a flashcard. Nothing is recorded.'),
     el('div', {class: 'ruled'}, ...rows)]);
 }
-// Learn from scratch takes each card through the same steps in order: see it, pick it, type it. Multiple choice and typing can be switched off. A card rated sometimes or always has just the one question: always comes late in the batch and waits longer afterwards. A wrong answer sends it back to the full route. How far each card has got is kept on the set (learn_stages), so it carries on where you left off. A wrong answer repeats that step two cards later.
+// Learn from scratch takes each card through the same steps in order: see it, pick it, type it. Multiple choice and typing can be switched off. A card rated sometimes or always has just the one question: always comes late in the batch and waits longer afterwards. A wrong answer sends it back to the full route. How far each card has got is kept on the set (learn_stages), so it carries on where you left off. The batch goes round in turns, so every other word comes up before a word's next step. A wrong answer repeats that step two cards later.
 const LEARN_FINISHED = 3;
 function learn_stage_list(card_set) { return [0].concat(app_state.learn_choice !== false && studyable_indexes(card_set).length > 1 ? [1] : [], app_state.learn_type !== false ? [2] : []); }
 function learn_route(card_set, card_index, stage_list) { const rating_name = card_rating(card_set, card_index); return (rating_name === 'always' || rating_name === 'sometimes') && stage_list.length > 1 ? stage_list.slice(-1) : stage_list; }
@@ -241,7 +241,7 @@ function view_learn(card_set, mode_item) {
       // Saved as the step after this one, not the next one switched on, so turning typing back on picks up where it was skipped.
       card_set.learn_stages = card_set.learn_stages || {}; card_set.learn_stages[current_key] = current_step.stage + 1;
       current_step.stage = next_stage === undefined ? LEARN_FINISHED : next_stage;
-      if (current_step.stage === LEARN_FINISHED) { if (stage_list.length > 1) { record_answer(card_set, current_step.card_index, true); if (rating_before === 'always' && !(card_set.tricky || {})[current_key]) { const card_progress = card_set.progress[current_key]; card_progress.box = Math.max(card_progress.box, 3); card_progress.due = Date.now() + BOX_DAYS[card_progress.box] * DAY_MS; } } } else put_back_later();
+      if (current_step.stage === LEARN_FINISHED) { if (stage_list.length > 1) { record_answer(card_set, current_step.card_index, true); if (rating_before === 'always' && !(card_set.tricky || {})[current_key]) { const card_progress = card_set.progress[current_key]; card_progress.box = Math.max(card_progress.box, 3); card_progress.due = Date.now() + BOX_DAYS[card_progress.box] * DAY_MS; } } } else study_session.steps.push(current_step);
       save_state();
     } else {
       study_session.wrong++; record_answer(card_set, current_step.card_index, false);
@@ -255,7 +255,7 @@ function view_learn(card_set, mode_item) {
     remember_step(); study_session.steps.shift();
     set_rating(card_set, current_key, rating_name); card_set.learn_stages = card_set.learn_stages || {}; card_set.learn_stages[current_key] = 1;
     current_step.stage = learn_stage_of(card_set, current_step.card_index, stage_list);
-    if (rating_name === 'always') study_session.steps.push(current_step); else put_back_later();
+    study_session.steps.push(current_step);
     save_state(); view_learn(card_set, mode_item);
   }
   function go_forward() { remember_step(); study_session.steps.shift(); put_back_later(); view_learn(card_set, mode_item); }
