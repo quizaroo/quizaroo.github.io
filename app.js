@@ -434,7 +434,6 @@ function refresh_view() {
 function route() {
   const route_parts = location.hash.replace(/^#\/?/, '').split('/'), route_name = route_parts[0], route_set = find_set(decodeURIComponent(route_parts[1] || ''));
   const is_home = !['library', 'settings', 'new', 'set', 'edit', 'play'].includes(route_name) || (['set', 'edit', 'play'].includes(route_name) && !route_set);
-  document.querySelectorAll('.answer-echo').forEach(echo_el => echo_el.remove());
   editor_has_changes = null; close_view_menu(); end_selection_bar();
   study_session = null; clear_mode_timers();
   if (['set', 'edit', 'play'].includes(route_name) && route_set) { route_set.last_opened = Date.now(); save_state(); }
@@ -476,7 +475,8 @@ function open_view_menu() {
   const root_data = document.documentElement.dataset;
   toggle_top_menu(view_button_el, 'View settings',
     el('h3', {}, 'Style'), choice_row(STYLE_KEY, root_data.style, [{value: 'plain', label: 'Plain', sample: el('span', {class: 'view-sample plain'}, el('i'), el('i'))}, {value: 'lined', label: 'Lined', sample: el('span', {class: 'view-sample lined'})}]),
-    el('h3', {}, 'View mode'), choice_row(THEME_KEY, root_data.theme, [{value: 'light', label: '☀ Dawn'}, {value: 'glass', label: '☾ Dusk'}]));
+    el('h3', {}, 'View mode'), choice_row(THEME_KEY, root_data.theme, [{value: 'light', label: '☀ Dawn'}, {value: 'glass', label: '☾ Dusk'}]),
+    el('h3', {}, 'Sound'), choice_row(SOUND_KEY, sound_is_on() ? 'on' : 'off', [{value: 'on', label: 'On'}, {value: 'off', label: 'Off'}]));
 }
 view_button_el.addEventListener('click', open_view_menu);
 route();
