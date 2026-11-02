@@ -169,7 +169,23 @@ const same = (a, b) => a.length === b.length && crypto.timingSafeEqual(Buffer.fr
 
 class HttpError extends Error { constructor(status, message) { super(message); this.status = status; } }
 const ALL_OFF_MESSAGE = 'Sync is switched off on this server for now. Everything on this device is safe.';
-const isAdminId = userId => ADMINS.has(db.prepare('SELECT email FROM users WHERE id = ?').get(userId)?.email);
+// Admin rights belong to the account, not just the address: the first account with an address in ADMIN_EMAILS
+// is pinned, and that address can't be signed up for again if the account ever goes. Sign-up addresses aren't verified.
+const adminPins = () => JSON.parse(db.prepare("SELECT value FROM meta WHERE key = 'admin_ids'").get()?.value || '{}');
+function pinAdmins() {
+  const pins = adminPins();
+  let changed = false;
+  for (const email of ADMINS) {
+    const user = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
+    if (user && !pins[email]) { pins[email] = user.id; changed = true; }
+  }
+  if (changed) db.prepare("INSERT INTO meta (key, value) VALUES ('admin_ids', ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value").run(JSON.stringify(pins));
+}
+pinAdmins();
+const isAdminId = userId => {
+  const email = db.prepare('SELECT email FROM users WHERE id = ?').get(userId)?.email;
+  return ADMINS.has(email) && adminPins()[email] === userId;
+};
 function noteActivity(userId, { requests = 0, bytes = 0, refused = 0 }) {
   db.prepare(`INSERT INTO activity (user_id, day, requests, bytes_in, refused) VALUES (?, ?, ?, ?, ?)
     ON CONFLICT (user_id, day) DO UPDATE SET requests = requests + excluded.requests, bytes_in = bytes_in + excluded.bytes_in, refused = refused + excluded.refused`).run(userId, now().slice(0, 10), requests, bytes, refused);
@@ -387,7 +403,8 @@ const routes = {
     if (typeof body.auth_hash !== 'string' || body.auth_hash.length < 32) throw new HttpError(400, 'Missing auth_hash');
     if (typeof body.wrapped_data_key !== 'string' || !body.kdf) throw new HttpError(400, 'Missing keys');
     if (typeof body.recovery_hash !== 'string' || body.recovery_hash.length < 32) throw new HttpError(400, 'Missing recovery_hash');
-    if (db.prepare('SELECT 1 FROM users WHERE email = ?').get(email)) throw new HttpError(409, 'That email already has an account');
+    const taken = () => db.prepare('SELECT 1 FROM users WHERE email = ?').get(email) || adminPins()[email];
+    if (taken()) throw new HttpError(409, 'That email already has an account');
     const salt = b64url(crypto.randomBytes(16));
     const rsalt = b64url(crypto.randomBytes(16));
     const userId = id();
@@ -395,10 +412,11 @@ const routes = {
     const recoveryHash = await scrypt(body.recovery_hash, rsalt);
     // Checked again now the slow part is done, so requests arriving together can't all get in.
     refuseIfClosed();
-    if (db.prepare('SELECT 1 FROM users WHERE email = ?').get(email)) throw new HttpError(409, 'That email already has an account');
+    if (taken()) throw new HttpError(409, 'That email already has an account');
     db.prepare('INSERT INTO signups (at) VALUES (?)').run(now());
     db.prepare('INSERT INTO users (id, email, auth_hash, auth_salt, kdf, wrapped_data_key, recovery_hash, recovery_salt, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
       .run(userId, email, authHash, salt, JSON.stringify(body.kdf), body.wrapped_data_key, recoveryHash, rsalt, now());
+    pinAdmins();
     return { user_id: userId, ...newDevice(userId, body.device_name) };
   },
 
@@ -412,7 +430,7 @@ const routes = {
     const ok = user && typeof body.auth_hash === 'string' && same(hash, user.auth_hash);
     if (!ok) { fail(`e:${email}`); fail(`i:${ip}`); throw new HttpError(401, 'Email or password is wrong'); }
     failures.delete(`e:${email}`);
-    if (allOff() && !ADMINS.has(user.email)) throw new HttpError(503, ALL_OFF_MESSAGE);
+    if (allOff() && !isAdminId(user.id)) throw new HttpError(503, ALL_OFF_MESSAGE);
     return { user_id: user.id, wrapped_data_key: user.wrapped_data_key, kdf: JSON.parse(user.kdf), ...newDevice(user.id, body.device_name) };
   },
 
@@ -426,7 +444,7 @@ const routes = {
     const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
     const ok = user?.recovery_hash && typeof body.recovery_hash === 'string' && same(await scrypt(body.recovery_hash, user.recovery_salt), user.recovery_hash);
     if (!ok) { fail(`e:${email}`); fail(`i:${ip}`); throw new HttpError(401, 'Email or recovery code is wrong'); }
-    if (allOff() && !ADMINS.has(user.email)) throw new HttpError(503, ALL_OFF_MESSAGE);
+    if (allOff() && !isAdminId(user.id)) throw new HttpError(503, ALL_OFF_MESSAGE);
     failures.delete(`e:${email}`);
     replacePassword(user.id, body);
     db.prepare('DELETE FROM devices WHERE user_id = ?').run(user.id);
@@ -618,7 +636,7 @@ const routes = {
         (SELECT COALESCE(SUM(bytes_in), 0) FROM activity a WHERE a.user_id = u.id AND a.day = ?) AS bytes_in_today,
         (SELECT COALESCE(SUM(refused), 0) FROM activity a WHERE a.user_id = u.id AND a.day = ?) AS refused_today,
         (SELECT COALESCE(SUM(bytes_in), 0) FROM activity a WHERE a.user_id = u.id AND a.day >= ?) AS bytes_in_week
-      FROM users u ORDER BY u.created_at DESC`).all(today, today, today, week).map(({ id: userId, ...row }) => ({ ...row, whitelisted: !!row.whitelisted, is_admin: ADMINS.has(row.email), under_a_day: isUnderADay(row), is_new: row.created_at > seen, quota_bytes: quotaOf(userId) }));
+      FROM users u ORDER BY u.created_at DESC`).all(today, today, today, week).map(({ id: userId, ...row }) => ({ ...row, whitelisted: !!row.whitelisted, is_admin: isAdminId(userId), under_a_day: isUnderADay(row), is_new: row.created_at > seen, quota_bytes: quotaOf(userId) }));
     const out = {
       ...summary(), list: accounts, whitelist: db.prepare('SELECT email FROM whitelist ORDER BY email').all().map(w => w.email),
       signups_week: db.prepare('SELECT substr(at, 1, 10) AS day, COUNT(*) AS n FROM signups WHERE at >= ? GROUP BY day ORDER BY day').all(week),
@@ -649,7 +667,8 @@ const routes = {
   'POST /api/admin/delete': ({ req, body }) => {
     adminOf(req);
     const email = String(body.email || '').trim().toLowerCase();
-    if (ADMINS.has(email)) throw new HttpError(400, "The admin's own account can't be deleted here");
+    const target = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
+    if (target && isAdminId(target.id)) throw new HttpError(400, "The admin's own account can't be deleted here");
     const hit = db.prepare('DELETE FROM users WHERE email = ?').run(email);
     if (!hit.changes) throw new HttpError(404, 'No account with that email');
     return { ok: true };
@@ -659,7 +678,7 @@ const routes = {
   'POST /api/admin/delete-unlisted': ({ req, body }) => {
     adminOf(req);
     if (body.confirm !== 'DELETE') throw new HttpError(400, 'Type DELETE to confirm');
-    const doomed = db.prepare('SELECT email, created_at FROM users WHERE email NOT IN (SELECT email FROM whitelist)').all().filter(user => !ADMINS.has(user.email) && (body.include_new === true || !isUnderADay(user)));
+    const doomed = db.prepare('SELECT id, email, created_at FROM users WHERE email NOT IN (SELECT email FROM whitelist)').all().filter(user => !isAdminId(user.id) && (body.include_new === true || !isUnderADay(user)));
     const del = db.prepare('DELETE FROM users WHERE email = ?');
     db.exec('BEGIN IMMEDIATE');
     try {
@@ -675,7 +694,7 @@ const routes = {
   // Quotas for the chosen accounts, or everyone (`all`). set: a number of MB. add: raise or lower by MB. percent: raise or lower by a percentage. reset: back to the default. Never below 0; the admin's account isn't affected.
   'POST /api/admin/quota': ({ req, body }) => {
     adminOf(req);
-    const everyone = db.prepare('SELECT id, email, quota_mb FROM users').all().filter(user => !ADMINS.has(user.email));
+    const everyone = db.prepare('SELECT id, email, quota_mb FROM users').all().filter(user => !isAdminId(user.id));
     const chosen = new Set(cleanEmails(body.emails));
     const users = body.all === true ? everyone : everyone.filter(user => chosen.has(user.email));
     const value = Number(body.value);
