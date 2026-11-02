@@ -239,7 +239,10 @@ body.is-carrying { -webkit-user-select: none; user-select: none; cursor: grabbin
 .learn-nav button { flex: 1; max-width: 220px; padding: 11px 14px; }
 
 /* ---- View menu, and the Plain view: rounded cards instead of ruled paper ---- */
-#view-button { border-color: transparent; background: none; color: var(--muted); }
+#view-button, #more-button { border-color: transparent; background: none; color: var(--muted); }
+#more-button { font-size: 22px; line-height: 1; }
+#more-button[aria-expanded="true"] { background: var(--glass-hover); color: var(--text); }
+.menu-item { display: flex; justify-content: flex-start; width: 100%; padding: 9px 10px; border-color: transparent; background: none; border-radius: 10px; }
 #view-button[aria-expanded="true"] { background: var(--glass-hover); color: var(--text); }
 .view-menu { position: fixed; z-index: 40; width: 250px; max-width: calc(100vw - 24px); padding: 12px 14px; background: var(--sheet); border: 1px solid var(--glass-border); border-radius: 18px; box-shadow: var(--shadow); }
 .view-menu h3 { margin: 0 0 6px; font-size: 13px; font-weight: 500; color: var(--muted); }

@@ -8,6 +8,10 @@
 // No `at`: no Show me. PUBLISHED holds when each version went live (UTC), filled in by tools/publish.py.
 const FIRST_SET = ['.set-row .row-title'];
 const WHATS_NEW = {
+  '1.3.09': [
+    {text: 'Your Library: Import, Export all and Load demo sets have moved into the ⋯ menu at the top.', go: '#/library', at: '#more-button'},
+    {text: 'Your Library no longer gets stuck when it is empty, or when a new browser opens straight on it. Fixed.'}
+  ],
   '1.3.08': [
     {text: 'Plain is now the usual style, listed before Lined under the eye button. If you already picked a style, it stays.', go: '#/', at: '#view-button'},
     {text: 'Drop-down lists are lighter, to match the page.', go: '#/library', at: '.toggle-line select'},
@@ -96,6 +100,7 @@ const WHATS_NEW = {
   '1.0.00': [{text: 'Open Flashcards goes live: make sets, flip and swipe through them, and import or export them as JSON.'}]
 };
 const PUBLISHED = {
+  '1.3.09': '2026-11-02T20:42:31Z',
   '1.3.08': '2026-11-02T20:38:43Z',
   '1.3.07': '2026-11-02T20:34:26Z',
   '1.3.06': '2026-11-02T20:32:35Z',

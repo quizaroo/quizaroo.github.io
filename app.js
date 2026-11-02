@@ -33,7 +33,7 @@ function draw_breadcrumbs(trail) {
     if (!is_last) page_title_el.appendChild(el('span', {class: 'crumb-arrow', 'aria-hidden': 'true'}, '›'));
   });
 }
-function render(page_trail, topbar_buttons, content_nodes) { draw_breadcrumbs(page_trail); topbar_actions_el.replaceChildren(); topbar_buttons.forEach(button_el => topbar_actions_el.appendChild(button_el)); view_el.replaceChildren(); content_nodes.forEach(content_node => view_el.appendChild(content_node)); window.scrollTo(0, 0); }
+function render(page_trail, topbar_buttons, content_nodes) { draw_breadcrumbs(page_trail); topbar_actions_el.replaceChildren(); topbar_buttons.forEach(button_el => topbar_actions_el.appendChild(button_el)); view_el.replaceChildren(); content_nodes.filter(Boolean).forEach(content_node => view_el.appendChild(content_node)); window.scrollTo(0, 0); }
 function plus_button() { const link_el = el('a', {class: 'button primary icon-button', href: '#/new', title: 'New set', 'aria-label': 'New set'}); link_el.innerHTML = '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>'; return link_el; }
 function tint_of(card_set) { const given_tint = TINTS.find(tint_item => tint_item[0] === card_set.colour); if (given_tint) return given_tint[1]; let hash_value = 5381; for (const id_char of String(card_set.id)) hash_value = ((hash_value << 5) + hash_value + id_char.charCodeAt(0)) >>> 0; return TINTS[hash_value % TINTS.length][1]; }
 function tint_style(card_set) { return '--tint:' + tint_of(card_set); }
@@ -168,8 +168,10 @@ function view_library() {
   const library_sort = sort_rules[app_state.library_order] ? app_state.library_order : 'newest', sorted_sets = app_state.sets.slice().sort(sort_rules[library_sort]);
   const sort_select_el = el('select', {onchange: change_event => { app_state.library_order = change_event.target.value; save_state(); view_library(); }}, el('option', {value: 'newest'}, 'Newest'), el('option', {value: 'name'}, 'Name'), el('option', {value: 'studied'}, 'Last studied'), el('option', {value: 'custom'}, 'Custom'));
   sort_select_el.value = library_sort;
-  render(library_trail(), [plus_button()], [
-    el('div', {class: 'button-row'}, el('label', {class: 'toggle-line'}, 'Sort by', sort_select_el), el('button', {onclick: () => import_input_el.click()}, 'Import'), el('button', {onclick: () => download_json('open-flashcards-all.json', app_state.sets)}, 'Export all'), el('button', {onclick: add_missing_demo_sets}, 'Load demo sets')),
+  function menu_item(item_label, run_item) { return el('button', {class: 'menu-item', onclick: () => { close_view_menu(); run_item(); }}, item_label); }
+  const more_button_el = el('button', {id: 'more-button', class: 'icon-button', title: 'More', 'aria-label': 'More', 'aria-expanded': 'false', onclick: () => toggle_top_menu(more_button_el, 'More', menu_item('Import', () => import_input_el.click()), menu_item('Export all', () => download_json('open-flashcards-all.json', app_state.sets)), menu_item('Load demo sets', add_missing_demo_sets))}, '⋯');
+  render(library_trail(), [more_button_el, plus_button()], [
+    el('div', {class: 'button-row'}, el('label', {class: 'toggle-line'}, 'Sort by', sort_select_el)),
     sorted_sets.length ? el('div', {class: 'muted library-hint'}, 'Press and hold a set to move it, or let go to select it.') : '',
     sorted_sets.length ? el('div', {class: 'ruled set-rows'}, ...sorted_sets.map(card_set => { const row_el = set_row(card_set); row_el.list_item = card_set; return row_el; })) : el('p', {class: 'empty muted'}, 'No sets yet. Press + to make one, or import a .json file.')
   ]);
@@ -443,19 +445,27 @@ window.addEventListener('hashchange', hash_event => {
 window.addEventListener('beforeunload', unload_event => { if (editor_has_changes && editor_has_changes()) unload_event.preventDefault(); });
 // ---- View menu ----
 function save_view_choice(storage_key, chosen_value) { try { localStorage.setItem(storage_key, chosen_value); } catch (storage_err) {} apply_theme(); }
-function close_view_menu() { const menu_el = document.querySelector('.view-menu'); if (!menu_el) return; menu_el.remove(); view_button_el.setAttribute('aria-expanded', 'false'); removeEventListener('pointerdown', close_if_outside, true); removeEventListener('keydown', close_on_escape, true); }
-function close_if_outside(pointer_event) { if (!pointer_event.target.closest('.view-menu, #view-button')) close_view_menu(); }
-function close_on_escape(key_event) { if (key_event.key === 'Escape') { key_event.stopPropagation(); close_view_menu(); view_button_el.focus(); } }
-function open_view_menu() {
-  function choice_row(storage_key, current_value, choices) { const buttons = choices.map(choice_item => el('button', {'aria-pressed': String(choice_item.value === current_value), onclick: () => { save_view_choice(storage_key, choice_item.value); buttons.forEach((button_el, button_index) => button_el.setAttribute('aria-pressed', String(choices[button_index].value === choice_item.value))); }}, choice_item.sample, choice_item.label)); return el('div', {class: 'view-choices'}, ...buttons); }
-  const button_rect = view_button_el.getBoundingClientRect(), root_data = document.documentElement.dataset;
-  const menu_el = el('div', {class: 'view-menu', role: 'dialog', 'aria-label': 'View settings', style: 'top:' + (button_rect.bottom + 8) + 'px;right:' + Math.max(12, innerWidth - button_rect.right) + 'px'},
-    el('h3', {}, 'Style'), choice_row(STYLE_KEY, root_data.style, [{value: 'plain', label: 'Plain', sample: el('span', {class: 'view-sample plain'}, el('i'), el('i'))}, {value: 'lined', label: 'Lined', sample: el('span', {class: 'view-sample lined'})}]),
-    el('h3', {}, 'View mode'), choice_row(THEME_KEY, root_data.theme, [{value: 'light', label: '☀ Dawn'}, {value: 'glass', label: '☾ Dusk'}]));
-  document.body.appendChild(menu_el); view_button_el.setAttribute('aria-expanded', 'true');
+let menu_button_el = null;
+function close_view_menu() { const menu_el = document.querySelector('.view-menu'); if (!menu_el) return; menu_el.remove(); menu_button_el.setAttribute('aria-expanded', 'false'); removeEventListener('pointerdown', close_if_outside, true); removeEventListener('keydown', close_on_escape, true); }
+function close_if_outside(pointer_event) { if (!pointer_event.target.closest('.view-menu') && !menu_button_el.contains(pointer_event.target)) close_view_menu(); }
+function close_on_escape(key_event) { if (key_event.key === 'Escape') { key_event.stopPropagation(); const button_el = menu_button_el; close_view_menu(); button_el.focus(); } }
+// A menu that drops from a top bar button. A second press closes it.
+function toggle_top_menu(button_el, menu_label, ...menu_nodes) {
+  const was_open = button_el === menu_button_el && document.querySelector('.view-menu');
+  close_view_menu(); if (was_open) return;
+  const button_rect = button_el.getBoundingClientRect(); menu_button_el = button_el;
+  document.body.appendChild(el('div', {class: 'view-menu', role: 'dialog', 'aria-label': menu_label, style: 'top:' + (button_rect.bottom + 8) + 'px;right:' + Math.max(12, innerWidth - button_rect.right) + 'px'}, ...menu_nodes));
+  button_el.setAttribute('aria-expanded', 'true');
   addEventListener('pointerdown', close_if_outside, true); addEventListener('keydown', close_on_escape, true);
 }
-view_button_el.addEventListener('click', () => { if (document.querySelector('.view-menu')) close_view_menu(); else open_view_menu(); });
+function open_view_menu() {
+  function choice_row(storage_key, current_value, choices) { const buttons = choices.map(choice_item => el('button', {'aria-pressed': String(choice_item.value === current_value), onclick: () => { save_view_choice(storage_key, choice_item.value); buttons.forEach((button_el, button_index) => button_el.setAttribute('aria-pressed', String(choices[button_index].value === choice_item.value))); }}, choice_item.sample, choice_item.label)); return el('div', {class: 'view-choices'}, ...buttons); }
+  const root_data = document.documentElement.dataset;
+  toggle_top_menu(view_button_el, 'View settings',
+    el('h3', {}, 'Style'), choice_row(STYLE_KEY, root_data.style, [{value: 'plain', label: 'Plain', sample: el('span', {class: 'view-sample plain'}, el('i'), el('i'))}, {value: 'lined', label: 'Lined', sample: el('span', {class: 'view-sample lined'})}]),
+    el('h3', {}, 'View mode'), choice_row(THEME_KEY, root_data.theme, [{value: 'light', label: '☀ Dawn'}, {value: 'glass', label: '☾ Dusk'}]));
+}
+view_button_el.addEventListener('click', open_view_menu);
 route();
 sync_engine.init();
 sync_engine.watch_other_tabs();
