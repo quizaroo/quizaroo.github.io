@@ -2,7 +2,7 @@
 
 **Use it here: <https://hazymat.github.io/open-flashcards/>**
 
-A simple, open-source flashcards app that runs entirely in your browser. No account, no tracking, no adverts, nothing to install. Works for any language.
+A simple, open-source flashcards app that runs in your browser. No tracking, no adverts, nothing to install, and no account unless you want your devices to sync. Works for any language.
 
 - Home shows what you studied and opened recently; Your Library lists every set
 - Create, edit, duplicate and delete sets. Tab moves from term to definition to the next term, and new rows appear as you type. You can also paste a whole list at once (term, Tab, definition)
@@ -16,6 +16,7 @@ A simple, open-source flashcards app that runs entirely in your browser. No acco
 - Switch between term first, definition first or mixed inside any mode, and swap all sides of a set
 - Import and export single sets or everything as JSON
 - Your sets are stored in your browser (localStorage). Export regularly if you want a backup.
+- Optional sync through your own server keeps your sets, progress, rewards and settings in step across your devices. Everything is encrypted on the device first, so the server can't read it. Settings → Sync signs you in, and the pill at the top right shows how it's doing. To set up a server, see [server/README.md](server/README.md).
 - A browser with nothing saved starts with the demo sets from `demo-sets.json`. "Load demo sets" adds any that are missing and never changes your existing sets.
 
 A bar tells you when a new version is ready, and Settings lets you check for updates and read what changed in every version. Once loaded, it works without a connection.

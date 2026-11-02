@@ -1,5 +1,5 @@
 // App shell cache. Bump VERSION with every release, to the newest version in whatsnew.js: a changed sw.js is what tells browsers there is an update (tools/publish.py checks it).
-const VERSION = '1.1.04';
+const VERSION = '1.2.00';
 const CACHE = `open-flashcards-${VERSION}`;
 
 const SHELL = [
@@ -10,6 +10,9 @@ const SHELL = [
   'sortable.js',
   'whatsnew.js',
   'modes.js',
+  'sync-crypto.js',
+  'sync.js',
+  'sync-panel.js',
   'app.js',
   'icon.svg',
   'demo-sets.json',

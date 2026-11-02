@@ -1,0 +1,34 @@
+# Open Flashcards server and HTTPS on a VPS.
+#   1. Point your domain's A record at this machine; open ports 80 and 443.
+#   2. Create .env next to this file:   FLASHCARDS_DOMAIN=flashcards.example.com
+#   3. docker compose up -d --build
+#   4. Admin:  docker compose exec flashcards node admin.js users
+# Data lives in the "flashcards-data" volume; back it up (see README.md).
+
+services:
+  flashcards:
+    build: .
+    restart: unless-stopped
+    environment:
+      REGISTRATION: ${REGISTRATION:-first}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-https://hazymat.github.io,http://localhost:5173}
+      QUOTA_MB: ${QUOTA_MB:-1024}
+    volumes:
+      - flashcards-data:/data
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      FLASHCARDS_DOMAIN: ${FLASHCARDS_DOMAIN:?set FLASHCARDS_DOMAIN in .env}
+    volumes:
+      - ./deploy/Caddyfile.docker:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+    depends_on: [flashcards]
+
+volumes:
+  flashcards-data:
+  caddy-data:

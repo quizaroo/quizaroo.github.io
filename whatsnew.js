@@ -8,6 +8,10 @@
 // No `at`: no Show me. PUBLISHED holds when each version went live (UTC), filled in by tools/publish.py.
 const FIRST_SET = ['.set-row .row-title'];
 const WHATS_NEW = {
+  '1.2.00': [
+    {text: 'Settings: Sync keeps your sets, progress, rewards and settings in step across your devices, through your own server. Everything is encrypted on the device first, so the server cannot read it.', go: '#/settings', at: '#sync-section', more: 'It is optional. Files such as photos can sync too, ready for when cards have them. The server guide is in server/README.md.'},
+    {text: 'The pill at the top right shows whether this device is in sync, syncing, offline or local only.', go: '#/', at: '#sync-status'}
+  ],
   '1.1.04': [
     {text: 'Flashcards: a Keep score switch. With it off, Back and Next let you go back and forth freely, and nothing is recorded.', go: '#/library', open: FIRST_SET.concat('[data-mode="cards"]'), at: '.keep-score'},
     {text: 'Flashcards: swiping left and right now works on touchscreens. Fixed.'},
@@ -52,6 +56,7 @@ const WHATS_NEW = {
   '1.0.00': [{text: 'Open Flashcards goes live: make sets, flip and swipe through them, and import or export them as JSON.'}]
 };
 const PUBLISHED = {
+  '1.2.00': '2026-11-02T15:52:25Z',
   '1.1.04': '2026-11-02T15:44:50Z',
   '1.1.03': '2026-11-02T15:39:54Z',
   '1.1.02': '2026-11-02T14:29:30Z',

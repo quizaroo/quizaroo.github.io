@@ -8,7 +8,7 @@ function load_state() {
   try { const stored_state = JSON.parse(localStorage.getItem(STORAGE_KEY)); if (stored_state && Array.isArray(stored_state.sets)) return stored_state; } catch (storage_err) {}
   return {sets: [], shuffle: true, demo_version: DEMO_VERSION, seen_version: APP_VERSION};
 }
-function save_state() { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(app_state)); } catch (storage_err) { alert('Could not save: browser storage is full or blocked.'); } }
+function save_state() { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(app_state)); } catch (storage_err) { alert('Could not save: browser storage is full or blocked.'); } sync_engine.note_change(); }
 function new_id() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
 function find_set(set_id) { return app_state.sets.find(card_set => card_set.id === set_id); }
 
@@ -98,7 +98,7 @@ import_input_el.addEventListener('change', () => { const chosen_file = import_in
 function is_first_run() { try { return localStorage.getItem(STORAGE_KEY) === null; } catch (storage_err) { return false; } }
 function fetch_demo_sets() { return fetch('demo-sets.json').then(demo_response => demo_response.json()).then(demo_json => demo_json.sets.map(normalise_set).filter(Boolean)); }
 // Seeds only a browser with nothing saved; saved data, even an empty library, is never touched.
-function seed_demo_sets() { if (is_first_run()) fetch_demo_sets().then(demo_sets => { if (!is_first_run()) return; app_state.sets = demo_sets; save_state(); route(); }).catch(() => {}); }
+function seed_demo_sets() { if (is_first_run()) sync_engine.ready.then(() => (is_first_run() && !sync_engine.signed_in() ? fetch_demo_sets() : null)).then(demo_sets => { if (!demo_sets || !is_first_run()) return; app_state.sets = demo_sets; save_state(); route(); }).catch(() => {}); }
 // Adds only the demo sets that are missing, so an edited copy is never replaced.
 function add_missing_demo_sets() { fetch_demo_sets().then(demo_sets => { const missing_sets = demo_sets.filter(demo_set => !find_set(demo_set.id)); app_state.sets.push(...missing_sets); save_state(); alert('Added ' + missing_sets.length + ' demo set(s).'); route(); }).catch(() => alert('Could not load the demo sets.')); }
 
@@ -337,10 +337,23 @@ function view_settings() {
     check_button.disabled = false; check_button.textContent = 'Check for updates';
     toast(check_result === 'offline' ? 'Could not reach the server. Try again when you are online.' : 'You have the latest version.');
   }}, 'Check for updates');
-  render('Settings', [], [el('section', {class: 'updates-section'}, el('h2', {class: 'list-heading'}, 'Updates'),
+  render('Settings', [], [sync_section(), el('section', {class: 'updates-section'}, el('h2', {class: 'list-heading'}, 'Updates'),
     el('div', {class: 'ruled'},
       el('div', {class: 'detail-row'}, el('div', {class: 'line-margin'}, 'Version'), el('div', {class: 'settings-line'}, el('span', {}, 'Open Flashcards v' + APP_VERSION), check_button, el('button', {onclick: () => show_whats_new(app_state.whatsnew_last || APP_VERSION)}, "What's new"))),
       el('div', {class: 'detail-row'}, el('div', {class: 'line-margin'}, 'After'), el('label', {class: 'settings-line'}, el('input', {type: 'checkbox', checked: app_state.show_update_info !== false, onchange: change_event => { app_state.show_update_info = change_event.target.checked; save_state(); toast(change_event.target.checked ? "What's new shows after each update." : "What's new won't show after updates."); }}), 'Show update info', el('span', {class: 'muted'}, 'After an update, a list of what changed, each with Show me.')))))]);
+}
+
+// Pages holding on to a set while someone works on it: sync leaves what's on them alone until they're left.
+function view_is_busy() { return /^#\/(new|edit|play)(\/|$)/.test(location.hash) || !!view_el.querySelector('.conflict-list'); }
+// Sync brought changes: draw the page again where it was, without counting as opening anything (route() would, and that would count as a change on every device in turn).
+function refresh_view() {
+  if (view_is_busy()) return;
+  const route_parts = location.hash.replace(/^#\/?/, '').split('/'), scroll_top = window.scrollY;
+  if (route_parts[0] === 'settings') return;
+  if (route_parts[0] === 'set') { const route_set = find_set(decodeURIComponent(route_parts[1] || '')); if (!route_set) { location.hash = '#/library'; return; } view_set(route_set); }
+  else if (route_parts[0] === 'library') view_library();
+  else view_home();
+  window.scrollTo(0, scroll_top);
 }
 
 // ---- Routing: #/ , #/library, #/settings, #/new, #/set/<id>, #/edit/<id>, #/play/<id>/<mode> ----
@@ -384,6 +397,9 @@ function open_view_menu() {
 }
 view_button_el.addEventListener('click', () => { if (document.querySelector('.view-menu')) close_view_menu(); else open_view_menu(); });
 route();
+sync_engine.init();
+sync_engine.watch_other_tabs();
+sync_pill();
 seed_demo_sets();
 upgrade_demo_sets();
 after_update();
