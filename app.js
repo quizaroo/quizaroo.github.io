@@ -434,6 +434,7 @@ function refresh_view() {
 function route() {
   const route_parts = location.hash.replace(/^#\/?/, '').split('/'), route_name = route_parts[0], route_set = find_set(decodeURIComponent(route_parts[1] || ''));
   const is_home = !['library', 'settings', 'new', 'set', 'edit', 'play'].includes(route_name) || (['set', 'edit', 'play'].includes(route_name) && !route_set);
+  document.querySelectorAll('.answer-echo').forEach(echo_el => echo_el.remove());
   editor_has_changes = null; close_view_menu(); end_selection_bar();
   study_session = null; clear_mode_timers();
   if (['set', 'edit', 'play'].includes(route_name) && route_set) { route_set.last_opened = Date.now(); save_state(); }

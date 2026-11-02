@@ -115,6 +115,23 @@ function prompt_card(prompt_text) { return el('div', {class: 'prompt-card'}, pro
 const SIDE_NAMES = {term: 'Term', definition: 'Definition'};
 // Both sides written on the paper's lines, each named in the margin.
 function pair_card(front_key, front_text, back_text) { const back_key = front_key === 'term' ? 'definition' : 'term'; return el('div', {class: 'prompt-card pair-card'}, el('div', {class: 'pair-row'}, el('span', {class: 'pair-label'}, SIDE_NAMES[front_key]), el('div', {class: 'pair-text'}, front_text)), el('div', {class: 'pair-row'}, el('span', {class: 'pair-label'}, SIDE_NAMES[back_key]), el('div', {class: 'pair-text'}, back_text))); }
+// A right answer: a tick draws itself on the card, then the next word comes up while an echo of this one shrinks away into the corner.
+function tick_icon() { const icon_el = el('span', {class: 'tick-mark', 'aria-hidden': 'true'}); icon_el.innerHTML = '<svg viewBox="0 0 24 24"><path pathLength="1" d="M4 13l5.5 5.5L20 7"/></svg>'; return icon_el; }
+function celebrate_right(prompt_text, answer_text, run_next) {
+  const card_el = document.querySelector('.prompt-card');
+  if (card_el) card_el.appendChild(el('div', {class: 'right-mark', role: 'status', 'aria-label': 'Right'}, tick_icon(), el('span', {}, answer_text)));
+  later(() => {
+    const old_rect = card_el ? card_el.querySelector('.right-mark').getBoundingClientRect() : null;
+    run_next();
+    if (!old_rect) return;
+    const new_card = document.querySelector('.prompt-card'), echo_el = el('div', {class: 'answer-echo', 'aria-hidden': 'true'}, tick_icon(), el('strong', {}, answer_text), el('span', {}, prompt_text));
+    document.querySelectorAll('.answer-echo').forEach(old_echo => old_echo.remove());
+    document.body.appendChild(echo_el);
+    const echo_rect = echo_el.getBoundingClientRect(), new_rect = new_card ? new_card.getBoundingClientRect() : old_rect, end_x = new_rect.left + 12 - echo_rect.left, end_y = (new_card ? new_rect.top + 18 : old_rect.top) - echo_rect.top, start_x = old_rect.left + old_rect.width / 2 - echo_rect.left - echo_rect.width / 2, start_y = old_rect.top - echo_rect.top;
+    const fade_out = echo_el.animate([{transform: 'translate(' + start_x + 'px, ' + start_y + 'px) scale(1)', opacity: 1}, {transform: 'translate(' + end_x + 'px, ' + end_y + 'px) scale(.62)', opacity: 0.85, offset: 0.25}, {transform: 'translate(' + end_x + 'px, ' + end_y + 'px) scale(.62)', opacity: 0}], {duration: 2600, easing: 'ease-out', fill: 'forwards'});
+    fade_out.onfinish = () => echo_el.remove();
+  }, 480);
+}
 function answer_panel(is_right, panel_text, extra_nodes) { return el('div', {class: 'answer-panel ' + (is_right ? 'is-right' : 'is-wrong'), role: 'status'}, el('strong', {}, is_right ? 'Right' : 'Not quite'), panel_text ? el('div', {}, panel_text) : null, ...(extra_nodes || [])); }
 function next_button(run_next) { return el('button', {class: 'primary', 'data-key': 'Enter', onclick: run_next}, 'Next'); }
 function start_mode_session(card_set, mode_key, card_indexes) { study_session = {set_id: card_set.id, mode: mode_key, queue: card_indexes, position: 0, known: [], learning: [], right: 0, wrong: 0, missed: []}; }
@@ -134,7 +151,7 @@ function position_label() { return 'Question ' + (study_session.position + 1) + 
 function ask_type(card_set, mode_item, card_index, finish, ask_options) {
   const sides = (ask_options && ask_options.sides) || card_sides(card_set, card_index), input_el = el('input', {type: 'text', class: 'answer-input', placeholder: 'Type the answer', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false', 'aria-label': 'Your answer'}), result_el = el('div', {class: 'answer-slot'});
   let tried_close = false, is_answered = false;
-  function show_result(is_right, extra_nodes) { is_answered = true; input_el.disabled = true; form_button.hidden = true; if (is_right) { result_el.replaceChildren(answer_panel(true, sides.answer)); later(() => finish(true), 900); return; } const next_el = next_button(() => finish(false)); result_el.replaceChildren(answer_panel(false, 'The answer is: ' + sides.answer, [el('div', {class: 'button-row'}, next_el, el('button', {onclick: () => finish(true)}, 'I was right'))])); next_el.focus(); }
+  function show_result(is_right, extra_nodes) { is_answered = true; input_el.disabled = true; form_button.hidden = true; if (is_right) { celebrate_right(sides.prompt, sides.answer, () => finish(true)); return; } const next_el = next_button(() => finish(false)); result_el.replaceChildren(answer_panel(false, 'The answer is: ' + sides.answer, [el('div', {class: 'button-row'}, next_el, el('button', {onclick: () => finish(true)}, 'I was right'))])); next_el.focus(); }
   const form_button = el('button', {class: 'primary', type: 'submit'}, 'Check');
   const form_el = el('form', {class: 'answer-form', onsubmit: submit_event => { submit_event.preventDefault(); if (is_answered) return; const verdict = check_answer(input_el.value, sides.answer); if (verdict === 'close' && !tried_close) { tried_close = true; result_el.replaceChildren(el('div', {class: 'answer-panel is-close', role: 'status'}, 'So close. Check the spelling and try again.')); input_el.focus(); return; } show_result(verdict !== 'wrong'); }}, input_el, form_button);
   mode_frame(card_set, mode_item, [(ask_options && ask_options.status) || position_label()], [session_progress(), (ask_options && ask_options.prompt_node) || prompt_card(sides.prompt), form_el, result_el, ask_options && ask_options.footer]);
@@ -146,7 +163,7 @@ function ask_choice(card_set, mode_item, card_index, finish, ask_options) {
     option_buttons.forEach(button_el => { button_el.disabled = true; if (button_el.textContent.slice(2) === option_text && option_text !== sides.answer) button_el.classList.add('is-wrong'); if (button_el.dataset.answer === 'yes') button_el.classList.add('is-right'); });
     const is_right = option_text === sides.answer;
     if (is_quick) { later(() => finish(is_right), is_right ? 150 : 700); return; }
-    if (is_right) { result_el.replaceChildren(answer_panel(true)); later(() => finish(true), 700); return; }
+    if (is_right) { celebrate_right(sides.prompt, sides.answer, () => finish(true)); return; }
     const next_el = next_button(() => finish(false)); result_el.replaceChildren(answer_panel(false, null, [next_el])); next_el.focus();
   }}, el('span', {class: 'choice-number'}, option_index + 1), option_text));
   option_buttons.forEach((button_el, option_index) => { if (option_texts[option_index] === sides.answer) button_el.dataset.answer = 'yes'; });
@@ -154,14 +171,14 @@ function ask_choice(card_set, mode_item, card_index, finish, ask_options) {
 }
 function ask_true_false(card_set, mode_item, card_index, finish) {
   const sides = card_sides(card_set, card_index), wrong_options = other_answers(card_set, card_index, sides.back_key, 1), is_true_pair = !wrong_options.length || Math.random() < 0.5, shown_answer = is_true_pair ? sides.answer : wrong_options[0], result_el = el('div', {class: 'answer-slot'});
-  function pick(said_true) { buttons_el.querySelectorAll('button').forEach(button_el => { button_el.disabled = true; }); const is_right = said_true === is_true_pair; if (is_right) { result_el.replaceChildren(answer_panel(true)); later(() => finish(true), 600); return; } const next_el = next_button(() => finish(false)); result_el.replaceChildren(answer_panel(false, sides.prompt + ' = ' + sides.answer, [next_el])); next_el.focus(); }
+  function pick(said_true) { buttons_el.querySelectorAll('button').forEach(button_el => { button_el.disabled = true; }); const is_right = said_true === is_true_pair; if (is_right) { celebrate_right(sides.prompt, sides.answer, () => finish(true)); return; } const next_el = next_button(() => finish(false)); result_el.replaceChildren(answer_panel(false, sides.prompt + ' = ' + sides.answer, [next_el])); next_el.focus(); }
   const buttons_el = el('div', {class: 'study-buttons'}, el('button', {class: 'learn-button', 'data-key': 'ArrowLeft', onclick: () => pick(false)}, '← False'), el('button', {class: 'know-button', 'data-key': 'ArrowRight', onclick: () => pick(true)}, 'True →'));
   mode_frame(card_set, mode_item, [position_label()], [session_progress(), pair_card(sides.front_key, sides.prompt, shown_answer), buttons_el, result_el]);
 }
 function ask_scramble(card_set, mode_item, card_index, finish) {
   const sides = card_sides(card_set, card_index), target_text = sides.answer.split(/[\/,;]/)[0].replace(/\([^)]*\)/g, '').trim(), target_letters = Array.from(target_text.replace(/\s+/g, '')), built_el = el('div', {class: 'built-word'}), tiles_el = el('div', {class: 'letter-tiles'}), result_el = el('div', {class: 'answer-slot'}), built_tiles = [];
   function draw_built() { built_el.textContent = built_tiles.map(tile_el => tile_el.textContent).join('') || ' '; }
-  function complete_word() { const is_right = built_tiles.map(tile_el => tile_el.textContent).join('').toLowerCase() === target_letters.join('').toLowerCase(); tiles_el.querySelectorAll('button').forEach(tile_el => { tile_el.disabled = true; }); if (is_right) { result_el.replaceChildren(answer_panel(true, target_text)); later(() => finish(true), 900); return; } const next_el = next_button(() => finish(false)); result_el.replaceChildren(answer_panel(false, 'The answer is: ' + target_text, [next_el])); next_el.focus(); }
+  function complete_word() { const is_right = built_tiles.map(tile_el => tile_el.textContent).join('').toLowerCase() === target_letters.join('').toLowerCase(); tiles_el.querySelectorAll('button').forEach(tile_el => { tile_el.disabled = true; }); if (is_right) { celebrate_right(sides.prompt, target_text, () => finish(true)); return; } const next_el = next_button(() => finish(false)); result_el.replaceChildren(answer_panel(false, 'The answer is: ' + target_text, [next_el])); next_el.focus(); }
   shuffled(target_letters).forEach(letter_text => tiles_el.appendChild(el('button', {class: 'letter-tile', onclick: click_event => { click_event.target.disabled = true; built_tiles.push(click_event.target); draw_built(); if (built_tiles.length === target_letters.length) complete_word(); }}, letter_text)));
   draw_built();
   mode_frame(card_set, mode_item, [position_label()], [session_progress(), prompt_card(sides.prompt), built_el, tiles_el, el('div', {class: 'button-row'}, el('button', {onclick: () => { const last_tile = built_tiles.pop(); if (last_tile && !result_el.hasChildNodes()) { last_tile.disabled = false; draw_built(); } }}, '⌫ Undo'), el('button', {onclick: () => { if (!result_el.hasChildNodes()) finish(false); }}, 'Skip')), result_el]);
