@@ -6,7 +6,7 @@ let app_state = load_state(), study_session = null, editor_has_changes = null, s
 
 function load_state() {
   try { const stored_state = JSON.parse(localStorage.getItem(STORAGE_KEY)); if (stored_state && Array.isArray(stored_state.sets)) return stored_state; } catch (storage_err) {}
-  return {sets: [], shuffle: true, library_sort: 'name', demo_version: DEMO_VERSION, seen_version: APP_VERSION};
+  return {sets: [], shuffle: true, demo_version: DEMO_VERSION, seen_version: APP_VERSION};
 }
 function save_state() { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(app_state)); } catch (storage_err) { alert('Could not save: browser storage is full or blocked.'); } }
 function new_id() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
@@ -140,8 +140,8 @@ function view_home() {
 }
 function view_library() {
   const sort_rules = {name: (set_a, set_b) => set_a.title.localeCompare(set_b.title), newest: (set_a, set_b) => (set_b.created || '').localeCompare(set_a.created || '') || set_a.title.localeCompare(set_b.title), studied: (set_a, set_b) => (set_b.last_studied || 0) - (set_a.last_studied || 0) || set_a.title.localeCompare(set_b.title)};
-  const library_sort = sort_rules[app_state.library_sort] ? app_state.library_sort : 'name', sorted_sets = app_state.sets.slice().sort(sort_rules[library_sort]);
-  const sort_select_el = el('select', {onchange: change_event => { app_state.library_sort = change_event.target.value; save_state(); view_library(); }}, el('option', {value: 'name'}, 'Name'), el('option', {value: 'newest'}, 'Newest'), el('option', {value: 'studied'}, 'Last studied'));
+  const library_sort = sort_rules[app_state.library_order] ? app_state.library_order : 'newest', sorted_sets = app_state.sets.slice().sort(sort_rules[library_sort]);
+  const sort_select_el = el('select', {onchange: change_event => { app_state.library_order = change_event.target.value; save_state(); view_library(); }}, el('option', {value: 'newest'}, 'Newest'), el('option', {value: 'name'}, 'Name'), el('option', {value: 'studied'}, 'Last studied'));
   sort_select_el.value = library_sort;
   render('Your Library', [plus_button()], [
     el('div', {class: 'button-row'}, el('label', {class: 'toggle-line'}, 'Sort by', sort_select_el), el('button', {onclick: () => import_input_el.click()}, 'Import'), el('button', {onclick: () => download_json('open-flashcards-all.json', app_state.sets)}, 'Export all'), el('button', {onclick: add_missing_demo_sets}, 'Load demo sets')),

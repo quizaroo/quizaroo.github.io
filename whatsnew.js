@@ -10,6 +10,7 @@ const FIRST_SET = ['.set-row .row-title'];
 const WHATS_NEW = {
   '1.1.01': [
     {text: 'Settings: check for updates by hand, read every past update here, and choose whether this list appears after an update.', go: '#/settings', at: '.updates-section'},
+    {text: 'Your Library now sorts by newest first. Sort by changes it, and your choice is kept.', go: '#/library', at: '.toggle-line select'},
     {text: 'Dark mode: the options in drop-down lists can be read again. Fixed.', go: '#/library', at: '.toggle-line select'},
     {text: 'A bar now tells you when a new version is ready. Press Reload to get it, and this list shows what changed.', more: 'The app also keeps working with no connection once it has loaded.'}
   ],
