@@ -302,6 +302,11 @@ body.is-carrying .select-bar { opacity: 0; pointer-events: none; }
 .set-hero .form-note b { color: var(--text); font-weight: 600; }
 .tricky-link { display: inline-block; margin-top: 8px; color: var(--text); font-size: 15px; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
 
+#active-timer { flex: none; padding: 0 6px; font-size: 15px; font-variant-numeric: tabular-nums; white-space: nowrap; transition: opacity .3s, filter .3s; }
+#active-timer.is-paused { opacity: .5; filter: grayscale(1); }
+.hero-active { margin: 0 0 12px; font-size: 15px; }
+.hero-active b { font-weight: 600; font-variant-numeric: tabular-nums; }
+
 /* ---- Rewards ---- */
 .trophy-shelf { margin: 0 0 20px; }
 .shelf-count { font-size: 14px; font-weight: 400; }

@@ -8,6 +8,7 @@
 // No `at`: no Show me. PUBLISHED holds when each version went live (UTC), filled in by tools/publish.py.
 const FIRST_SET = ['.set-row .row-title'];
 const WHATS_NEW = {
+  '1.4.01': [{text: 'Active learning time: each set now counts the time you spend actively learning it, shown with fire at the top of every mode and on the set. It pauses after 10 seconds with nothing touched or moved, and Reset progress clears it.', go: '#/library', open: FIRST_SET, at: '.set-hero'}],
   '1.4.00': [
     {text: 'Learn from scratch: when a word first shows, say whether you know it: Don\'t know it, Sometimes or Always. Words you know get one quick check rather than every step, and a wrong answer sends them back to the full route.', go: '#/library', open: FIRST_SET, at: '[data-mode="learn"]', more: 'The Ratings switch in Learn from scratch turns all of this off, including Tricky words.'},
     {text: 'Flashcards now helps Learn from scratch: Know without flipping counts as Always, Know after flipping as Sometimes, and Still learning as Don\'t know it.'},
@@ -112,6 +113,7 @@ const WHATS_NEW = {
   '1.0.00': [{text: 'Open Flashcards goes live: make sets, flip and swipe through them, and import or export them as JSON.'}]
 };
 const PUBLISHED = {
+  '1.4.01': '2026-11-02T23:17:17Z',
   '1.4.00': '2026-11-02T23:14:31Z',
   '1.3.12': '2026-11-02T21:23:20Z',
   '1.3.11': '2026-11-02T20:56:31Z',
