@@ -1,4 +1,4 @@
-# Open Flashcards server and HTTPS on a VPS.
+# Quizaroo server and HTTPS on a VPS.
 #   1. Point your domain's A record at this machine; open ports 80 and 443.
 #   2. Create .env next to this file:   FLASHCARDS_DOMAIN=flashcards.example.com
 #   3. docker compose up -d --build
@@ -11,7 +11,7 @@ services:
     restart: unless-stopped
     environment:
       REGISTRATION: ${REGISTRATION:-first}
-      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-https://hazymat.github.io,http://localhost:5173}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-https://quizaroo.github.io,https://hazymat.github.io,http://localhost:5173}
       QUOTA_MB: ${QUOTA_MB:-1024}
       MAX_SIGNUPS_PER_DAY: ${MAX_SIGNUPS_PER_DAY:-0}
       ADMIN_EMAILS: ${ADMIN_EMAILS:-}

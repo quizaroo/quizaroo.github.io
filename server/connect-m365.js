@@ -14,7 +14,7 @@ const MAIL_DIR = path.join(DATA_DIR, 'mail');
 const LOGIN = process.env.GRAPH_LOGIN_URL || 'https://login.microsoftonline.com';
 const GRAPH = process.env.GRAPH_URL || 'https://graph.microsoft.com';
 const EXCHANGE = process.env.EXCHANGE_URL || 'https://outlook.office365.com';
-const APP_NAME = 'Open Flashcards sign-up mail';
+const APP_NAME = 'Quizaroo sign-up mail';
 // Microsoft's own public clients for signing in from a command line.
 const GRAPH_SIGN_IN = { client: '14d82eec-204b-4c2f-b7e8-296a70dab67e', scope: 'https://graph.microsoft.com/Application.ReadWrite.All' };
 const EXCHANGE_SIGN_IN = { client: 'fb78d390-0c51-40cd-8e17-fdbfab77341b', scope: 'https://outlook.office365.com/.default' };
@@ -72,7 +72,7 @@ function ensureCertificate() {
   const keyFile = path.join(MAIL_DIR, 'key.pem');
   const certFile = path.join(MAIL_DIR, 'cert.pem');
   if (!fs.existsSync(keyFile) || !fs.existsSync(certFile)) {
-    execFileSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-sha256', '-days', '1095', '-subj', '/CN=Open Flashcards sign-up mail', '-keyout', keyFile, '-out', certFile], { stdio: 'ignore' });
+    execFileSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-sha256', '-days', '1095', '-subj', '/CN=Quizaroo sign-up mail', '-keyout', keyFile, '-out', certFile], { stdio: 'ignore' });
     fs.chmodSync(keyFile, 0o600);
   }
   return new crypto.X509Certificate(fs.readFileSync(certFile));
@@ -89,7 +89,7 @@ export async function connectM365(mailboxArg) {
   if (!progress.appId || progress.fingerprint !== certificate.fingerprint256) {
     const token = await deviceSignIn(GRAPH_SIGN_IN, 'organizations', 'Sign-in 1 of 2');
     say(`Creating the app "${APP_NAME}"`);
-    const app = await graph(token, 'POST', '/applications', { displayName: APP_NAME, signInAudience: 'AzureADMyOrg', notes: 'Sends Open Flashcards sign-up codes. Limited by Exchange to one mailbox. Delete this app to stop all sending.', keyCredentials: [{ type: 'AsymmetricX509Cert', usage: 'Verify', key: certificate.raw.toString('base64'), displayName: 'CN=Open Flashcards sign-up mail' }] });
+    const app = await graph(token, 'POST', '/applications', { displayName: APP_NAME, signInAudience: 'AzureADMyOrg', notes: 'Sends Quizaroo sign-up codes. Limited by Exchange to one mailbox. Delete this app to stop all sending.', keyCredentials: [{ type: 'AsymmetricX509Cert', usage: 'Verify', key: certificate.raw.toString('base64'), displayName: 'CN=Quizaroo sign-up mail' }] });
     let principal = null;
     // A brand-new app can take a few seconds to be known everywhere.
     for (let attempt = 1; !principal; attempt++) { try { principal = await graph(token, 'POST', '/servicePrincipals', { appId: app.appId }); } catch (failure) { if (attempt === 6) throw failure; await wait(5000); } }
@@ -108,7 +108,7 @@ export async function connectM365(mailboxArg) {
   if (found && !/Mailbox$/.test(found.RecipientTypeDetails || '')) throw new Error(`${mailbox} is a ${found.RecipientTypeDetails}, not a mailbox. Choose a different address.`);
   if (!found) {
     say(`Creating the shared mailbox ${mailbox}`);
-    await exchange(session, 'New-Mailbox', { Shared: true, Name: `Flashcards ${mailbox.split('@')[0]}`, DisplayName: 'Open Flashcards', Alias: `flashcards-${mailbox.split('@')[0]}`.replace(/[^\w.-]/g, ''), PrimarySmtpAddress: mailbox });
+    await exchange(session, 'New-Mailbox', { Shared: true, Name: `Flashcards ${mailbox.split('@')[0]}`, DisplayName: 'Quizaroo', Alias: `flashcards-${mailbox.split('@')[0]}`.replace(/[^\w.-]/g, ''), PrimarySmtpAddress: mailbox });
   }
 
   say(`Letting the app send as ${mailbox} only`);

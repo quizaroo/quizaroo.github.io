@@ -1,4 +1,4 @@
-# Open Flashcards server
+# Quizaroo server
 
 Keeps your devices in step. It stores only **encrypted** copies of your data: the app scrambles everything on your device first, with a key that never leaves your devices, so the server (and anyone who gets into it) sees nothing readable. Plain Node 24 with its built-in SQLite; no other software to install.
 
@@ -13,10 +13,10 @@ Accounts are made in the app, never on the server. Everything is encrypted on yo
 
 | To do this | Do this |
 |---|---|
-| Create the first account | In Open Flashcards: Settings → Sync, type the server address, then email and password, and **Create account**. Save the recovery code it shows. |
-| Add another person | On the server: `sudo flashcards-admin registration open`. They create their account in Open Flashcards as above. Then `sudo flashcards-admin registration closed`. |
-| Change a password | In Open Flashcards, signed in: Settings → Sync → **Change password** (needs the current one). Other devices are signed out and sign in again with the new one. |
-| Forgotten password | In Open Flashcards: Settings → Sync → **Forgot password?**, then the email, the recovery code and a new password. Other devices are signed out. |
+| Create the first account | In Quizaroo: Settings → Sync, type the server address, then email and password, and **Create account**. Save the recovery code it shows. |
+| Add another person | On the server: `sudo flashcards-admin registration open`. They create their account in Quizaroo as above. Then `sudo flashcards-admin registration closed`. |
+| Change a password | In Quizaroo, signed in: Settings → Sync → **Change password** (needs the current one). Other devices are signed out and sign in again with the new one. |
+| Forgotten password | In Quizaroo: Settings → Sync → **Forgot password?**, then the email, the recovery code and a new password. Other devices are signed out. |
 | Forgotten password and lost recovery code | The data on the server can't be opened by anyone. On a device that still has the sets, export them first (Your Library → Export all). Then `sudo flashcards-admin delete-user <email>`, open registration, create the account again and import the file. |
 | Change an account's email | `sudo flashcards-admin rename-user <old email> <new email>` |
 | Remove an account | `sudo flashcards-admin delete-user <email>` (deletes everything stored for it) |
@@ -44,7 +44,7 @@ This installs Node 24 and Caddy (which does the HTTPS), creates a `openflashcard
 
 Check it: open `https://<address>/api/health` in a browser. You should see `{"ok":true,...}`.
 
-Then create your account in Open Flashcards (see [Accounts and passwords](#accounts-and-passwords-the-short-version)). Save the recovery code somewhere safe: it's the only way back in if you forget your password.
+Then create your account in Quizaroo (see [Accounts and passwords](#accounts-and-passwords-the-short-version)). Save the recovery code somewhere safe: it's the only way back in if you forget your password.
 
 ## Install: behind a web server you already run
 
@@ -81,7 +81,7 @@ location ~ ^/(api|admin)(/|$) {
 }
 ```
 
-Both add the caller's address as the last `X-Forwarded-For` entry, which is the one the server uses for its sign-in limits. Check `https://flashcards.example.com/api/health` in a browser, then create your account in Open Flashcards straight away.
+Both add the caller's address as the last `X-Forwarded-For` entry, which is the one the server uses for its sign-in limits. Check `https://flashcards.example.com/api/health` in a browser, then create your account in Quizaroo straight away.
 
 To update later: get the new code, then `sudo ./install.sh update`.
 
@@ -98,7 +98,7 @@ Caddy gets a real certificate for the domain. Settings (`REGISTRATION`, `ALLOWED
 
 **Only home installs (`install.sh home`) need this.** A server installed with `install.sh public <domain>` gets a real certificate from Let's Encrypt, which every device already trusts; skip this section.
 
-A home server has no public domain, so Caddy makes its own certificate authority and each device trusts it once. The easiest way is from the device itself: in Open Flashcards, Settings → Sync, type the server's address and use **Get the certificate** (it opens `http://<address>/flashcards-ca.crt`). A name such as `flashcards.lan` works only if your router (or each device) knows it; otherwise use the IP, or install with both (`flashcards.lan,<ip>`). If the download says the file isn't there, Caddy hadn't finished making its certificate when you installed: run `sudo ./install.sh update`.
+A home server has no public domain, so Caddy makes its own certificate authority and each device trusts it once. The easiest way is from the device itself: in Quizaroo, Settings → Sync, type the server's address and use **Get the certificate** (it opens `http://<address>/flashcards-ca.crt`). A name such as `flashcards.lan` works only if your router (or each device) knows it; otherwise use the IP, or install with both (`flashcards.lan,<ip>`). If the download says the file isn't there, Caddy hadn't finished making its certificate when you installed: run `sudo ./install.sh update`.
 
 Or get the root certificate from the machine:
 

@@ -8,7 +8,7 @@
 //   PORT              default 8797 (Caddy in front does HTTPS)
 //   HOST              default 127.0.0.1
 //   DATA_DIR          default ./data  (flashcards.db lives here)
-//   ALLOWED_ORIGINS   comma list, e.g. https://hazymat.github.io,http://localhost:5173
+//   ALLOWED_ORIGINS   comma list, e.g. https://quizaroo.github.io,https://hazymat.github.io,http://localhost:5173
 //   REGISTRATION      first (default: only while there are no users) | open | closed
 //   QUOTA_MB          default 1024 per user (records and files together); accounts in ADMIN_EMAILS have no limit but the disk
 //   MAX_SIGNUPS_PER_DAY  default 0 (no limit): new accounts per UTC day
@@ -29,7 +29,7 @@ import { DatabaseSync } from 'node:sqlite';
 const PORT = Number(process.env.PORT || 8797);
 const HOST = process.env.HOST || '127.0.0.1';
 const DATA_DIR = process.env.DATA_DIR || path.join(process.cwd(), 'data');
-const ORIGINS = (process.env.ALLOWED_ORIGINS || 'https://hazymat.github.io,http://localhost:5173').split(',').map(s => s.trim()).filter(Boolean);
+const ORIGINS = (process.env.ALLOWED_ORIGINS || 'https://quizaroo.github.io,https://hazymat.github.io,http://localhost:5173').split(',').map(s => s.trim()).filter(Boolean);
 const ENV_REGISTRATION = process.env.REGISTRATION || 'first';
 const ENV_SIGNUP_LIMIT = Number(process.env.MAX_SIGNUPS_PER_DAY) || 0;
 const ADMINS = new Set((process.env.ADMIN_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean));
@@ -225,7 +225,7 @@ function sendMail(to, subject, lines) {
 
 function sendBySmtp(to, subject, lines) {
   const domain = MAIL_FROM.split('@')[1];
-  const message = [`From: Open Flashcards <${MAIL_FROM}>`, `To: ${to}`, `Subject: ${subject}`, `Date: ${new Date().toUTCString().replace('GMT', '+0000')}`, `Message-ID: <${crypto.randomUUID()}@${domain}>`, 'MIME-Version: 1.0', 'Content-Type: text/plain; charset=utf-8', 'Auto-Submitted: auto-generated', '', ...lines].join('\r\n');
+  const message = [`From: Quizaroo <${MAIL_FROM}>`, `To: ${to}`, `Subject: ${subject}`, `Date: ${new Date().toUTCString().replace('GMT', '+0000')}`, `Message-ID: <${crypto.randomUUID()}@${domain}>`, 'MIME-Version: 1.0', 'Content-Type: text/plain; charset=utf-8', 'Auto-Submitted: auto-generated', '', ...lines].join('\r\n');
   const steps = [['', 220], [`EHLO ${domain}`, 250], [`MAIL FROM:<${MAIL_FROM}>`, 250], [`RCPT TO:<${to}>`, 250], ['DATA', 354], [`${message}\r\n.`, 250], ['QUIT', 221]];
   return new Promise((resolve, reject) => {
     const socket = net.connect(SMTP_PORT, SMTP_HOST);
@@ -519,11 +519,11 @@ const routes = {
     const known = db.prepare('SELECT 1 FROM users WHERE email = ?').get(email) || adminPins()[email];
     try {
       if (known) {
-        await sendMail(email, 'You already have an Open Flashcards account', ['Someone, probably you, tried to create an Open Flashcards account with this address, but it already has one.', '', 'To use it, sign in under Settings, Sync. If you have forgotten your password, Forgot password? is there too, and needs your recovery code.', '', 'If this was not you, you can ignore this email.']);
+        await sendMail(email, 'You already have a Quizaroo account', ['Someone, probably you, tried to create a Quizaroo account with this address, but it already has one.', '', 'To use it, sign in under Settings, Sync. If you have forgotten your password, Forgot password? is there too, and needs your recovery code.', '', 'If this was not you, you can ignore this email.']);
       } else {
         const code = String(crypto.randomInt(1000000)).padStart(6, '0');
         db.prepare('INSERT INTO signup_codes (email, code_hash, expires_at) VALUES (?, ?, ?) ON CONFLICT (email) DO UPDATE SET code_hash = excluded.code_hash, expires_at = excluded.expires_at, tries = 0').run(email, codeHash(email, code), new Date(Date.now() + CODE_MINUTES * 60000).toISOString());
-        await sendMail(email, 'Your Open Flashcards code', [`Your code is ${code}`, '', `Type it into Open Flashcards to finish creating your account. It lasts ${CODE_MINUTES} minutes.`, '', 'If you did not ask for this, you can ignore this email.']);
+        await sendMail(email, 'Your Quizaroo code', [`Your code is ${code}`, '', `Type it into Quizaroo to finish creating your account. It lasts ${CODE_MINUTES} minutes.`, '', 'If you did not ask for this, you can ignore this email.']);
       }
     } catch (e) {
       console.error('Mail not sent:', e.message);
@@ -630,7 +630,7 @@ const routes = {
     const email = String(body.email || '').trim().toLowerCase();
     const u = db.prepare(`SELECT id, email, public_key, ${NAMES} FROM users WHERE email = ?`).get(email);
     if (!u) throw new HttpError(404, 'Nobody on this server signs in with that email');
-    if (!u.public_key) throw new HttpError(409, 'They need to open Open Flashcards and sync once before things can be shared with them');
+    if (!u.public_key) throw new HttpError(409, 'They need to open Quizaroo and sync once before things can be shared with them');
     return { user_id: u.id, email: u.email, public_key: u.public_key, username: u.username, first_name: u.first_name, last_name: u.last_name };
   },
 

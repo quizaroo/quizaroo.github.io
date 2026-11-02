@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Install or update the Open Flashcards server on Ubuntu / Debian (run as root, from this folder).
+# Install or update the Quizaroo server on Ubuntu / Debian (run as root, from this folder).
 #
 #   sudo ./install.sh home   flashcards.lan         # LAN: HTTPS from Caddy's own certificate authority
 #                                              (a name, an IP, or both: flashcards.lan,<ip>)
@@ -109,4 +109,4 @@ if [ "$MODE" = proxy ]; then
   echo "The server listens on 127.0.0.1:8797. Point your web server's HTTPS site at it: see README.md (\"Behind a web server you already run\")."
   echo "Check here: curl -s http://127.0.0.1:8797/api/health"
 fi
-[ "$MODE" = update ] || [ "$MODE" = proxy ] || echo "Check: https://$FIRST/api/health   Then in Open Flashcards: Settings -> Sync -> server https://$FIRST"
+[ "$MODE" = update ] || [ "$MODE" = proxy ] || echo "Check: https://$FIRST/api/health   Then in Quizaroo: Settings -> Sync -> server https://$FIRST"

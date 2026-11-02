@@ -27,7 +27,7 @@ function forget_token() { token = null; sessionStorage.removeItem(TOKEN_KEY); }
 
 function draw_sign_in(message_text) {
   const email_el = el('input', {type: 'email', autocomplete: 'username', required: 'required'}), password_el = el('input', {type: 'password', autocomplete: 'current-password', required: 'required'}), message_el = el('p', {class: 'error'}, message_text || ''), button_el = el('button', {class: 'primary'}, 'Sign in');
-  page_el.replaceChildren(el('h1', {}, 'Open Flashcards admin'), el('p', {class: 'muted'}, 'Sign in with your Open Flashcards account.'),
+  page_el.replaceChildren(el('h1', {}, 'Quizaroo admin'), el('p', {class: 'muted'}, 'Sign in with your Quizaroo account.'),
     el('div', {class: 'stack'}, el('label', {}, 'Email', email_el), el('label', {}, 'Password', password_el), el('div', {class: 'row'}, button_el), message_el));
   const sign_in = async () => {
     message_el.textContent = ''; button_el.disabled = true; button_el.textContent = 'Signing in…';
@@ -168,7 +168,7 @@ function draw_list() {
       el('div', {class: 'row'}, el('label', {}, include_new_el, 'Include accounts under 24 hours old'), confirm_el, delete_button), doomed_el)];
 
   page_el.replaceChildren(
-    el('div', {class: 'row spread'}, el('h1', {}, 'Open Flashcards admin'), el('div', {class: 'row'}, el('button', {onclick: () => act(() => Promise.resolve())}, 'Refresh'), el('button', {onclick: async () => { await api('POST', '/api/logout').catch(() => {}); forget_token(); draw_sign_in(); }}, 'Sign out'))),
+    el('div', {class: 'row spread'}, el('h1', {}, 'Quizaroo admin'), el('div', {class: 'row'}, el('button', {onclick: () => act(() => Promise.resolve())}, 'Refresh'), el('button', {onclick: async () => { await api('POST', '/api/logout').catch(() => {}); forget_token(); draw_sign_in(); }}, 'Sign out'))),
     el('p', {class: 'error', id: 'message'}),
     all_off_panel,
     el('div', {class: 'stats'}, stat(state.accounts, 'accounts'), stat(size_text(state.stored_bytes), 'stored'), stat(state.signups_today + (state.signup_limit ? ' of ' + state.signup_limit : ''), 'sign-ups today'), stat(state.requests_today, 'requests today'), stat(size_text(state.bytes_in_today), 'sent today'), stat(state.refused_today, 'refused at limit today'), stat(state.quota_mb + ' MB', 'default limit'), stat((state.disk_free_bytes / 1073741824).toFixed(1) + ' GB', 'disk free')),
