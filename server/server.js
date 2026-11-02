@@ -16,6 +16,7 @@
 //   EMAIL_CODES       on | off (default): new accounts confirm their address with a code sent by email
 //   MAIL_FROM         the address codes come from, e.g. noreply@example.com
 //   SMTP_HOST, SMTP_PORT  the mail server that sends them; default 127.0.0.1 and 25, with no sign-in
+//                     Once `flashcards-admin connect-m365` has been run, mail goes through Microsoft 365 instead, and never by SMTP.
 //   SHARING           on | off (default): the sharing routes, which let any account look others up by email
 
 import http from 'node:http';
@@ -37,7 +38,7 @@ const EMAIL_CODES = process.env.EMAIL_CODES === 'on';
 const MAIL_FROM = process.env.MAIL_FROM || '';
 const SMTP_HOST = process.env.SMTP_HOST || '127.0.0.1';
 const SMTP_PORT = Number(process.env.SMTP_PORT || 25);
-if (EMAIL_CODES && !MAIL_FROM) throw new Error('EMAIL_CODES=on needs MAIL_FROM');
+if (EMAIL_CODES && !MAIL_FROM && !fs.existsSync(path.join(DATA_DIR, 'mail', 'config.json'))) throw new Error('EMAIL_CODES=on needs MAIL_FROM, or flashcards-admin connect-m365');
 const NO_LIMIT_QUOTA = 100 * 1024 * 1024 * 1024;
 const QUOTA = Number(process.env.QUOTA_MB || 1024) * 1024 * 1024;
 const MAX_BODY = 20 * 1024 * 1024;
@@ -187,7 +188,42 @@ const CODE_MINUTES = 15;
 const MAX_CODE_TRIES = 5;
 const MAIL_LIMITS = { gapSeconds: 60, perEmailHour: 3, perIpHour: 6, perDay: 30 };
 
+// Microsoft 365: signed in with this server's certificate, allowed by Exchange to send as one mailbox only.
+const MAIL_DIR = path.join(DATA_DIR, 'mail');
+const GRAPH_LOGIN = process.env.GRAPH_LOGIN_URL || 'https://login.microsoftonline.com';
+const GRAPH_URL = process.env.GRAPH_URL || 'https://graph.microsoft.com';
+function graphSettings() {
+  try {
+    const config = JSON.parse(fs.readFileSync(path.join(MAIL_DIR, 'config.json'), 'utf8'));
+    return { ...config, key: fs.readFileSync(path.join(MAIL_DIR, 'key.pem'), 'utf8'), certificate: new crypto.X509Certificate(fs.readFileSync(path.join(MAIL_DIR, 'cert.pem'))) };
+  } catch { return null; }
+}
+let graphToken = null;
+async function graphAccessToken(config) {
+  if (graphToken && graphToken.clientId === config.clientId && graphToken.expires > Date.now() + 60000) return graphToken.value;
+  const seconds = Math.floor(Date.now() / 1000);
+  const header = { alg: 'RS256', typ: 'JWT', x5t: b64url(crypto.createHash('sha1').update(config.certificate.raw).digest()) };
+  const claims = { aud: `https://login.microsoftonline.com/${config.tenantId}/oauth2/v2.0/token`, iss: config.clientId, sub: config.clientId, jti: crypto.randomUUID(), nbf: seconds - 30, iat: seconds, exp: seconds + 600 };
+  const unsigned = `${b64url(Buffer.from(JSON.stringify(header)))}.${b64url(Buffer.from(JSON.stringify(claims)))}`;
+  const assertion = `${unsigned}.${b64url(crypto.createSign('RSA-SHA256').update(unsigned).sign(config.key))}`;
+  const response = await fetch(`${GRAPH_LOGIN}/${config.tenantId}/oauth2/v2.0/token`, { method: 'POST', signal: AbortSignal.timeout(15000), headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ grant_type: 'client_credentials', client_id: config.clientId, scope: 'https://graph.microsoft.com/.default', client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer', client_assertion: assertion }) });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok || !result.access_token) throw new Error(`Microsoft sign-in refused: ${String(result.error_description || result.error || response.status).split('\r')[0]}`);
+  graphToken = { clientId: config.clientId, value: result.access_token, expires: Date.now() + (result.expires_in || 3000) * 1000 };
+  return graphToken.value;
+}
+async function sendByGraph(config, to, subject, lines) {
+  const response = await fetch(`${GRAPH_URL}/v1.0/users/${encodeURIComponent(config.mailbox)}/sendMail`, { method: 'POST', signal: AbortSignal.timeout(20000), headers: { Authorization: `Bearer ${await graphAccessToken(config)}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ message: { subject, body: { contentType: 'Text', content: lines.join('\n') }, toRecipients: [{ emailAddress: { address: to } }] }, saveToSentItems: false }) });
+  if (!response.ok) throw new Error(`Microsoft refused the email (${response.status}): ${String((await response.json().catch(() => ({}))).error?.message || '').slice(0, 200)}`);
+}
+
+// Never falls back from Microsoft 365 to SMTP: that would send from a less trusted place without anyone noticing.
 function sendMail(to, subject, lines) {
+  const config = graphSettings();
+  return config ? sendByGraph(config, to, subject, lines) : sendBySmtp(to, subject, lines);
+}
+
+function sendBySmtp(to, subject, lines) {
   const domain = MAIL_FROM.split('@')[1];
   const message = [`From: Open Flashcards <${MAIL_FROM}>`, `To: ${to}`, `Subject: ${subject}`, `Date: ${new Date().toUTCString().replace('GMT', '+0000')}`, `Message-ID: <${crypto.randomUUID()}@${domain}>`, 'MIME-Version: 1.0', 'Content-Type: text/plain; charset=utf-8', 'Auto-Submitted: auto-generated', '', ...lines].join('\r\n');
   const steps = [['', 220], [`EHLO ${domain}`, 250], [`MAIL FROM:<${MAIL_FROM}>`, 250], [`RCPT TO:<${to}>`, 250], ['DATA', 354], [`${message}\r\n.`, 250], ['QUIT', 221]];
