@@ -101,7 +101,7 @@ function other_answers(card_set, card_index, back_key, wanted_count) { const see
 
 // ---- Shared screen pieces ----
 let mode_timers = [];
-function clear_mode_timers() { mode_timers.forEach(clearTimeout); mode_timers = []; if (window.speechSynthesis) speechSynthesis.cancel(); }
+function clear_mode_timers() { mode_timers.forEach(clearTimeout); mode_timers = []; document.querySelectorAll('.right-ring').forEach(ring_el => ring_el.remove()); if (window.speechSynthesis) speechSynthesis.cancel(); }
 function later(run_later, delay_ms) { mode_timers.push(setTimeout(run_later, delay_ms)); }
 function mode_frame(card_set, mode_item, top_nodes, body_nodes) {
   clear_mode_timers();
@@ -115,22 +115,42 @@ function prompt_card(prompt_text) { return el('div', {class: 'prompt-card'}, pro
 const SIDE_NAMES = {term: 'Term', definition: 'Definition'};
 // Both sides written on the paper's lines, each named in the margin.
 function pair_card(front_key, front_text, back_text) { const back_key = front_key === 'term' ? 'definition' : 'term'; return el('div', {class: 'prompt-card pair-card'}, el('div', {class: 'pair-row'}, el('span', {class: 'pair-label'}, SIDE_NAMES[front_key]), el('div', {class: 'pair-text'}, front_text)), el('div', {class: 'pair-row'}, el('span', {class: 'pair-label'}, SIDE_NAMES[back_key]), el('div', {class: 'pair-text'}, back_text))); }
-// A right answer: a tick draws itself on the card, then the next word comes up while an echo of this one shrinks away into the corner.
-function tick_icon() { const icon_el = el('span', {class: 'tick-mark', 'aria-hidden': 'true'}); icon_el.innerHTML = '<svg viewBox="0 0 24 24"><path pathLength="1" d="M4 13l5.5 5.5L20 7"/></svg>'; return icon_el; }
-function celebrate_right(prompt_text, answer_text, run_next) {
-  const card_el = document.querySelector('.prompt-card');
-  if (card_el) card_el.appendChild(el('div', {class: 'right-mark', role: 'status', 'aria-label': 'Right'}, tick_icon(), el('span', {}, answer_text)));
-  later(() => {
-    const old_rect = card_el ? card_el.querySelector('.right-mark').getBoundingClientRect() : null;
-    run_next();
-    if (!old_rect) return;
-    const new_card = document.querySelector('.prompt-card'), echo_el = el('div', {class: 'answer-echo', 'aria-hidden': 'true'}, tick_icon(), el('strong', {}, answer_text), el('span', {}, prompt_text));
-    document.querySelectorAll('.answer-echo').forEach(old_echo => old_echo.remove());
-    document.body.appendChild(echo_el);
-    const echo_rect = echo_el.getBoundingClientRect(), new_rect = new_card ? new_card.getBoundingClientRect() : old_rect, end_x = new_rect.left + 12 - echo_rect.left, end_y = (new_card ? new_rect.top + 18 : old_rect.top) - echo_rect.top, start_x = old_rect.left + old_rect.width / 2 - echo_rect.left - echo_rect.width / 2, start_y = old_rect.top - echo_rect.top;
-    const fade_out = echo_el.animate([{transform: 'translate(' + start_x + 'px, ' + start_y + 'px) scale(1)', opacity: 1}, {transform: 'translate(' + end_x + 'px, ' + end_y + 'px) scale(.62)', opacity: 0.85, offset: 0.25}, {transform: 'translate(' + end_x + 'px, ' + end_y + 'px) scale(.62)', opacity: 0}], {duration: 2600, easing: 'ease-out', fill: 'forwards'});
-    fade_out.onfinish = () => echo_el.remove();
-  }, 480);
+// Where the words themselves sit: a typed answer is measured, as a field can't say, and otherwise it's the element's last piece of text (so not a choice's number).
+function words_rect(answer_el) {
+  const box_rect = answer_el.getBoundingClientRect();
+  if (answer_el.matches('input')) { const field_style = getComputedStyle(answer_el), measure_context = document.createElement('canvas').getContext('2d'); measure_context.font = field_style.font; const text_width = Math.min(measure_context.measureText(answer_el.value).width, box_rect.width - 20), line_height = parseFloat(field_style.fontSize) * 1.3; return {left: box_rect.left + parseFloat(field_style.paddingLeft) + parseFloat(field_style.borderLeftWidth), top: box_rect.top + (box_rect.height - line_height) / 2, width: text_width, height: line_height}; }
+  const word_range = document.createRange(); word_range.selectNode(answer_el.lastChild || answer_el); return word_range.getBoundingClientRect();
+}
+// A right answer: a circle draws itself round what you gave, with a little flash and a ping, then the next word comes up.
+function celebrate_right(answer_el, run_next) {
+  play_sound('right');
+  const answer_rect = words_rect(answer_el), ring_width = answer_rect.width + 30, ring_height = answer_rect.height + 18, at_x = fraction_x => (fraction_x * ring_width).toFixed(1), at_y = fraction_y => (fraction_y * ring_height).toFixed(1);
+  const ring_el = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  ring_el.setAttribute('class', 'right-ring'); ring_el.setAttribute('aria-hidden', 'true'); ring_el.setAttribute('viewBox', '0 0 ' + ring_width + ' ' + ring_height);
+  Object.assign(ring_el.style, {left: answer_rect.left - 15 + 'px', top: answer_rect.top - 9 + 'px', width: ring_width + 'px', height: ring_height + 'px'});
+  ring_el.innerHTML = '<path pathLength="1" d="M' + at_x(0.1) + ' ' + at_y(0.26) + 'C' + at_x(0.3) + ' ' + at_y(0.02) + ' ' + at_x(0.8) + ' ' + at_y(0) + ' ' + at_x(0.95) + ' ' + at_y(0.3) + 'C' + at_x(1.02) + ' ' + at_y(0.68) + ' ' + at_x(0.72) + ' ' + at_y(0.98) + ' ' + at_x(0.42) + ' ' + at_y(0.96) + 'C' + at_x(0.08) + ' ' + at_y(0.96) + ' ' + at_x(-0.03) + ' ' + at_y(0.56) + ' ' + at_x(0.14) + ' ' + at_y(0.18) + '"/>';
+  document.body.appendChild(ring_el);
+  answer_el.classList.add('right-flash');
+  later(run_next, 620);
+}
+// Short sounds made in the browser, so there are no files to load. Off with Sound under the eye button.
+const SOUND_KEY = 'open-flashcards:sound';
+let sound_context = null;
+function sound_is_on() { try { return localStorage.getItem(SOUND_KEY) !== 'off'; } catch (storage_err) { return true; } }
+function play_tone(start_after, frequency, wave_type, peak_gain, last_for) {
+  const oscillator = sound_context.createOscillator(), gain_node = sound_context.createGain(), start_at = sound_context.currentTime + start_after;
+  oscillator.type = wave_type; oscillator.frequency.value = frequency;
+  gain_node.gain.setValueAtTime(0.0001, start_at); gain_node.gain.exponentialRampToValueAtTime(peak_gain, start_at + 0.008); gain_node.gain.exponentialRampToValueAtTime(0.0001, start_at + last_for);
+  oscillator.connect(gain_node); gain_node.connect(sound_context.destination); oscillator.start(start_at); oscillator.stop(start_at + last_for + 0.02);
+}
+function play_sound(sound_name) {
+  if (!sound_is_on() || !(window.AudioContext || window.webkitAudioContext)) return;
+  try {
+    sound_context = sound_context || new (window.AudioContext || window.webkitAudioContext)();
+    if (sound_context.state === 'suspended') sound_context.resume();
+    if (sound_name === 'right') { play_tone(0, 1318.5, 'sine', 0.16, 0.5); play_tone(0, 2637, 'sine', 0.04, 0.25); }
+    else play_tone(0, 196, 'sine', 0.14, 0.13);
+  } catch (sound_err) {}
 }
 function answer_panel(is_right, panel_text, extra_nodes) { return el('div', {class: 'answer-panel ' + (is_right ? 'is-right' : 'is-wrong'), role: 'status'}, el('strong', {}, is_right ? 'Right' : 'Not quite'), panel_text ? el('div', {}, panel_text) : null, ...(extra_nodes || [])); }
 function next_button(run_next) { return el('button', {class: 'primary', 'data-key': 'Enter', onclick: run_next}, 'Next'); }
@@ -151,7 +171,7 @@ function position_label() { return 'Question ' + (study_session.position + 1) + 
 function ask_type(card_set, mode_item, card_index, finish, ask_options) {
   const sides = (ask_options && ask_options.sides) || card_sides(card_set, card_index), input_el = el('input', {type: 'text', class: 'answer-input', placeholder: 'Type the answer', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false', 'aria-label': 'Your answer'}), result_el = el('div', {class: 'answer-slot'});
   let tried_close = false, is_answered = false;
-  function show_result(is_right, extra_nodes) { is_answered = true; input_el.disabled = true; form_button.hidden = true; if (is_right) { celebrate_right(sides.prompt, sides.answer, () => finish(true)); return; } const next_el = next_button(() => finish(false)); result_el.replaceChildren(answer_panel(false, 'The answer is: ' + sides.answer, [el('div', {class: 'button-row'}, next_el, el('button', {onclick: () => finish(true)}, 'I was right'))])); next_el.focus(); }
+  function show_result(is_right, extra_nodes) { is_answered = true; input_el.disabled = true; form_button.hidden = true; if (is_right) { celebrate_right(input_el, () => finish(true)); return; } play_sound('wrong'); const next_el = next_button(() => finish(false)); result_el.replaceChildren(answer_panel(false, 'The answer is: ' + sides.answer, [el('div', {class: 'button-row'}, next_el, el('button', {onclick: () => finish(true)}, 'I was right'))])); next_el.focus(); }
   const form_button = el('button', {class: 'primary', type: 'submit'}, 'Check');
   const form_el = el('form', {class: 'answer-form', onsubmit: submit_event => { submit_event.preventDefault(); if (is_answered) return; const verdict = check_answer(input_el.value, sides.answer); if (verdict === 'close' && !tried_close) { tried_close = true; result_el.replaceChildren(el('div', {class: 'answer-panel is-close', role: 'status'}, 'So close. Check the spelling and try again.')); input_el.focus(); return; } show_result(verdict !== 'wrong'); }}, input_el, form_button);
   mode_frame(card_set, mode_item, [(ask_options && ask_options.status) || position_label()], [session_progress(), (ask_options && ask_options.prompt_node) || prompt_card(sides.prompt), form_el, result_el, ask_options && ask_options.footer]);
@@ -162,23 +182,23 @@ function ask_choice(card_set, mode_item, card_index, finish, ask_options) {
   const option_buttons = option_texts.map((option_text, option_index) => el('button', {class: 'choice-button', 'data-key': String(option_index + 1), onclick: () => {
     option_buttons.forEach(button_el => { button_el.disabled = true; if (button_el.textContent.slice(2) === option_text && option_text !== sides.answer) button_el.classList.add('is-wrong'); if (button_el.dataset.answer === 'yes') button_el.classList.add('is-right'); });
     const is_right = option_text === sides.answer;
-    if (is_quick) { later(() => finish(is_right), is_right ? 150 : 700); return; }
-    if (is_right) { celebrate_right(sides.prompt, sides.answer, () => finish(true)); return; }
-    const next_el = next_button(() => finish(false)); result_el.replaceChildren(answer_panel(false, null, [next_el])); next_el.focus();
+    if (is_quick) { if (!(ask_options && ask_options.silent)) play_sound(is_right ? 'right' : 'wrong'); later(() => finish(is_right), is_right ? 150 : 700); return; }
+    if (is_right) { celebrate_right(option_buttons[option_index], () => finish(true)); return; }
+    play_sound('wrong'); const next_el = next_button(() => finish(false)); result_el.replaceChildren(answer_panel(false, null, [next_el])); next_el.focus();
   }}, el('span', {class: 'choice-number'}, option_index + 1), option_text));
   option_buttons.forEach((button_el, option_index) => { if (option_texts[option_index] === sides.answer) button_el.dataset.answer = 'yes'; });
   mode_frame(card_set, mode_item, [(ask_options && ask_options.status) || position_label()], [is_quick && ask_options.top_node ? ask_options.top_node : session_progress(), prompt_card(sides.prompt), el('div', {class: 'choice-grid'}, ...option_buttons), result_el, ask_options && ask_options.footer]);
 }
 function ask_true_false(card_set, mode_item, card_index, finish) {
   const sides = card_sides(card_set, card_index), wrong_options = other_answers(card_set, card_index, sides.back_key, 1), is_true_pair = !wrong_options.length || Math.random() < 0.5, shown_answer = is_true_pair ? sides.answer : wrong_options[0], result_el = el('div', {class: 'answer-slot'});
-  function pick(said_true) { buttons_el.querySelectorAll('button').forEach(button_el => { button_el.disabled = true; }); const is_right = said_true === is_true_pair; if (is_right) { celebrate_right(sides.prompt, sides.answer, () => finish(true)); return; } const next_el = next_button(() => finish(false)); result_el.replaceChildren(answer_panel(false, sides.prompt + ' = ' + sides.answer, [next_el])); next_el.focus(); }
+  function pick(said_true) { buttons_el.querySelectorAll('button').forEach(button_el => { button_el.disabled = true; }); const is_right = said_true === is_true_pair; if (is_right) { celebrate_right(buttons_el.querySelector(said_true ? '.know-button' : '.learn-button'), () => finish(true)); return; } play_sound('wrong'); const next_el = next_button(() => finish(false)); result_el.replaceChildren(answer_panel(false, sides.prompt + ' = ' + sides.answer, [next_el])); next_el.focus(); }
   const buttons_el = el('div', {class: 'study-buttons'}, el('button', {class: 'learn-button', 'data-key': 'ArrowLeft', onclick: () => pick(false)}, '← False'), el('button', {class: 'know-button', 'data-key': 'ArrowRight', onclick: () => pick(true)}, 'True →'));
   mode_frame(card_set, mode_item, [position_label()], [session_progress(), pair_card(sides.front_key, sides.prompt, shown_answer), buttons_el, result_el]);
 }
 function ask_scramble(card_set, mode_item, card_index, finish) {
   const sides = card_sides(card_set, card_index), target_text = sides.answer.split(/[\/,;]/)[0].replace(/\([^)]*\)/g, '').trim(), target_letters = Array.from(target_text.replace(/\s+/g, '')), built_el = el('div', {class: 'built-word'}), tiles_el = el('div', {class: 'letter-tiles'}), result_el = el('div', {class: 'answer-slot'}), built_tiles = [];
   function draw_built() { built_el.textContent = built_tiles.map(tile_el => tile_el.textContent).join('') || ' '; }
-  function complete_word() { const is_right = built_tiles.map(tile_el => tile_el.textContent).join('').toLowerCase() === target_letters.join('').toLowerCase(); tiles_el.querySelectorAll('button').forEach(tile_el => { tile_el.disabled = true; }); if (is_right) { celebrate_right(sides.prompt, target_text, () => finish(true)); return; } const next_el = next_button(() => finish(false)); result_el.replaceChildren(answer_panel(false, 'The answer is: ' + target_text, [next_el])); next_el.focus(); }
+  function complete_word() { const is_right = built_tiles.map(tile_el => tile_el.textContent).join('').toLowerCase() === target_letters.join('').toLowerCase(); tiles_el.querySelectorAll('button').forEach(tile_el => { tile_el.disabled = true; }); if (is_right) { celebrate_right(built_el, () => finish(true)); return; } play_sound('wrong'); const next_el = next_button(() => finish(false)); result_el.replaceChildren(answer_panel(false, 'The answer is: ' + target_text, [next_el])); next_el.focus(); }
   shuffled(target_letters).forEach(letter_text => tiles_el.appendChild(el('button', {class: 'letter-tile', onclick: click_event => { click_event.target.disabled = true; built_tiles.push(click_event.target); draw_built(); if (built_tiles.length === target_letters.length) complete_word(); }}, letter_text)));
   draw_built();
   mode_frame(card_set, mode_item, [position_label()], [session_progress(), prompt_card(sides.prompt), built_el, tiles_el, el('div', {class: 'button-row'}, el('button', {onclick: () => { const last_tile = built_tiles.pop(); if (last_tile && !result_el.hasChildNodes()) { last_tile.disabled = false; draw_built(); } }}, '⌫ Undo'), el('button', {onclick: () => { if (!result_el.hasChildNodes()) finish(false); }}, 'Skip')), result_el]);
@@ -319,8 +339,8 @@ function view_match(card_set, mode_item) {
     if (!picked_tile) { picked_tile = tile_el; tile_el.classList.add('is-picked'); tile_el.dataset.card = card_index; return; }
     if (picked_tile === tile_el) { tile_el.classList.remove('is-picked'); picked_tile = null; return; }
     const is_pair = Number(picked_tile.dataset.card) === card_index && picked_tile.dataset.side !== tile_el.dataset.side, first_tile = picked_tile; picked_tile = null; first_tile.classList.remove('is-picked');
-    if (is_pair) { first_tile.classList.add('is-matched'); tile_el.classList.add('is-matched'); first_tile.disabled = true; tile_el.disabled = true; left_count--; if (!left_count) { const seconds_taken = Math.round((Date.now() - started_ms) / 1000); card_set.last_studied = Date.now(); save_state(); clear_mode_timers(); const reward_el = award_round(card_set, mode_item, round_cards.length, round_cards.length + wrong_tries); grid_el.after(reward_el, el('div', {class: 'answer-panel is-right', role: 'status'}, el('strong', {}, 'All matched in ' + seconds_taken + ' seconds'), el('div', {}, wrong_tries + ' wrong tries'), el('button', {class: 'primary', onclick: () => view_match(card_set, mode_item)}, 'Play again'))); } }
-    else { wrong_tries++; first_tile.classList.add('is-miss'); tile_el.classList.add('is-miss'); setTimeout(() => { first_tile.classList.remove('is-miss'); tile_el.classList.remove('is-miss'); }, 450); }
+    if (is_pair) { play_sound('right'); first_tile.classList.add('is-matched'); tile_el.classList.add('is-matched'); first_tile.disabled = true; tile_el.disabled = true; left_count--; if (!left_count) { const seconds_taken = Math.round((Date.now() - started_ms) / 1000); card_set.last_studied = Date.now(); save_state(); clear_mode_timers(); const reward_el = award_round(card_set, mode_item, round_cards.length, round_cards.length + wrong_tries); grid_el.after(reward_el, el('div', {class: 'answer-panel is-right', role: 'status'}, el('strong', {}, 'All matched in ' + seconds_taken + ' seconds'), el('div', {}, wrong_tries + ' wrong tries'), el('button', {class: 'primary', onclick: () => view_match(card_set, mode_item)}, 'Play again'))); } }
+    else { play_sound('wrong'); wrong_tries++; first_tile.classList.add('is-miss'); tile_el.classList.add('is-miss'); setTimeout(() => { first_tile.classList.remove('is-miss'); tile_el.classList.remove('is-miss'); }, 450); }
   }}, card_set.cards[card_index][side_key]); }
   const all_tiles = shuffled(round_cards.flatMap(card_index => { const term_tile = make_tile(card_index, 'term'), definition_tile = make_tile(card_index, 'definition'); term_tile.dataset.side = 'term'; term_tile.dataset.card = card_index; definition_tile.dataset.side = 'definition'; definition_tile.dataset.card = card_index; return [term_tile, definition_tile]; }));
   const grid_el = el('div', {class: 'match-grid'}, ...all_tiles);
@@ -337,7 +357,7 @@ function view_memory(card_set, mode_item) {
     if (turned_tiles.length < 2) return;
     turn_count++; turns_el.textContent = turn_count + ' turns';
     const first_turned = turned_tiles[0], second_turned = turned_tiles[1]; turned_tiles = [];
-    if (first_turned.card_index === second_turned.card_index) { first_turned.tile_el.classList.add('is-matched'); second_turned.tile_el.classList.add('is-matched'); left_count--; if (!left_count) { card_set.last_studied = Date.now(); save_state(); const reward_el = award_round(card_set, mode_item, round_cards.length, Math.max(turn_count, round_cards.length)); grid_el.after(reward_el, el('div', {class: 'answer-panel is-right', role: 'status'}, el('strong', {}, 'All found in ' + turn_count + ' turns'), el('button', {class: 'primary', onclick: () => view_memory(card_set, mode_item)}, 'Play again'))); } return; }
+    if (first_turned.card_index === second_turned.card_index) { play_sound('right'); first_turned.tile_el.classList.add('is-matched'); second_turned.tile_el.classList.add('is-matched'); left_count--; if (!left_count) { card_set.last_studied = Date.now(); save_state(); const reward_el = award_round(card_set, mode_item, round_cards.length, Math.max(turn_count, round_cards.length)); grid_el.after(reward_el, el('div', {class: 'answer-panel is-right', role: 'status'}, el('strong', {}, 'All found in ' + turn_count + ' turns'), el('button', {class: 'primary', onclick: () => view_memory(card_set, mode_item)}, 'Play again'))); } return; }
     is_waiting = true; later(() => { [first_turned, second_turned].forEach(turned_item => { turned_item.tile_el.classList.remove('is-up'); turned_item.tile_el.textContent = ''; }); is_waiting = false; }, 1100);
   }}); return tile_el; })));
   const grid_el = el('div', {class: 'memory-grid'}, ...all_tiles);
@@ -361,7 +381,7 @@ function view_test(card_set, mode_item) {
   if (study_session.position >= study_session.queue.length) return view_mode_summary(card_set, mode_item);
   const card_index = study_session.queue[study_session.position], can_choose = studyable_indexes(card_set).length > 1 && study_session.position % 2 === 0, status_text = position_label();
   function finish(is_right) { record_answer(card_set, card_index, is_right); if (is_right) study_session.right++; else { study_session.wrong++; study_session.missed.push(card_index); } study_session.position++; view_test(card_set, mode_item); }
-  if (can_choose) ask_choice(card_set, mode_item, card_index, finish, {quick: true, status: status_text}); else ask_type(card_set, mode_item, card_index, finish, {status: status_text});
+  if (can_choose) ask_choice(card_set, mode_item, card_index, finish, {quick: true, silent: true, status: status_text}); else ask_type(card_set, mode_item, card_index, finish, {status: status_text});
 }
 function view_mode_summary(card_set, mode_item) {
   const missed_cards = Array.from(new Set(study_session.missed)), total_count = study_session.right + study_session.wrong, score_percent = total_count ? Math.round(100 * study_session.right / total_count) : 0;
