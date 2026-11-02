@@ -406,3 +406,27 @@ function trophy_shelf(card_set) {
   const shelf_el = el('div', {class: 'shelf-row'}, ...(trophy_list.length ? trophy_list.map(trophy_button) : [el('span', {class: 'shelf-item is-empty'}, reward_image('hourglass', 'shelf-image')), el('span', {class: 'muted shelf-empty'}, 'Finish a round in any mode to win your first reward.')]));
   return el('section', {class: 'trophy-shelf'}, el('h2', {class: 'list-heading'}, 'Trophy shelf', trophy_list.length ? el('span', {class: 'muted shelf-count'}, ' ' + trophy_list.length) : ''), shelf_el, detail_el);
 }
+
+// ---- Active learning time, per set: counts while you are in a mode and doing something. Ten seconds with nothing touched or moved, or the app in the background, pauses it. ----
+const ACTIVE_IDLE_MS = 10000, ACTIVE_SAVE_MS = 30000;
+let active_last_touch = Date.now(), active_last_tick = Date.now(), active_last_save = Date.now(), active_unsaved = false;
+function active_time_text(active_ms) { const total_seconds = Math.floor(active_ms / 1000), hours = Math.floor(total_seconds / 3600), minutes = Math.floor(total_seconds / 60) % 60, seconds = total_seconds % 60; return hours ? hours + 'h ' + String(minutes).padStart(2, '0') + 'm ' + String(seconds).padStart(2, '0') + 's' : minutes ? minutes + 'm ' + String(seconds).padStart(2, '0') + 's' : seconds + 's'; }
+// One flame to begin with, two from ten minutes, three from an hour.
+function active_fire(active_ms) { return active_ms >= 3600000 ? '🔥🔥🔥' : active_ms >= 600000 ? '🔥🔥' : '🔥'; }
+function active_set() { const hash_match = location.hash.match(/^#\/play\/([^/]+)/); return hash_match ? find_set(decodeURIComponent(hash_match[1])) : null; }
+function flush_active_time() { if (!active_unsaved) return; active_unsaved = false; active_last_save = Date.now(); save_state(); }
+function active_tick() {
+  const now_ms = Date.now(), card_set = active_set(), is_active = !!card_set && document.visibilityState === 'visible' && now_ms - active_last_touch < ACTIVE_IDLE_MS, timer_el = document.getElementById('active-timer');
+  if (is_active) { card_set.active_ms = (card_set.active_ms || 0) + Math.min(now_ms - active_last_tick, 2000); active_unsaved = true; if (now_ms - active_last_save >= ACTIVE_SAVE_MS) flush_active_time(); }
+  active_last_tick = now_ms;
+  timer_el.hidden = !card_set;
+  if (card_set) { timer_el.textContent = active_fire(card_set.active_ms || 0) + ' ' + active_time_text(card_set.active_ms || 0); timer_el.classList.toggle('is-paused', !is_active); timer_el.title = is_active ? 'Active learning time on this set' : 'Paused. Touch or move to carry on.'; }
+}
+function start_active_timer() {
+  const note_touch = () => { active_last_touch = Date.now(); };
+  ['pointerdown', 'pointermove', 'keydown', 'wheel', 'scroll', 'touchstart', 'touchmove', 'input'].forEach(event_name => addEventListener(event_name, note_touch, {passive: true, capture: true}));
+  addEventListener('hashchange', () => { note_touch(); flush_active_time(); active_tick(); });
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { note_touch(); active_last_tick = Date.now(); } else flush_active_time(); });
+  addEventListener('pagehide', flush_active_time);
+  setInterval(active_tick, 1000); active_tick();
+}
