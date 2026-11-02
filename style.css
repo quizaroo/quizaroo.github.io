@@ -435,8 +435,9 @@ a.mode-tile:hover { transform: translateY(-2px); box-shadow: var(--shadow); back
 .nav-item.has-alert::after { content: ''; position: absolute; top: 8px; right: 10px; width: 9px; height: 9px; background: var(--danger); border-radius: 50%; }
 
 /* Tapping the pill, and Home Screen: as in Sift. */
+.sync-popup { position: fixed; z-index: 40; width: 250px; max-width: calc(100vw - 24px); padding: 12px 14px; background: var(--sheet); border: 1px solid var(--glass-border); border-radius: 18px; box-shadow: var(--shadow); }
 .sync-popup { width: 320px; font-size: 14px; }
-.sync-popup h3 { color: var(--text); font-size: 15px; }
+.sync-popup h3 { margin: 0 0 6px; color: var(--text); font-size: 15px; font-weight: 500; }
 .sync-popup p { margin: 6px 0; }
 .sync-popup ul { margin: 6px 0; padding-left: 1.2em; }
 .sync-popup li { margin: 4px 0; }
@@ -444,7 +445,6 @@ a.mode-tile:hover { transform: translateY(-2px); box-shadow: var(--shadow); back
 .install-alert { padding: 10px 14px; background: rgba(220, 60, 60, .12); border: 1px solid #ff8a8a; border-radius: 12px; }
 .install-alert p { margin: 6px 0; }
 .install-alert .primary { margin: 6px 0; }
-.install-steps { display: grid; gap: 6px; margin: 8px 0; padding-left: 1.3em; }
 .install-ok { margin: 0; color: #1d8a55; }
 :root[data-theme="glass"] .install-ok { color: #8fe0a8; }
 .install-banner { display: flex; align-items: flex-start; gap: 10px; padding: 8px 14px; font-size: 14px; line-height: 1.35; color: #fff; background: #b3261e; }
@@ -459,3 +459,14 @@ a.mode-tile:hover { transform: translateY(-2px); box-shadow: var(--shadow); back
 .sync-led[data-state="off"] { background: none; border: 2px solid var(--muted); box-sizing: border-box; }
 @keyframes sync-led-pulse { 50% { opacity: .35; } }
 @media (max-width: 400px) { .sync-popup { left: 12px; right: 12px !important; width: auto; } }
+.install-offer { align-items: center; color: var(--text); background: var(--glass-hover); border-bottom: 1px solid var(--glass-border); }
+.install-offer .install-hide { color: var(--muted); }
+.install-offer .install-now { flex: none; margin-left: auto; padding: 5px 12px; font-size: 14px; color: #fff; background: var(--accent); border: 1px solid var(--accent); }
+.install-offer .install-now + .install-hide { margin-left: 0; }
+.install-steps { display: grid; gap: 8px; margin: 10px 0; padding: 0; list-style: none; }
+.install-steps li { display: flex; align-items: center; gap: 10px; }
+.install-number { flex: none; display: grid; place-items: center; width: 22px; height: 22px; font-size: 13px; font-weight: 700; color: #fff; background: var(--accent); border-radius: 50%; }
+.install-icon { flex: none; display: grid; place-items: center; width: 40px; height: 40px; color: var(--accent); background: var(--sheet); border: 1px solid var(--glass-border); border-radius: 12px; }
+.install-icon svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.install-step-text { min-width: 0; font-size: 15px; line-height: 1.3; }
+.install-step-text small { display: block; color: var(--muted); font-size: 13px; }
