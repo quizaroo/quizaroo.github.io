@@ -8,6 +8,7 @@
 // No `at`: no Show me. PUBLISHED holds when each version went live (UTC), filled in by tools/publish.py.
 const FIRST_SET = ['.set-row .row-title'];
 const WHATS_NEW = {
+  '1.3.01': [{text: 'Edit a set: press and hold a card and let go to select it, then tap others. The bar at the bottom moves or deletes them together, or drag them as one.', go: '#/new', at: '.edit-row', more: 'Keys: Esc clears, Delete deletes (with Undo), Shift+arrows extends, Shift+Alt+arrows moves, Ctrl+A selects all.'}],
   '1.3.00': [
     {text: 'Sync is open to try for free: sign up under Settings, Sync, with nothing else to set up. To keep it after 24 hours, send an email. The address is in Sync.', go: '#/settings', at: '#sync-section', more: 'You never need an account to use the app, and Export all in Your Library saves everything to one file.'},
     {text: 'Settings: Sync and Updates are now panels you open and close, each showing a basic status while closed.', go: '#/settings', at: '.settings-panel'},
@@ -68,6 +69,7 @@ const WHATS_NEW = {
   '1.0.00': [{text: 'Open Flashcards goes live: make sets, flip and swipe through them, and import or export them as JSON.'}]
 };
 const PUBLISHED = {
+  '1.3.01': '2026-11-02T17:28:02Z',
   '1.3.00': '2026-11-02T17:20:11Z',
   '1.2.01': '2026-11-02T17:10:20Z',
   '1.2.00': '2026-11-02T15:52:25Z',
