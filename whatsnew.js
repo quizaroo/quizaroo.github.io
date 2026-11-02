@@ -8,6 +8,7 @@
 // No `at`: no Show me. PUBLISHED holds when each version went live (UTC), filled in by tools/publish.py.
 const FIRST_SET = ['.set-row .row-title'];
 const WHATS_NEW = {
+  '1.4.04': [{text: 'A right answer now draws a tick on the card instead of a green bar. The next word comes up while an echo of the last one shrinks away into the corner.'}],
   '1.4.03': [{text: 'Learn from scratch: the Ratings tick box is now called Ask how well I know each word, with a line saying what it does.'}],
   '1.4.02': [{text: 'Touchscreens: a button no longer stays greyed out after you tap it, such as Always in Learn from scratch. Fixed.'}],
   '1.4.01': [{text: 'Active learning time: each set now counts the time you spend actively learning it, shown with fire at the top of every mode and on the set. It pauses after 10 seconds with nothing touched or moved, and Reset progress clears it.', go: '#/library', open: FIRST_SET, at: '.set-hero'}],
@@ -115,6 +116,7 @@ const WHATS_NEW = {
   '1.0.00': [{text: 'Open Flashcards goes live: make sets, flip and swipe through them, and import or export them as JSON.'}]
 };
 const PUBLISHED = {
+  '1.4.04': '2026-11-02T23:31:14Z',
   '1.4.03': '2026-11-02T23:26:38Z',
   '1.4.02': '2026-11-02T23:22:30Z',
   '1.4.01': '2026-11-02T23:17:17Z',
