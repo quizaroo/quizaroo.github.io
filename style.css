@@ -50,7 +50,7 @@ button.danger { color: var(--danger); }
 .button-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 14px 0; }
 .toggle-line { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--muted); }
 select { padding: 7px 10px; font-size: 14px; color: var(--text); background: var(--sheet); border: 1px solid var(--glass-border); border-radius: 12px; }
-option { color: var(--text); background: var(--sheet); } /* the open list: some browsers draw it white whatever the theme */
+select, option, optgroup { color: var(--text); background-color: var(--sheet); } /* the open list: some browsers draw it white whatever the theme, so every drop-down gets the theme's colours here */
 input[type=checkbox], input[type=radio] { accent-color: var(--accent); }
 @media (pointer: coarse) { select, textarea, input { font-size: 16px; } }
 .form-error { margin: 12px 0; padding: 9px 14px; border-radius: 12px; background: var(--learn); color: var(--on-tint); font-size: 15px; }
@@ -101,7 +101,6 @@ input[type=checkbox], input[type=radio] { accent-color: var(--accent); }
 .set-hero .date-chip b { color: var(--on-tint); }
 .set-hero .button-row { margin: 14px 0 0; }
 .set-hero .toggle-line { color: var(--on-tint); }
-.set-hero select { background: rgba(255, 255, 255, .55); border-color: rgba(31, 41, 55, .2); color: var(--on-tint); }
 .set-hero .form-note { margin-top: 10px; font-size: 14px; }
 .card-row { display: grid; grid-template-columns: var(--margin) 1fr 1fr; border-bottom: 1px solid var(--rule); }
 .card-row > div:not(.line-margin) { min-width: 0; padding: 9px 14px; overflow-wrap: anywhere; white-space: pre-wrap; }
