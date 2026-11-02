@@ -8,7 +8,7 @@
 // Records: sets, cards, progress, trophies, settings and attachments. Files (photos) travel separately in their own queue, so a big file never holds up the text.
 const sync_engine = (() => {
   const DB_NAME = 'open-flashcards-sync', COLLECTIONS = ['sets', 'cards', 'progress', 'trophies', 'settings', 'attachments'], RESERVED_FIELDS = new Set(['id', 'deleted_at', '_field_clocks', '_server_seq']);
-  const SYNCED_SETTINGS = ['shuffle', 'keep_score', 'library_order', 'mode_layout'], MAX_FILE = 25 * 1024 * 1024, MAX_AUTO_DOWNLOAD = 5 * 1024 * 1024;
+  const SYNCED_SETTINGS = ['shuffle', 'keep_score', 'library_order', 'mode_layout', 'learn_choice', 'learn_type'], MAX_FILE = 25 * 1024 * 1024, MAX_AUTO_DOWNLOAD = 5 * 1024 * 1024;
   let changed_while_running = false, keys = null, account = null, records = new Map(), database = null, device_id = '', last_clock = {wall: 0, counter: 0}, running = null, timer = null, failures = 0, wired = false, files_running = null, mark_ready;
   const listeners = new Set(), ready = new Promise(resolve_ready => { mark_ready = resolve_ready; });
   // state: off | idle | syncing | ok | offline | error. last = when the records last finished syncing; tried = when a sync last started; reached = when the server last answered; received = records that came in last time; files = the file queue (idle | syncing | error).
@@ -262,7 +262,7 @@ const sync_engine = (() => {
     const first_page = await timed_fetch(server_url + '/api/sync/pull?since=0&limit=1', {headers: {Authorization: 'Bearer ' + login_token}}).then(response => response.json());
     if (!(first_page.records || []).length) return;
     const demo_sets = await fetch_demo_sets().catch(() => []), demo_by_id = new Map(demo_sets.map(demo_set => [demo_set.id, demo_set]));
-    const is_untouched = saved_set => { const demo_set = demo_by_id.get(saved_set.id); return !!demo_set && !saved_set.progress && !(saved_set.trophies || []).length && !saved_set.last_studied && !saved_set.best_speed && ['title', 'description', 'created', 'colour', 'front', 'cards'].every(field_name => same_value(saved_set[field_name], demo_set[field_name])); };
+    const is_untouched = saved_set => { const demo_set = demo_by_id.get(saved_set.id); return !!demo_set && !saved_set.progress && !Object.keys(saved_set.learn_stages || {}).length && !(saved_set.trophies || []).length && !saved_set.last_studied && !saved_set.best_speed && ['title', 'description', 'created', 'colour', 'front', 'cards'].every(field_name => same_value(saved_set[field_name], demo_set[field_name])); };
     adopt_sets(app_state.sets.filter(saved_set => !is_untouched(saved_set)));
     write_state_quietly();
   }
