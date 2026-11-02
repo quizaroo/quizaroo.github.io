@@ -1,0 +1,275 @@
+// Learning modes. Loaded before app.js, which supplies el, render, save_state and the set helpers.
+const MODES = [
+  {key: 'vocab', label: 'View all vocab', emoji: '📋', group: 'Learn', tint: '#8fd3ff', min_cards: 1},
+  {key: 'learn', label: 'Learn from scratch', emoji: '🌱', group: 'Learn', tint: '#9be7a8', min_cards: 1},
+  {key: 'revise', label: 'Revise', emoji: '🔁', group: 'Learn', tint: '#ffc285', min_cards: 1},
+  {key: 'cards', label: 'Flashcards', emoji: '🃏', group: 'Learn', tint: '#a8b8ff', min_cards: 1},
+  {key: 'type', label: 'Type the answer', emoji: '⌨️', group: 'Practise', tint: '#86e3d0', min_cards: 1, how: 'Type the answer, then press Enter.'},
+  {key: 'choice', label: 'Multiple choice', emoji: '🔘', group: 'Practise', tint: '#c3a6ff', min_cards: 2, how: 'Pick the right answer, or press 1 to 4.'},
+  {key: 'truefalse', label: 'True or false', emoji: '⚖️', group: 'Practise', tint: '#ffe27a', min_cards: 2, how: 'Do these two go together? Press ← for false, → for true.'},
+  {key: 'scramble', label: 'Unscramble', emoji: '🔤', group: 'Practise', tint: '#f4a6e0', min_cards: 1, how: 'Tap the letters in the right order.'},
+  {key: 'listen', label: 'Listen and type', emoji: '🎧', group: 'Practise', tint: '#d4ef8a', min_cards: 1, how: 'Listen to the word, then type what it means.', fixed_direction: true},
+  {key: 'test', label: 'Test', emoji: '📝', group: 'Practise', tint: '#ff9aa2', min_cards: 1, how: 'Ten mixed questions. You see your score at the end.'},
+  {key: 'wheel', label: 'Spin the wheel', emoji: '🎡', group: 'Games', tint: '#ffab91', min_cards: 1, how: 'Spin, then answer the word it lands on.'},
+  {key: 'match', label: 'Match pairs', emoji: '🧩', group: 'Games', tint: '#8fd3ff', min_cards: 2, how: 'Tap a word, then its partner. Beat the clock.', fixed_direction: true},
+  {key: 'memory', label: 'Memory', emoji: '🧠', group: 'Games', tint: '#c3a6ff', min_cards: 2, how: 'Turn over two cards at a time to find the pairs.', fixed_direction: true},
+  {key: 'speed', label: 'Speed round', emoji: '⚡', group: 'Games', tint: '#ffe27a', min_cards: 2, how: 'As many right answers as you can in 60 seconds.'}
+];
+function find_mode(mode_key) { return MODES.find(mode_item => mode_item.key === mode_key); }
+
+// ---- Card progress: boxes 1 to 5, each with a longer wait. Right moves a card up a box; wrong sends it back to box 1, due again now. ----
+const BOX_DAYS = [0, 1, 3, 7, 16, 35], DAY_MS = 86400000;
+function card_record(card_set, card_index) { return (card_set.progress || {})[card_key(card_set.cards[card_index])]; }
+function record_answer(card_set, card_index, is_right) {
+  const now_ms = Date.now(), old_record = card_record(card_set, card_index) || {box: 0, right: 0, wrong: 0}, new_box = is_right ? Math.min(5, old_record.box + 1) : 1;
+  card_set.progress = card_set.progress || {};
+  card_set.progress[card_key(card_set.cards[card_index])] = {box: new_box, due: is_right ? now_ms + BOX_DAYS[new_box] * DAY_MS : now_ms, right: old_record.right + (is_right ? 1 : 0), wrong: old_record.wrong + (is_right ? 0 : 1), last: now_ms};
+  card_set.last_studied = now_ms; save_state();
+}
+function card_status(card_set, card_index) { const record_item = card_record(card_set, card_index); return !record_item ? 'new' : record_item.box >= 5 ? 'mastered' : record_item.box >= 3 ? 'familiar' : 'learning'; }
+function is_due(card_set, card_index) { const record_item = card_record(card_set, card_index); return !!record_item && record_item.due <= Date.now(); }
+function due_indexes(card_set) { return studyable_indexes(card_set).filter(card_index => is_due(card_set, card_index)); }
+function progress_counts(card_set) { const counts = {new: 0, learning: 0, familiar: 0, mastered: 0}; studyable_indexes(card_set).forEach(card_index => counts[card_status(card_set, card_index)]++); return counts; }
+// Cards you find hardest come first: most overdue and lowest box, in random order within each box.
+function weakest_first(card_set, card_indexes) { const rank_of = card_index => { const record_item = card_record(card_set, card_index); return !record_item ? 0.5 : record_item.box - (is_due(card_set, card_index) ? 3 : 0); }; return shuffled(card_indexes).sort((index_a, index_b) => rank_of(index_a) - rank_of(index_b)); }
+function progress_meter(card_set) { const counts = progress_counts(card_set), total_count = studyable_indexes(card_set).length || 1; return el('div', {class: 'meter', title: counts.mastered + ' mastered, ' + counts.familiar + ' familiar, ' + counts.learning + ' learning, ' + counts.new + ' new'}, ...['mastered', 'familiar', 'learning'].map(status_name => el('div', {class: 'meter-' + status_name, style: 'width:' + (100 * counts[status_name] / total_count) + '%'}))); }
+// The most useful thing to do next with a set.
+function next_step(card_set) { const due_count = due_indexes(card_set).length; if (due_count) return {mode: 'revise', label: 'Revise ' + due_count}; if (progress_counts(card_set).new) return {mode: 'learn', label: 'Learn'}; return {mode: 'cards', label: 'Flashcards'}; }
+function play_hash(card_set, mode_key) { return '#/play/' + card_set.id + '/' + mode_key; }
+
+// ---- Direction: term first, definition first, or mixed ----
+const DIRECTION_NAMES = {term: 'Term first', definition: 'Definition first', mixed: 'Mixed'};
+function direction_of(card_set) { return card_set.front === 'definition' || card_set.front === 'mixed' ? card_set.front : 'term'; }
+function front_side(card_set, card_index) {
+  const direction_name = direction_of(card_set); if (direction_name !== 'mixed') return direction_name;
+  study_session.mixed_sides = study_session.mixed_sides || {};
+  if (!study_session.mixed_sides[card_index]) study_session.mixed_sides[card_index] = Math.random() < 0.5 ? 'term' : 'definition';
+  return study_session.mixed_sides[card_index];
+}
+function card_sides(card_set, card_index) { const front_key = front_side(card_set, card_index), back_key = front_key === 'term' ? 'definition' : 'term'; return {prompt: card_set.cards[card_index][front_key], answer: card_set.cards[card_index][back_key], back_key}; }
+function direction_button(card_set) { const direction_order = ['term', 'definition', 'mixed']; return el('button', {class: 'direction-button', title: 'Change which side you are shown', onclick: () => { card_set.front = direction_order[(direction_order.indexOf(direction_of(card_set)) + 1) % 3]; save_state(); if (study_session) study_session.mixed_sides = null; view_mode(card_set, study_session ? study_session.mode : 'vocab'); }}, DIRECTION_NAMES[direction_of(card_set)] + ' ⇄'); }
+
+// ---- Checking typed answers ----
+function plain_answer(answer_text) { return answer_text.normalize('NFC').toLowerCase().replace(/́/g, '').replace(/[’ʼ`´]/g, "'").replace(/\([^)]*\)/g, ' ').replace(/[.!?*]/g, ' ').replace(/\s+/g, ' ').trim(); }
+function without_lead_words(answer_text) { return answer_text.replace(/^(a|an|the|to) /, ''); }
+function without_accents(answer_text) { return answer_text.normalize('NFD').replace(/\p{M}/gu, ''); }
+function accepted_answers(answer_text) { const whole_answer = plain_answer(answer_text); return Array.from(new Set([whole_answer].concat(answer_text.split(/[\/,;]/).map(plain_answer)).filter(Boolean).flatMap(accepted_text => [accepted_text, without_lead_words(accepted_text)]))); }
+function edit_distance(text_a, text_b) { let previous_row = Array.from({length: text_b.length + 1}, (unused_item, row_index) => row_index); for (let a_index = 1; a_index <= text_a.length; a_index++) { const current_row = [a_index]; for (let b_index = 1; b_index <= text_b.length; b_index++) current_row[b_index] = Math.min(previous_row[b_index] + 1, current_row[b_index - 1] + 1, previous_row[b_index - 1] + (text_a[a_index - 1] === text_b[b_index - 1] ? 0 : 1)); previous_row = current_row; } return previous_row[text_b.length]; }
+// Returns 'right', 'close' (one slip, or only accents differ) or 'wrong'.
+function check_answer(typed_text, answer_text) {
+  const typed_answer = without_lead_words(plain_answer(typed_text)), accepted_list = accepted_answers(answer_text);
+  if (accepted_list.includes(typed_answer)) return 'right';
+  if (typed_answer && accepted_list.some(accepted_text => without_accents(accepted_text) === without_accents(typed_answer) || (accepted_text.length > 3 && edit_distance(accepted_text, typed_answer) === 1))) return 'close';
+  return 'wrong';
+}
+function other_answers(card_set, card_index, back_key, wanted_count) { const seen_answers = new Set([plain_answer(card_set.cards[card_index][back_key])]), found_answers = []; shuffled(studyable_indexes(card_set)).forEach(other_index => { const other_answer = card_set.cards[other_index][back_key], plain_other = plain_answer(other_answer); if (found_answers.length < wanted_count && !seen_answers.has(plain_other)) { seen_answers.add(plain_other); found_answers.push(other_answer); } }); return found_answers; }
+
+// ---- Shared screen pieces ----
+let mode_timers = [];
+function clear_mode_timers() { mode_timers.forEach(clearTimeout); mode_timers = []; if (window.speechSynthesis) speechSynthesis.cancel(); }
+function later(run_later, delay_ms) { mode_timers.push(setTimeout(run_later, delay_ms)); }
+function mode_frame(card_set, mode_item, top_nodes, body_nodes) {
+  clear_mode_timers();
+  render(mode_item.label, [el('a', {class: 'button', href: '#/set/' + card_set.id}, 'Done')], [el('div', {class: 'study-wrap mode-wrap', style: tint_style(card_set)},
+    el('div', {class: 'counts'}, el('span', {class: 'muted mode-status'}, ...top_nodes), mode_item.fixed_direction ? null : direction_button(card_set)),
+    ...body_nodes,
+    mode_item.how ? el('div', {class: 'muted'}, mode_item.how) : null)]);
+}
+function session_progress() { return el('div', {class: 'progress'}, el('div', {style: 'width:' + (100 * study_session.position / Math.max(1, study_session.queue.length)) + '%'})); }
+function prompt_card(prompt_text) { return el('div', {class: 'prompt-card'}, prompt_text); }
+function answer_panel(is_right, panel_text, extra_nodes) { return el('div', {class: 'answer-panel ' + (is_right ? 'is-right' : 'is-wrong'), role: 'status'}, el('strong', {}, is_right ? 'Right' : 'Not quite'), panel_text ? el('div', {}, panel_text) : null, ...(extra_nodes || [])); }
+function next_button(run_next) { return el('button', {class: 'primary', 'data-key': 'Enter', onclick: run_next}, 'Next'); }
+function start_mode_session(card_set, mode_key, card_indexes) { study_session = {set_id: card_set.id, mode: mode_key, queue: card_indexes, position: 0, known: [], learning: [], right: 0, wrong: 0, missed: []}; }
+
+// One question at a time, shared by every question mode. The ask function calls back with whether the answer was right.
+function run_questions(card_set, mode_item, ask_question) {
+  if (study_session.position >= study_session.queue.length) return view_mode_summary(card_set, mode_item);
+  const card_index = study_session.queue[study_session.position];
+  ask_question(card_set, mode_item, card_index, is_right => {
+    record_answer(card_set, card_index, is_right);
+    if (is_right) study_session.right++; else { study_session.wrong++; study_session.missed.push(card_index); }
+    study_session.position++; run_questions(card_set, mode_item, ask_question);
+  });
+}
+function position_label() { return 'Question ' + (study_session.position + 1) + ' of ' + study_session.queue.length; }
+
+function ask_type(card_set, mode_item, card_index, finish, ask_options) {
+  const sides = (ask_options && ask_options.sides) || card_sides(card_set, card_index), input_el = el('input', {type: 'text', class: 'answer-input', placeholder: 'Type the answer', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false', 'aria-label': 'Your answer'}), result_el = el('div', {class: 'answer-slot'});
+  let tried_close = false, is_answered = false;
+  function show_result(is_right, extra_nodes) { is_answered = true; input_el.disabled = true; form_button.hidden = true; if (is_right) { result_el.replaceChildren(answer_panel(true, sides.answer)); later(() => finish(true), 900); return; } const next_el = next_button(() => finish(false)); result_el.replaceChildren(answer_panel(false, 'The answer is: ' + sides.answer, [el('div', {class: 'button-row'}, next_el, el('button', {onclick: () => finish(true)}, 'I was right'))])); next_el.focus(); }
+  const form_button = el('button', {class: 'primary', type: 'submit'}, 'Check');
+  const form_el = el('form', {class: 'answer-form', onsubmit: submit_event => { submit_event.preventDefault(); if (is_answered) return; const verdict = check_answer(input_el.value, sides.answer); if (verdict === 'close' && !tried_close) { tried_close = true; result_el.replaceChildren(el('div', {class: 'answer-panel is-close', role: 'status'}, 'So close. Check the spelling and try again.')); input_el.focus(); return; } show_result(verdict !== 'wrong'); }}, input_el, form_button);
+  mode_frame(card_set, mode_item, [(ask_options && ask_options.status) || position_label()], [session_progress(), (ask_options && ask_options.prompt_node) || prompt_card(sides.prompt), form_el, result_el]);
+  input_el.focus();
+}
+function ask_choice(card_set, mode_item, card_index, finish, ask_options) {
+  const sides = card_sides(card_set, card_index), option_texts = shuffled([sides.answer].concat(other_answers(card_set, card_index, sides.back_key, 3))), result_el = el('div', {class: 'answer-slot'}), is_quick = ask_options && ask_options.quick;
+  const option_buttons = option_texts.map((option_text, option_index) => el('button', {class: 'choice-button', 'data-key': String(option_index + 1), onclick: () => {
+    option_buttons.forEach(button_el => { button_el.disabled = true; if (button_el.textContent.slice(2) === option_text && option_text !== sides.answer) button_el.classList.add('is-wrong'); if (button_el.dataset.answer === 'yes') button_el.classList.add('is-right'); });
+    const is_right = option_text === sides.answer;
+    if (is_quick) { later(() => finish(is_right), is_right ? 150 : 700); return; }
+    if (is_right) { result_el.replaceChildren(answer_panel(true)); later(() => finish(true), 700); return; }
+    const next_el = next_button(() => finish(false)); result_el.replaceChildren(answer_panel(false, null, [next_el])); next_el.focus();
+  }}, el('span', {class: 'choice-number'}, option_index + 1), option_text));
+  option_buttons.forEach((button_el, option_index) => { if (option_texts[option_index] === sides.answer) button_el.dataset.answer = 'yes'; });
+  mode_frame(card_set, mode_item, [(ask_options && ask_options.status) || position_label()], [is_quick && ask_options.top_node ? ask_options.top_node : session_progress(), prompt_card(sides.prompt), el('div', {class: 'choice-grid'}, ...option_buttons), result_el]);
+}
+function ask_true_false(card_set, mode_item, card_index, finish) {
+  const sides = card_sides(card_set, card_index), wrong_options = other_answers(card_set, card_index, sides.back_key, 1), is_true_pair = !wrong_options.length || Math.random() < 0.5, shown_answer = is_true_pair ? sides.answer : wrong_options[0], result_el = el('div', {class: 'answer-slot'});
+  function pick(said_true) { buttons_el.querySelectorAll('button').forEach(button_el => { button_el.disabled = true; }); const is_right = said_true === is_true_pair; if (is_right) { result_el.replaceChildren(answer_panel(true)); later(() => finish(true), 600); return; } const next_el = next_button(() => finish(false)); result_el.replaceChildren(answer_panel(false, sides.prompt + ' = ' + sides.answer, [next_el])); next_el.focus(); }
+  const buttons_el = el('div', {class: 'study-buttons'}, el('button', {class: 'learn-button', 'data-key': 'ArrowLeft', onclick: () => pick(false)}, '← False'), el('button', {class: 'know-button', 'data-key': 'ArrowRight', onclick: () => pick(true)}, 'True →'));
+  mode_frame(card_set, mode_item, [position_label()], [session_progress(), el('div', {class: 'prompt-card pair-card'}, el('div', {}, sides.prompt), el('div', {class: 'pair-equals'}, '='), el('div', {}, shown_answer)), buttons_el, result_el]);
+}
+function ask_scramble(card_set, mode_item, card_index, finish) {
+  const sides = card_sides(card_set, card_index), target_text = sides.answer.split(/[\/,;]/)[0].replace(/\([^)]*\)/g, '').trim(), target_letters = Array.from(target_text.replace(/\s+/g, '')), built_el = el('div', {class: 'built-word'}), tiles_el = el('div', {class: 'letter-tiles'}), result_el = el('div', {class: 'answer-slot'}), built_tiles = [];
+  function draw_built() { built_el.textContent = built_tiles.map(tile_el => tile_el.textContent).join('') || ' '; }
+  function complete_word() { const is_right = built_tiles.map(tile_el => tile_el.textContent).join('').toLowerCase() === target_letters.join('').toLowerCase(); tiles_el.querySelectorAll('button').forEach(tile_el => { tile_el.disabled = true; }); if (is_right) { result_el.replaceChildren(answer_panel(true, target_text)); later(() => finish(true), 900); return; } const next_el = next_button(() => finish(false)); result_el.replaceChildren(answer_panel(false, 'The answer is: ' + target_text, [next_el])); next_el.focus(); }
+  shuffled(target_letters).forEach(letter_text => tiles_el.appendChild(el('button', {class: 'letter-tile', onclick: click_event => { click_event.target.disabled = true; built_tiles.push(click_event.target); draw_built(); if (built_tiles.length === target_letters.length) complete_word(); }}, letter_text)));
+  draw_built();
+  mode_frame(card_set, mode_item, [position_label()], [session_progress(), prompt_card(sides.prompt), built_el, tiles_el, el('div', {class: 'button-row'}, el('button', {onclick: () => { const last_tile = built_tiles.pop(); if (last_tile && !result_el.hasChildNodes()) { last_tile.disabled = false; draw_built(); } }}, '⌫ Undo'), el('button', {onclick: () => { if (!result_el.hasChildNodes()) finish(false); }}, 'Skip')), result_el]);
+}
+function speech_language(card_set) { const all_terms = card_set.cards.map(card_item => card_item.term).join(' '); return /[Ѐ-ӿ]/.test(all_terms) ? 'uk-UA' : /[éèêàçùôî]|\b(le|la|les|l')\s?/i.test(all_terms) ? 'fr-FR' : ''; }
+function speak_text(card_set, spoken_text) { if (!window.speechSynthesis) return; speechSynthesis.cancel(); const utterance = new SpeechSynthesisUtterance(spoken_text), language_code = speech_language(card_set), matching_voice = speechSynthesis.getVoices().find(voice_item => voice_item.lang.replace('_', '-').toLowerCase().startsWith(language_code.slice(0, 2).toLowerCase())); if (language_code) utterance.lang = language_code; if (matching_voice) utterance.voice = matching_voice; speechSynthesis.speak(utterance); }
+function ask_listen(card_set, mode_item, card_index, finish) {
+  const card_item = card_set.cards[card_index], language_code = speech_language(card_set), voices_list = window.speechSynthesis ? speechSynthesis.getVoices() : [], has_voice = voices_list.some(voice_item => voice_item.lang.replace('_', '-').toLowerCase().startsWith(language_code.slice(0, 2).toLowerCase()));
+  const speak_button = el('button', {class: 'speak-button', 'aria-label': 'Play the word', onclick: () => speak_text(card_set, card_item.term)}, '🔊 Play again');
+  ask_type(card_set, mode_item, card_index, finish, {sides: {prompt: card_item.term, answer: card_item.definition}, prompt_node: el('div', {class: 'prompt-card'}, speak_button, !window.speechSynthesis || (voices_list.length && !has_voice) ? el('div', {class: 'muted'}, 'This device has no voice for this language, so here is the word: ' + card_item.term) : null)});
+  later(() => speak_text(card_set, card_item.term), 150);
+}
+
+// ---- Modes ----
+function view_vocab(card_set) {
+  const hide_key = 'vocab-hide', hide_answers = !!view_vocab[hide_key], direction_name = direction_of(card_set) === 'definition' ? 'definition' : 'term', other_name = direction_name === 'term' ? 'definition' : 'term', mode_item = find_mode('vocab');
+  const status_names = {new: 'New', learning: 'Learning', familiar: 'Familiar', mastered: 'Mastered'};
+  const rows = card_set.cards.map((card_item, card_index) => { const status_name = card_item.term.trim() && card_item.definition.trim() ? card_status(card_set, card_index) : 'new', answer_el = el('div', {class: 'card-definition' + (hide_answers ? ' hidden-answer' : ''), onclick: click_event => click_event.currentTarget.classList.remove('hidden-answer')}, card_item[other_name]); return el('div', {class: 'card-row'}, el('div', {class: 'line-margin line-number'}), el('div', {}, el('span', {class: 'status-dot status-' + status_name, title: status_names[status_name]}), card_item[direction_name]), answer_el); });
+  clear_mode_timers();
+  render(mode_item.label, [el('a', {class: 'button', href: '#/set/' + card_set.id}, 'Done')], [
+    el('div', {class: 'button-row'}, el('button', {class: 'direction-button', onclick: () => { card_set.front = other_name; save_state(); view_vocab(card_set); }}, DIRECTION_NAMES[direction_name] + ' ⇄'), el('button', {onclick: () => { view_vocab[hide_key] = !hide_answers; view_vocab(card_set); }}, hide_answers ? 'Show answers' : 'Hide answers'),
+      el('span', {class: 'status-key muted'}, ...Object.keys(status_names).map(status_name => el('span', {}, el('span', {class: 'status-dot status-' + status_name}), status_names[status_name])))),
+    el('div', {class: 'ruled'}, ...rows)]);
+}
+// Five cards at a time. Each goes from seeing it, to picking it, to typing it. A wrong answer repeats that step two cards later.
+function view_learn(card_set, mode_item) {
+  if (!study_session.steps) {
+    const unmastered_cards = weakest_first(card_set, studyable_indexes(card_set).filter(card_index => card_status(card_set, card_index) !== 'mastered')), batch_cards = unmastered_cards.slice(0, 5);
+    if (!batch_cards.length) { mode_frame(card_set, mode_item, ['All learned'], [el('div', {class: 'empty'}, el('h2', {class: 'summary-title'}, 'You have learned everything here'), el('div', {class: 'button-row center-row'}, el('a', {class: 'button primary', href: play_hash(card_set, 'revise')}, 'Revise')))]); return; }
+    study_session.steps = batch_cards.map(card_index => ({card_index, stage: 0})); study_session.total_steps = study_session.steps.length * 3; study_session.done_steps = 0; study_session.batch_size = batch_cards.length;
+  }
+  if (!study_session.steps.length) { const left_count = studyable_indexes(card_set).filter(card_index => card_status(card_set, card_index) !== 'mastered').length; mode_frame(card_set, mode_item, [study_session.batch_size + ' cards practised'], [el('div', {class: 'empty'}, el('h2', {class: 'summary-title'}, 'Batch finished'), el('div', {class: 'muted'}, 'You got ' + study_session.right + ' right and ' + study_session.wrong + ' wrong.'), el('div', {class: 'button-row center-row'}, left_count ? el('button', {class: 'primary', onclick: () => { start_mode_session(card_set, 'learn', []); view_learn(card_set, mode_item); }}, 'Next cards') : null, el('a', {class: 'button', href: '#/set/' + card_set.id}, 'Back to set')))]); return; }
+  const current_step = study_session.steps[0], card_item = card_set.cards[current_step.card_index];
+  function finish_step(is_right) {
+    study_session.steps.shift();
+    if (is_right) { study_session.right++; study_session.done_steps++; current_step.stage++; if (current_step.stage < 3) study_session.steps.splice(Math.min(2, study_session.steps.length), 0, current_step); else record_answer(card_set, current_step.card_index, true); }
+    else { study_session.wrong++; record_answer(card_set, current_step.card_index, false); study_session.steps.splice(Math.min(2, study_session.steps.length), 0, current_step); }
+    view_learn(card_set, mode_item);
+  }
+  study_session.position = study_session.done_steps; study_session.queue = {length: study_session.total_steps};
+  const status_text = 'Step ' + (study_session.done_steps + 1) + ' of ' + study_session.total_steps;
+  if (current_step.stage === 0) { const got_it_el = el('button', {class: 'primary', 'data-key': 'Enter', onclick: () => finish_step(true)}, 'Got it'); mode_frame(card_set, Object.assign({}, mode_item, {how: 'Have a good look, then press Got it.'}), [status_text], [session_progress(), el('div', {class: 'prompt-card pair-card'}, el('div', {}, card_item.term), el('div', {class: 'pair-equals'}, '='), el('div', {}, card_item.definition)), got_it_el]); return; }
+  if (current_step.stage === 1 && studyable_indexes(card_set).length > 1) ask_choice(card_set, mode_item, current_step.card_index, finish_step, {status: status_text}); else if (current_step.stage === 1) finish_step(true); else ask_type(card_set, mode_item, current_step.card_index, finish_step, {status: status_text});
+}
+function view_revise_start(card_set) {
+  const due_list = weakest_first(card_set, due_indexes(card_set)), mode_item = find_mode('revise');
+  if (!due_list.length) {
+    const upcoming_dates = studyable_indexes(card_set).map(card_index => card_record(card_set, card_index)).filter(Boolean).map(record_item => record_item.due);
+    mode_frame(card_set, mode_item, ['Nothing due'], [el('div', {class: 'empty'}, el('h2', {class: 'summary-title'}, 'Nothing to revise yet'), el('div', {class: 'muted'}, upcoming_dates.length ? 'The next card comes due ' + relative_future(Math.min(...upcoming_dates)) + '.' : 'Cards appear here once you have practised them.'), el('div', {class: 'button-row center-row'}, upcoming_dates.length ? el('button', {class: 'primary', onclick: () => { start_session(card_set, weakest_first(card_set, studyable_indexes(card_set).filter(card_index => card_record(card_set, card_index))), 'revise'); view_study(card_set); }}, 'Revise everything anyway') : el('a', {class: 'button primary', href: play_hash(card_set, 'learn')}, 'Learn from scratch')))]);
+    return;
+  }
+  start_session(card_set, due_list, 'revise'); view_study(card_set);
+}
+function relative_future(time_ms) { const days_ahead = Math.ceil((time_ms - Date.now()) / DAY_MS); return days_ahead <= 1 ? 'tomorrow' : 'in ' + days_ahead + ' days'; }
+function svg_el(tag_name, attributes) { const node_el = document.createElementNS('http://www.w3.org/2000/svg', tag_name); Object.keys(attributes).forEach(attr_name => node_el.setAttribute(attr_name, attributes[attr_name])); return node_el; }
+function view_wheel(card_set, mode_item) {
+  if (!study_session.wheel_cards) { study_session.wheel_cards = weakest_first(card_set, studyable_indexes(card_set)).slice(0, 10); study_session.turn = 0; study_session.spin_angle = 0; }
+  const wheel_cards = study_session.wheel_cards, slice_angle = 360 / wheel_cards.length, wheel_svg = svg_el('svg', {viewBox: '-110 -110 220 220', class: 'wheel-disc', role: 'img', 'aria-label': 'Word wheel'});
+  wheel_cards.forEach((card_index, slice_index) => {
+    const start_radians = (slice_index * slice_angle - 90) * Math.PI / 180, end_radians = ((slice_index + 1) * slice_angle - 90) * Math.PI / 180, large_arc = slice_angle > 180 ? 1 : 0, label_angle = slice_index * slice_angle + slice_angle / 2 - 90, sides = card_sides(card_set, card_index), label_text = sides.prompt.length > 13 ? sides.prompt.slice(0, 12) + '…' : sides.prompt;
+    wheel_svg.appendChild(wheel_cards.length === 1 ? svg_el('circle', {r: 100, fill: TINTS[0][1]}) : svg_el('path', {d: 'M0 0L' + 100 * Math.cos(start_radians) + ' ' + 100 * Math.sin(start_radians) + 'A100 100 0 ' + large_arc + ' 1 ' + 100 * Math.cos(end_radians) + ' ' + 100 * Math.sin(end_radians) + 'Z', fill: TINTS[slice_index % TINTS.length][1], stroke: '#fff', 'stroke-width': 1}));
+    const reads_backwards = Math.cos(label_angle * Math.PI / 180) < 0, label_el = svg_el('text', {transform: 'rotate(' + label_angle + ') translate(94 0)' + (reads_backwards ? ' rotate(180)' : ''), 'text-anchor': reads_backwards ? 'start' : 'end', 'dominant-baseline': 'middle', 'font-size': 10, fill: '#1f2937'}); label_el.textContent = label_text; wheel_svg.appendChild(label_el);
+  });
+  wheel_svg.style.transform = 'rotate(' + study_session.spin_angle + 'deg)';
+  const spin_button = el('button', {class: 'primary spin-button', 'data-key': 'Enter', onclick: () => {
+    spin_button.disabled = true;
+    const picked_slice = Math.floor(Math.random() * wheel_cards.length), slice_offset = (Math.random() * 0.7 + 0.15) * slice_angle, landing_angle = 360 - (picked_slice * slice_angle + slice_offset);
+    study_session.spin_angle = study_session.spin_angle - (study_session.spin_angle % 360) + 360 * 5 + landing_angle;
+    wheel_svg.style.transform = 'rotate(' + study_session.spin_angle + 'deg)';
+    later(() => {
+      const card_index = wheel_cards[picked_slice];
+      ask_type(card_set, mode_item, card_index, is_right => {
+        record_answer(card_set, card_index, is_right); if (is_right) study_session.right++; else study_session.wrong++; study_session.turn++;
+        const replacement_cards = weakest_first(card_set, studyable_indexes(card_set).filter(other_index => !wheel_cards.includes(other_index))); if (is_right && replacement_cards.length) wheel_cards[picked_slice] = replacement_cards[0];
+        view_wheel(card_set, mode_item);
+      }, {status: 'Landed on this word'});
+    }, 3300);
+  }}, '🎡 Spin');
+  study_session.queue = {length: 1}; study_session.position = 0;
+  mode_frame(card_set, mode_item, [study_session.right + ' right · ' + study_session.wrong + ' wrong'], [el('div', {class: 'wheel-holder'}, el('div', {class: 'wheel-pointer'}), wheel_svg), spin_button]);
+}
+function view_match(card_set, mode_item) {
+  const round_cards = weakest_first(card_set, studyable_indexes(card_set)).slice(0, 6), started_ms = Date.now(); let picked_tile = null, left_count = round_cards.length, wrong_tries = 0;
+  const clock_el = el('span', {}, '0s'); function tick() { clock_el.textContent = Math.round((Date.now() - started_ms) / 1000) + 's'; later(tick, 500); }
+  function make_tile(card_index, side_key) { return el('button', {class: 'match-tile', onclick: click_event => {
+    const tile_el = click_event.currentTarget;
+    if (!picked_tile) { picked_tile = tile_el; tile_el.classList.add('is-picked'); tile_el.dataset.card = card_index; return; }
+    if (picked_tile === tile_el) { tile_el.classList.remove('is-picked'); picked_tile = null; return; }
+    const is_pair = Number(picked_tile.dataset.card) === card_index && picked_tile.dataset.side !== tile_el.dataset.side, first_tile = picked_tile; picked_tile = null; first_tile.classList.remove('is-picked');
+    if (is_pair) { first_tile.classList.add('is-matched'); tile_el.classList.add('is-matched'); first_tile.disabled = true; tile_el.disabled = true; left_count--; if (!left_count) { const seconds_taken = Math.round((Date.now() - started_ms) / 1000); card_set.last_studied = Date.now(); save_state(); clear_mode_timers(); grid_el.after(el('div', {class: 'answer-panel is-right', role: 'status'}, el('strong', {}, 'All matched in ' + seconds_taken + ' seconds'), el('div', {}, wrong_tries + ' wrong tries'), el('button', {class: 'primary', onclick: () => view_match(card_set, mode_item)}, 'Play again'))); } }
+    else { wrong_tries++; first_tile.classList.add('is-miss'); tile_el.classList.add('is-miss'); setTimeout(() => { first_tile.classList.remove('is-miss'); tile_el.classList.remove('is-miss'); }, 450); }
+  }}, card_set.cards[card_index][side_key]); }
+  const all_tiles = shuffled(round_cards.flatMap(card_index => { const term_tile = make_tile(card_index, 'term'), definition_tile = make_tile(card_index, 'definition'); term_tile.dataset.side = 'term'; term_tile.dataset.card = card_index; definition_tile.dataset.side = 'definition'; definition_tile.dataset.card = card_index; return [term_tile, definition_tile]; }));
+  const grid_el = el('div', {class: 'match-grid'}, ...all_tiles);
+  mode_frame(card_set, mode_item, ['Time: ', clock_el], [grid_el]);
+  tick();
+}
+function view_memory(card_set, mode_item) {
+  const round_cards = weakest_first(card_set, studyable_indexes(card_set)).slice(0, 6); let turned_tiles = [], left_count = round_cards.length, turn_count = 0, is_waiting = false;
+  const turns_el = el('span', {}, '0 turns');
+  const all_tiles = shuffled(round_cards.flatMap(card_index => ['term', 'definition'].map(side_key => { const tile_el = el('button', {class: 'memory-tile', 'aria-label': 'Hidden card', onclick: () => {
+    if (is_waiting || tile_el.classList.contains('is-up')) return;
+    tile_el.classList.add('is-up'); tile_el.textContent = card_set.cards[card_index][side_key]; turned_tiles.push({tile_el, card_index});
+    if (turned_tiles.length < 2) return;
+    turn_count++; turns_el.textContent = turn_count + ' turns';
+    const first_turned = turned_tiles[0], second_turned = turned_tiles[1]; turned_tiles = [];
+    if (first_turned.card_index === second_turned.card_index) { first_turned.tile_el.classList.add('is-matched'); second_turned.tile_el.classList.add('is-matched'); left_count--; if (!left_count) { card_set.last_studied = Date.now(); save_state(); grid_el.after(el('div', {class: 'answer-panel is-right', role: 'status'}, el('strong', {}, 'All found in ' + turn_count + ' turns'), el('button', {class: 'primary', onclick: () => view_memory(card_set, mode_item)}, 'Play again'))); } return; }
+    is_waiting = true; later(() => { [first_turned, second_turned].forEach(turned_item => { turned_item.tile_el.classList.remove('is-up'); turned_item.tile_el.textContent = ''; }); is_waiting = false; }, 1100);
+  }}); return tile_el; })));
+  const grid_el = el('div', {class: 'memory-grid'}, ...all_tiles);
+  mode_frame(card_set, mode_item, [turns_el], [grid_el]);
+}
+function view_speed(card_set, mode_item) {
+  if (!study_session.ends_at) { study_session.ends_at = Date.now() + 60000; study_session.queue = weakest_first(card_set, studyable_indexes(card_set)); }
+  function next_speed_question() {
+    if (Date.now() >= study_session.ends_at) return finish_speed();
+    if (study_session.position >= study_session.queue.length) { study_session.queue = weakest_first(card_set, studyable_indexes(card_set)); study_session.position = 0; }
+    const card_index = study_session.queue[study_session.position], timer_fill = el('div', {style: 'width:' + 100 * (study_session.ends_at - Date.now()) / 60000 + '%'}), timer_el = el('div', {class: 'progress speed-timer'}, timer_fill), seconds_el = el('span', {});
+    function show_time() { const left_ms = study_session.ends_at - Date.now(); if (left_ms <= 0) return finish_speed(); seconds_el.textContent = Math.ceil(left_ms / 1000) + 's left · ' + study_session.right + ' right'; timer_fill.style.width = 100 * left_ms / 60000 + '%'; later(show_time, 250); }
+    ask_choice(card_set, mode_item, card_index, is_right => { record_answer(card_set, card_index, is_right); if (is_right) study_session.right++; else study_session.wrong++; study_session.position++; next_speed_question(); }, {quick: true, status: seconds_el, top_node: timer_el});
+    show_time();
+  }
+  function finish_speed() { clear_mode_timers(); const is_record = study_session.right > (card_set.best_speed || 0); if (is_record) { card_set.best_speed = study_session.right; save_state(); } mode_frame(card_set, Object.assign({}, mode_item, {how: null}), ['Time up'], [el('div', {class: 'empty'}, el('h2', {class: 'summary-title'}, study_session.right + ' right in 60 seconds'), el('div', {class: 'muted'}, is_record ? 'Your new best.' : 'Your best is ' + card_set.best_speed + '.'), el('div', {class: 'button-row center-row'}, el('button', {class: 'primary', onclick: () => { start_mode_session(card_set, 'speed', []); view_speed(card_set, mode_item); }}, 'Play again')))]); }
+  next_speed_question();
+}
+function view_test(card_set, mode_item) {
+  if (!study_session.test_ready) { study_session.test_ready = true; study_session.queue = weakest_first(card_set, studyable_indexes(card_set)).slice(0, 10); }
+  if (study_session.position >= study_session.queue.length) return view_mode_summary(card_set, mode_item);
+  const card_index = study_session.queue[study_session.position], can_choose = studyable_indexes(card_set).length > 1 && study_session.position % 2 === 0, status_text = position_label();
+  function finish(is_right) { record_answer(card_set, card_index, is_right); if (is_right) study_session.right++; else { study_session.wrong++; study_session.missed.push(card_index); } study_session.position++; view_test(card_set, mode_item); }
+  if (can_choose) ask_choice(card_set, mode_item, card_index, finish, {quick: true, status: status_text}); else ask_type(card_set, mode_item, card_index, finish, {status: status_text});
+}
+function view_mode_summary(card_set, mode_item) {
+  const missed_cards = Array.from(new Set(study_session.missed)), total_count = study_session.right + study_session.wrong, score_percent = total_count ? Math.round(100 * study_session.right / total_count) : 0;
+  mode_frame(card_set, Object.assign({}, mode_item, {how: null}), ['Finished'], [el('div', {class: 'empty summary'}, el('h2', {class: 'summary-title'}, score_percent + '%'), el('div', {class: 'counts summary-counts'}, el('span', {class: 'know'}, study_session.right + ' right'), el('span', {class: 'learn'}, study_session.wrong + ' wrong')),
+    missed_cards.length ? el('div', {class: 'ruled missed-list'}, ...missed_cards.map(card_index => el('div', {class: 'card-row'}, el('div', {class: 'line-margin line-number'}), el('div', {}, card_set.cards[card_index].term), el('div', {class: 'card-definition'}, card_set.cards[card_index].definition)))) : null,
+    el('div', {class: 'button-row center-row'}, missed_cards.length ? el('button', {class: 'primary', onclick: () => { start_mode_session(card_set, mode_item.key, missed_cards); if (mode_item.key === 'test') study_session.test_ready = true; view_mode(card_set, mode_item.key); }}, 'Try the ' + missed_cards.length + ' you missed') : null, el('button', {onclick: () => { study_session = null; view_mode(card_set, mode_item.key); }}, 'Play again')))]);
+}
+const QUESTION_ASKERS = {type: ask_type, choice: ask_choice, truefalse: ask_true_false, scramble: ask_scramble, listen: ask_listen};
+function view_mode(card_set, mode_key) {
+  const mode_item = find_mode(mode_key) || find_mode('cards');
+  if (studyable_indexes(card_set).length < mode_item.min_cards) { location.hash = '#/set/' + card_set.id; return; }
+  if (mode_item.key === 'vocab') return view_vocab(card_set);
+  if (mode_item.key === 'cards' || mode_item.key === 'revise') { if (study_session && study_session.set_id === card_set.id && study_session.mode === mode_item.key) return view_study(card_set); if (mode_item.key === 'revise') return view_revise_start(card_set); start_session(card_set, app_state.shuffle ? weakest_first(card_set, studyable_indexes(card_set)) : studyable_indexes(card_set), 'cards'); return view_study(card_set); }
+  const is_new_session = !study_session || study_session.set_id !== card_set.id || study_session.mode !== mode_item.key;
+  if (is_new_session) start_mode_session(card_set, mode_item.key, QUESTION_ASKERS[mode_item.key] ? weakest_first(card_set, studyable_indexes(card_set)) : []);
+  if (QUESTION_ASKERS[mode_item.key]) return run_questions(card_set, mode_item, QUESTION_ASKERS[mode_item.key]);
+  ({learn: view_learn, wheel: view_wheel, match: view_match, memory: view_memory, speed: view_speed, test: view_test})[mode_item.key](card_set, mode_item);
+}
