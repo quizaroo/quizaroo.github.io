@@ -4,8 +4,31 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Flashcards">
+<meta name="apple-mobile-web-app-title" content="Quizaroo">
 <meta name="theme-color" content="#0f172a">
+<script>
+// One-time import from the app's old address (hazymat.github.io/open-flashcards), which sends its open-flashcards:* localStorage here as base64url JSON. Saved data is never overwritten; old sets are only added, or replace a copy that has never been opened (a seeded demo set).
+(function () {
+  var state_key = 'open-flashcards:v1', done_key = 'open-flashcards:handover-done', handover_hash = location.hash;
+  if (handover_hash.indexOf('#handover=') !== 0) return;
+  history.replaceState(null, '', location.pathname + location.search);
+  try {
+    if (localStorage.getItem(done_key)) return;
+    var binary_text = atob(handover_hash.slice(10).replace(/-/g, '+').replace(/_/g, '/')), old_values = JSON.parse(new TextDecoder().decode(Uint8Array.from(binary_text, function (ch) { return ch.charCodeAt(0); })));
+    Object.keys(old_values).forEach(function (key) {
+      if (key.indexOf('open-flashcards:') !== 0) return;
+      var current_value = localStorage.getItem(key);
+      if (current_value === null) { localStorage.setItem(key, old_values[key]); return; }
+      if (key !== state_key) return;
+      var current_state = JSON.parse(current_value), old_state = JSON.parse(old_values[key]), kept_sets = current_state.sets.map(function (current_set) { var old_set = old_state.sets.find(function (each_set) { return each_set.id === current_set.id; }); return old_set && !current_set.last_opened ? old_set : current_set; });
+      old_state.sets.forEach(function (old_set) { if (!kept_sets.some(function (each_set) { return each_set.id === old_set.id; })) kept_sets.push(old_set); });
+      current_state.sets = kept_sets;
+      localStorage.setItem(key, JSON.stringify(current_state));
+    });
+    localStorage.setItem(done_key, '1');
+  } catch (handover_err) { console.warn('Could not import from the old address:', handover_err); }
+})();
+</script>
 <script>
 // Applied before first paint so the page never flashes the other theme.
 function apply_theme() { var theme_name = 'glass', style_name = 'plain'; try { theme_name = localStorage.getItem('open-flashcards:theme') || theme_name; style_name = localStorage.getItem('open-flashcards:style') || style_name; } catch (storage_err) {} document.documentElement.dataset.theme = theme_name; document.documentElement.dataset.style = style_name; document.querySelector('meta[name=theme-color]').content = theme_name === 'glass' ? '#0f172a' : '#f4f6fb'; }
@@ -15,11 +38,11 @@ apply_theme();
 <link rel="icon" href="icon.svg">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="stylesheet" href="style.css">
-<title>Open Flashcards</title>
+<title>Quizaroo</title>
 </head>
 <body>
 <nav id="sidebar" aria-label="Main">
-  <a href="#/" id="wordmark"><img src="icon.svg" alt="" width="30" height="30">Open Flashcards</a>
+  <a href="#/" id="wordmark"><img src="icon.svg" alt="" width="30" height="30">Quizaroo</a>
   <a href="#/" class="nav-item" data-nav="home"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></svg>Home</a>
   <a href="#/library" class="nav-item" data-nav="library"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="3" width="4" height="18" rx="1"/><rect x="10" y="3" width="4" height="18" rx="1"/><path d="M16.5 4.5l3.8 1-4 15.6-3.8-1"/></svg>Your Library</a>
   <a href="#/settings" class="nav-item" data-nav="settings"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>Settings</a>
@@ -28,7 +51,7 @@ apply_theme();
   <header id="topbar"><h1 id="page-title"></h1><button type="button" id="sync-status" class="pill" aria-haspopup="dialog" aria-expanded="false">Local only</button><button id="view-button" class="icon-button" title="View settings" aria-label="View settings" aria-expanded="false"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></button><div id="topbar-actions"></div></header>
   <main id="view"></main>
 </div>
-<div id="update-banner" role="status" hidden>A new version of Open Flashcards is ready. <button type="button" class="primary">Reload</button></div>
+<div id="update-banner" role="status" hidden>A new version of Quizaroo is ready. <button type="button" class="primary">Reload</button></div>
 <input type="file" id="import-file" accept=".json,application/json" hidden>
 <script src="sortable.js"></script>
 <script src="whatsnew.js"></script>

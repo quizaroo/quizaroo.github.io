@@ -46,7 +46,7 @@ function open_sync_popup() {
       el('li', {}, el('b', {}, 'Sync'), ': create an account under Settings, Sync, then sign in on your other devices.'),
       el('li', {}, el('b', {}, 'Export all'), ': save everything to one file as a backup.'),
       install_warning() ? el('li', {}, el('b', {}, 'Add to Home Screen'), ': otherwise Safari may delete your data after 7 days.') : null),
-    el('div', {class: 'button-row'}, set_up_button, el('button', {onclick: () => { close_sync_popup(); download_json('open-flashcards-all.json', app_state.sets); }}, 'Export all'), install_warning() ? el('button', {onclick: () => { close_sync_popup(); go_to_settings_panel('install', '#install-section'); }}, 'Add to Home Screen') : can_prompt_install() ? install_button('') : null)
+    el('div', {class: 'button-row'}, set_up_button, el('button', {onclick: () => { close_sync_popup(); download_json('quizaroo-all.json', app_state.sets); }}, 'Export all'), install_warning() ? el('button', {onclick: () => { close_sync_popup(); go_to_settings_panel('install', '#install-section'); }}, 'Add to Home Screen') : can_prompt_install() ? install_button('') : null)
   ] : [
     el('h3', {}, pill_el.textContent),
     el('p', {}, sync_state_text(sync_status) || 'Sync is on.'),
@@ -233,7 +233,7 @@ function sync_section() {
       email_code_field.hidden = false; resend_button.hidden = false;
       create_button.disabled = false; create_button.textContent = 'Finish creating account';
       email_code_el.value = ''; email_code_el.focus();
-      show_message('Check your email (and its spam folder) for a code from Open Flashcards. It lasts 15 minutes.');
+      show_message('Check your email (and its spam folder) for a code from Quizaroo. It lasts 15 minutes.');
     };
     resend_button.onclick = button_work(resend_button, message_el, send_code);
     email_el.addEventListener('input', () => { if (email_el.value.trim().toLowerCase() === code_sent_to || !code_sent_to) return; code_sent_to = ''; email_code_field.hidden = true; resend_button.hidden = true; create_button.textContent = 'Create account'; });
@@ -260,7 +260,7 @@ function sync_section() {
     check_server();
   }
   function sync_note() {
-    return el('p', {class: 'sync-note'}, el('b', {}, 'This app is free.'), ' Sync is open to you too, but please email ', el('a', {href: 'mailto:' + CONTACT_EMAIL + '?subject=Open%20Flashcards%20sync'}, CONTACT_EMAIL), " to keep using it after 24 hours. Otherwise your account may be deleted. You won't lose anything if it is: your data stays on your device, and it just stops syncing.");
+    return el('p', {class: 'sync-note'}, el('b', {}, 'This app is free.'), ' Sync is open to you too, but please email ', el('a', {href: 'mailto:' + CONTACT_EMAIL + '?subject=Quizaroo%20sync'}, CONTACT_EMAIL), " to keep using it after 24 hours. Otherwise your account may be deleted. You won't lose anything if it is: your data stays on your device, and it just stops syncing.");
   }
   function draw() { was_signed_in = !!sync_engine.signed_in(); if (was_signed_in) draw_signed_in(); else draw_signed_out(); }
   function paint_facts(sync_status) {

@@ -19,7 +19,7 @@ function install_button(button_class) { return el('button', {type: 'button', cla
 function show_install_offer() {
   if (!can_prompt_install() || document.querySelector('.install-offer')) return;
   try { const dismissed_at = Number(localStorage.getItem(INSTALL_OFFER_DISMISS_KEY)); if (dismissed_at && Date.now() - dismissed_at < INSTALL_OFFER_QUIET_DAYS * 86400000) return; } catch (storage_err) {}
-  const offer_el = el('div', {class: 'install-banner install-offer', role: 'status'}, el('span', {}, 'Install Open Flashcards as an app. It opens on its own and works offline.'), install_button('primary'),
+  const offer_el = el('div', {class: 'install-banner install-offer', role: 'status'}, el('span', {}, 'Install Quizaroo as an app. It opens on its own and works offline.'), install_button('primary'),
     el('button', {type: 'button', class: 'install-hide', 'aria-label': 'Hide for now', onclick: () => { try { localStorage.setItem(INSTALL_OFFER_DISMISS_KEY, String(Date.now())); } catch (storage_err) {} offer_el.remove(); }}, '✕'));
   document.getElementById('topbar').after(offer_el);
 }
@@ -39,7 +39,7 @@ function show_install_banner() {
   if (!install_warning() || document.querySelector('.install-banner')) return;
   try { const dismissed_at = Number(localStorage.getItem(INSTALL_DISMISS_KEY)); if (dismissed_at && Date.now() - dismissed_at < INSTALL_QUIET_DAYS * 86400000) return; } catch (storage_err) {}
   const banner_el = el('div', {class: 'install-banner', role: 'alert'},
-    el('span', {}, "⚠️ Open Flashcards isn't on your Home Screen. Safari may delete your data after 7 days. ", el('a', {href: '#/settings', onclick: click_event => { click_event.preventDefault(); go_to_settings_panel('install', '#install-section'); }}, 'What to do')),
+    el('span', {}, "⚠️ Quizaroo isn't on your Home Screen. Safari may delete your data after 7 days. ", el('a', {href: '#/settings', onclick: click_event => { click_event.preventDefault(); go_to_settings_panel('install', '#install-section'); }}, 'What to do')),
     el('button', {type: 'button', 'aria-label': 'Hide for now', onclick: () => { try { localStorage.setItem(INSTALL_DISMISS_KEY, String(Date.now())); } catch (storage_err) {} banner_el.remove(); }}, '✕'));
   document.getElementById('topbar').after(banner_el);
 }
@@ -57,8 +57,8 @@ function install_step(step_number, icon_svg, step_text, small_text) {
   return el('li', {}, el('span', {class: 'install-number'}, step_number), icon_el, el('span', {class: 'install-step-text'}, step_text, small_text ? el('small', {}, small_text) : null));
 }
 function install_body_nodes() {
-  if (is_standalone()) return [el('p', {class: 'install-ok'}, '✓ Open Flashcards is on your Home Screen, so ' + (is_ios() ? "iOS won't delete its data after 7 days." : 'the browser treats it as an app.'))];
-  return [el('p', {class: 'muted'}, 'Open Flashcards can be installed as an app. It works offline and keeps its data safer.'), can_prompt_install() ? install_button('primary') : el('p', {class: 'muted'}, "In your browser's menu, choose ", el('b', {}, 'Install app'), ' (or ', el('b', {}, 'Add to Home Screen'), ' on Android).')];
+  if (is_standalone()) return [el('p', {class: 'install-ok'}, '✓ Quizaroo is on your Home Screen, so ' + (is_ios() ? "iOS won't delete its data after 7 days." : 'the browser treats it as an app.'))];
+  return [el('p', {class: 'muted'}, 'Quizaroo can be installed as an app. It works offline and keeps its data safer.'), can_prompt_install() ? install_button('primary') : el('p', {class: 'muted'}, "In your browser's menu, choose ", el('b', {}, 'Install app'), ' (or ', el('b', {}, 'Add to Home Screen'), ' on Android).')];
 }
 // The Settings panel.
 function install_section() {

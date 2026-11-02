@@ -8,6 +8,7 @@
 // No `at`: no Show me. PUBLISHED holds when each version went live (UTC), filled in by tools/publish.py.
 const FIRST_SET = ['.set-row .row-title'];
 const WHATS_NEW = {
+  '1.3.12': [{text: 'Open Flashcards is now called Quizaroo, and lives at quizaroo.github.io. The old address sends you here and brings your sets with you. If you use sync, sign in again on this address.'}],
   '1.3.11': [{text: 'Dusk is now the usual view mode, alongside Plain. If you already picked Dawn, it stays.', go: '#/', at: '#view-button'}],
   '1.3.10': [
     {text: 'Android, and Chrome or Edge on a computer: one tap to install the app, from a bar at the top, the pill at the top, or Settings. iPhone and iPad keep their steps, because Safari has no install button.', go: '#/settings', at: '#install-section'},
@@ -104,6 +105,7 @@ const WHATS_NEW = {
   '1.0.00': [{text: 'Open Flashcards goes live: make sets, flip and swipe through them, and import or export them as JSON.'}]
 };
 const PUBLISHED = {
+  '1.3.12': '2026-11-02T21:23:20Z',
   '1.3.11': '2026-11-02T20:56:31Z',
   '1.3.10': '2026-11-02T20:51:23Z',
   '1.3.09': '2026-11-02T20:42:31Z',
