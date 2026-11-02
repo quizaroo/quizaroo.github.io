@@ -446,6 +446,103 @@ try {
     fs.rmSync(dir2, { recursive: true, force: true });
   }
 
+  // ---------- email codes, against a pretend mail server ----------
+  const net = await import('node:net');
+  const mails = [];
+  const smtp = net.createServer(sock => {
+    let inData = false, text = '', to = '';
+    sock.write('220 test\r\n');
+    sock.on('data', chunk => {
+      for (const line of chunk.toString().split('\r\n').filter((l, i, all) => l || i < all.length - 1)) {
+        if (inData) {
+          if (line === '.') { inData = false; mails.push({ to, text }); text = ''; sock.write('250 ok\r\n'); } else text += `${line}\n`;
+        } else if (/^EHLO/.test(line)) sock.write('250-test\r\n250 SIZE 1000\r\n');
+        else if (/^RCPT TO:/.test(line)) { to = line.slice(9, -1); sock.write('250 ok\r\n'); }
+        else if (line === 'DATA') { inData = true; sock.write('354 go\r\n'); }
+        else if (line === 'QUIT') { sock.write('221 bye\r\n'); sock.end(); }
+        else sock.write('250 ok\r\n');
+      }
+    });
+  });
+  await new Promise(done => smtp.listen(0, '127.0.0.1', done));
+  const dir3 = fs.mkdtempSync(path.join(os.tmpdir(), 'flashcards-test-'));
+  const PORT3 = PORT + 2000;
+  const coded = spawn(process.execPath, ['server.js'], { env: { ...process.env, PORT: PORT3, DATA_DIR: dir3, REGISTRATION: 'open', EMAIL_CODES: 'on', MAIL_FROM: 'noreply@example.com', SMTP_PORT: String(smtp.address().port), ADMIN_EMAILS: 'boss@example.com' }, stdio: ['ignore', 'pipe', 'inherit'] });
+  await new Promise(done => coded.stdout.once('data', done));
+  const call3 = async (url, body, ipTail = 1) => {
+    const res = await fetch(`http://127.0.0.1:${PORT3}${url}`, { method: body ? 'POST' : 'GET', headers: { 'Content-Type': 'application/json', 'X-Forwarded-For': `203.0.113.${ipTail}` }, body: body ? JSON.stringify(body) : undefined });
+    return { status: res.status, json: await res.json().catch(() => null) };
+  };
+  const keys3 = { auth_hash: 'a'.repeat(44), kdf: { salt: 's' }, wrapped_data_key: 'w', recovery_hash: 'r'.repeat(44), device_name: 'x' };
+  const codeIn = mail => /Your code is (\d{6})/.exec(mail.text)?.[1];
+  try {
+    assert.equal((await call3('/api/health')).json.email_codes, true);
+    assert.equal((await call3('/api/register', { email: 'a@example.com', ...keys3 })).status, 400, 'no account without a code');
+    r = await call3('/api/signup/code', { email: 'A@Example.com' });
+    assert.equal(r.status, 200);
+    assert.equal(mails.at(-1).to, 'a@example.com');
+    assert.match(mails.at(-1).text, /Subject: Your Open Flashcards code/);
+    const codeA = codeIn(mails.at(-1));
+    assert.ok(codeA);
+    assert.equal((await call3('/api/signup/code', { email: 'a@example.com' })).status, 429, 'wait a minute between codes');
+    assert.equal(mails.length, 1);
+    r = await call3('/api/register', { email: 'b@example.com', code: codeA, ...keys3 });
+    assert.equal(r.status, 400, "one address's code is no use for another");
+    const wrong = codeA === '000000' ? '000001' : '000000';
+    r = await call3('/api/register', { email: 'a@example.com', code: wrong, ...keys3 });
+    assert.equal(r.status, 400);
+    assert.match(r.json.error, /isn't right/);
+    r = await call3('/api/register', { email: 'a@example.com', code: ` ${codeA.slice(0, 3)} ${codeA.slice(3)}`, ...keys3 });
+    assert.equal(r.status, 200, 'the right code makes the account, spaces or not');
+    r = await call3('/api/register', { email: 'a@example.com', code: codeA, ...keys3 });
+    assert.equal(r.status, 400, 'a code only works once');
+
+    // an address with an account gets a note, not a code, and the caller can't tell
+    const before = mails.length;
+    const side4 = new DatabaseSync(path.join(dir3, 'flashcards.db'));
+    side4.prepare('DELETE FROM mail_log').run();
+    r = await call3('/api/signup/code', { email: 'a@example.com' });
+    assert.equal(r.status, 200);
+    assert.equal(mails.length, before + 1);
+    assert.match(mails.at(-1).text, /already has one/);
+    assert.equal(codeIn(mails.at(-1)), undefined);
+
+    // too many wrong tries and the code is gone
+    r = await call3('/api/signup/code', { email: 'c@example.com' });
+    const codeC = codeIn(mails.at(-1));
+    for (let n = 0; n < 5; n++) r = await call3('/api/register', { email: 'c@example.com', code: 'nope', ...keys3 }, 50 + n);
+    assert.match(r.json.error, /Too many wrong tries/);
+    assert.equal((await call3('/api/register', { email: 'c@example.com', code: codeC, ...keys3 }, 60)).status, 400);
+
+    // a code past its time is no use
+    side4.prepare('DELETE FROM mail_log').run();
+    await call3('/api/signup/code', { email: 'd@example.com' }, 61);
+    const codeD = codeIn(mails.at(-1));
+    side4.prepare("UPDATE signup_codes SET expires_at = '2020-01-01T00:00:00.000Z' WHERE email = 'd@example.com'").run();
+    r = await call3('/api/register', { email: 'd@example.com', code: codeD, ...keys3 }, 62);
+    assert.match(r.json.error, /run out/);
+
+    // nothing odd can get into a mail command or header
+    for (const bad of ['-f@example.com', 'a b@example.com', 'a@example.com\r\nBcc: x@example.com', 'a>@example.com', '<a@example.com', 'a@b']) assert.equal((await call3('/api/signup/code', { email: bad }, 63)).status, 400, bad);
+
+    // limits on how much mail can be asked for
+    side4.prepare('DELETE FROM mail_log').run();
+    const hourAgo = new Date(Date.now() - 30 * 60000).toISOString();
+    for (let n = 0; n < 3; n++) side4.prepare("INSERT INTO mail_log (at, email, ip) VALUES (?, 'e@example.com', '203.0.113.70')").run(hourAgo);
+    assert.equal((await call3('/api/signup/code', { email: 'e@example.com' }, 71)).status, 429, 'three an hour per address');
+    side4.prepare('DELETE FROM mail_log').run();
+    for (let n = 0; n < 6; n++) side4.prepare("INSERT INTO mail_log (at, email, ip) VALUES (?, ?, '203.0.113.72')").run(hourAgo, `x${n}@example.com`);
+    assert.equal((await call3('/api/signup/code', { email: 'f@example.com' }, 72)).status, 429, 'six an hour per address sending');
+    side4.prepare('DELETE FROM mail_log').run();
+    for (let n = 0; n < 30; n++) side4.prepare("INSERT INTO mail_log (at, email, ip) VALUES (?, ?, ?)").run(hourAgo, `y${n}@example.com`, `10.0.0.${n}`);
+    assert.equal((await call3('/api/signup/code', { email: 'g@example.com' }, 73)).status, 429, 'thirty a day in all');
+    side4.close();
+  } finally {
+    coded.kill();
+    smtp.close();
+    fs.rmSync(dir3, { recursive: true, force: true });
+  }
+
   console.log('all server checks passed');
 } finally {
   child.kill();
