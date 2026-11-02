@@ -1,0 +1,25 @@
+[Unit]
+Description=Open Flashcards sync server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=openflashcards
+Group=openflashcards
+WorkingDirectory=/opt/open-flashcards-server
+Environment=NODE_ENV=production
+Environment=HOST=127.0.0.1
+Environment=PORT=8797
+Environment=DATA_DIR=/var/lib/open-flashcards
+EnvironmentFile=/etc/open-flashcards/open-flashcards.env
+ExecStart=/usr/bin/node /opt/open-flashcards-server/server.js
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/open-flashcards
+
+[Install]
+WantedBy=multi-user.target

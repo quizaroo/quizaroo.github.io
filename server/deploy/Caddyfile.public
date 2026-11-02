@@ -1,0 +1,15 @@
+# HTTP/3 (UDP) is switched off: phones on a VPN or home network sometimes fail to connect once a server advertises it.
+{
+	servers {
+		protocols h1 h2
+	}
+}
+
+# Public server (a VPS): the domain must already point at this machine, and
+# ports 80 and 443 must be open. Caddy gets and renews a real certificate.
+# install.sh replaces __ADDRESS__ with your domain.
+__ADDRESS__ {
+	encode zstd gzip
+	reverse_proxy 127.0.0.1:8797
+	header -Server
+}

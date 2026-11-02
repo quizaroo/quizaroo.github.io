@@ -24,7 +24,7 @@ apply_theme();
   <a href="#/settings" class="nav-item" data-nav="settings"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>Settings</a>
 </nav>
 <div id="page">
-  <header id="topbar"><h1 id="page-title"></h1><button id="view-button" class="icon-button" title="View settings" aria-label="View settings" aria-expanded="false"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></button><div id="topbar-actions"></div></header>
+  <header id="topbar"><h1 id="page-title"></h1><span id="sync-status" class="pill">Local only</span><button id="view-button" class="icon-button" title="View settings" aria-label="View settings" aria-expanded="false"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></button><div id="topbar-actions"></div></header>
   <main id="view"></main>
 </div>
 <div id="update-banner" role="status" hidden>A new version of Open Flashcards is ready. <button type="button" class="primary">Reload</button></div>
@@ -32,6 +32,9 @@ apply_theme();
 <script src="sortable.js"></script>
 <script src="whatsnew.js"></script>
 <script src="modes.js"></script>
+<script src="sync-crypto.js"></script>
+<script src="sync.js"></script>
+<script src="sync-panel.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
