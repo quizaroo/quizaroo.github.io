@@ -8,10 +8,11 @@
 // No `at`: no Show me. PUBLISHED holds when each version went live (UTC), filled in by tools/publish.py.
 const FIRST_SET = ['.set-row .row-title'];
 const WHATS_NEW = {
+  '1.4.03': [{text: 'Learn from scratch: the Ratings tick box is now called Ask how well I know each word, with a line saying what it does.'}],
   '1.4.02': [{text: 'Touchscreens: a button no longer stays greyed out after you tap it, such as Always in Learn from scratch. Fixed.'}],
   '1.4.01': [{text: 'Active learning time: each set now counts the time you spend actively learning it, shown with fire at the top of every mode and on the set. It pauses after 10 seconds with nothing touched or moved, and Reset progress clears it.', go: '#/library', open: FIRST_SET, at: '.set-hero'}],
   '1.4.00': [
-    {text: 'Learn from scratch: when a word first shows, say whether you know it: Don\'t know it, Sometimes or Always. Words you know get one quick check rather than every step, and a wrong answer sends them back to the full route.', go: '#/library', open: FIRST_SET, at: '[data-mode="learn"]', more: 'The Ratings switch in Learn from scratch turns all of this off, including Tricky words.'},
+    {text: 'Learn from scratch: when a word first shows, say whether you know it: Don\'t know it, Sometimes or Always. Words you know get one quick check rather than every step, and a wrong answer sends them back to the full route.', go: '#/library', open: FIRST_SET, at: '[data-mode="learn"]', more: 'Untick Ask how well I know each word in Learn from scratch to turn all of this off, including Tricky words.'},
     {text: 'Flashcards now helps Learn from scratch: Know without flipping counts as Always, Know after flipping as Sometimes, and Still learning as Don\'t know it.'},
     {text: 'Tricky words: a word you said you always remember but then got wrong comes back sooner, and shows as Tricky on its set until you get it right twice.'},
     {text: 'Each set: a new header, like a note stuck on the page, with its title on the tape, the card count in big type and the description beside it.', go: '#/library', open: FIRST_SET, at: '.set-hero'},
@@ -114,6 +115,7 @@ const WHATS_NEW = {
   '1.0.00': [{text: 'Open Flashcards goes live: make sets, flip and swipe through them, and import or export them as JSON.'}]
 };
 const PUBLISHED = {
+  '1.4.03': '2026-11-02T23:26:38Z',
   '1.4.02': '2026-11-02T23:22:30Z',
   '1.4.01': '2026-11-02T23:17:17Z',
   '1.4.00': '2026-11-02T23:14:31Z',
