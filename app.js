@@ -58,7 +58,7 @@ function date_chips(card_set) {
 // ---- Import / export ----
 function normalise_set(raw_set) {
   if (!raw_set || !Array.isArray(raw_set.cards)) return null;
-  return {id: String(raw_set.id || new_id()), title: String(raw_set.title || 'Untitled set'), cards: raw_set.cards.filter(raw_card => raw_card && (raw_card.term || raw_card.definition)).map(raw_card => ({term: String(raw_card.term || ''), definition: String(raw_card.definition || '')})), front: raw_set.front === 'definition' || raw_set.front === 'mixed' ? raw_set.front : undefined, description: raw_set.description ? String(raw_set.description) : undefined, created: /^\d{4}-\d{2}-\d{2}$/.test(raw_set.created) ? raw_set.created : undefined, colour: TINTS.some(tint_item => tint_item[0] === raw_set.colour) ? raw_set.colour : undefined, last_studied: Number(raw_set.last_studied) || undefined, last_opened: Number(raw_set.last_opened) || undefined, trophies: Array.isArray(raw_set.trophies) ? raw_set.trophies.filter(trophy_item => trophy_item && /^[a-z-]+$/.test(trophy_item.image) && typeof trophy_item.line === 'string').map(trophy_item => ({image: trophy_item.image, line: trophy_item.line, goal: trophy_item.goal ? String(trophy_item.goal) : undefined, mode: String(trophy_item.mode || ''), right: Number(trophy_item.right) || 0, total: Number(trophy_item.total) || 0, at: Number(trophy_item.at) || Date.now()})) : undefined, progress: raw_set.progress && typeof raw_set.progress === 'object' ? raw_set.progress : undefined, best_speed: Number(raw_set.best_speed) || undefined, learn_stages: raw_set.learn_stages && typeof raw_set.learn_stages === 'object' ? raw_set.learn_stages : undefined};
+  return {id: String(raw_set.id || new_id()), title: String(raw_set.title || 'Untitled set'), cards: raw_set.cards.filter(raw_card => raw_card && (raw_card.term || raw_card.definition)).map(raw_card => ({term: String(raw_card.term || ''), definition: String(raw_card.definition || '')})), front: raw_set.front === 'definition' || raw_set.front === 'mixed' ? raw_set.front : undefined, description: raw_set.description ? String(raw_set.description) : undefined, created: /^\d{4}-\d{2}-\d{2}$/.test(raw_set.created) ? raw_set.created : undefined, colour: TINTS.some(tint_item => tint_item[0] === raw_set.colour) ? raw_set.colour : undefined, last_studied: Number(raw_set.last_studied) || undefined, last_opened: Number(raw_set.last_opened) || undefined, trophies: Array.isArray(raw_set.trophies) ? raw_set.trophies.filter(trophy_item => trophy_item && /^[a-z-]+$/.test(trophy_item.image) && typeof trophy_item.line === 'string').map(trophy_item => ({image: trophy_item.image, line: trophy_item.line, goal: trophy_item.goal ? String(trophy_item.goal) : undefined, mode: String(trophy_item.mode || ''), right: Number(trophy_item.right) || 0, total: Number(trophy_item.total) || 0, at: Number(trophy_item.at) || Date.now()})) : undefined, progress: raw_set.progress && typeof raw_set.progress === 'object' ? raw_set.progress : undefined, best_speed: Number(raw_set.best_speed) || undefined, learn_stages: raw_set.learn_stages && typeof raw_set.learn_stages === 'object' ? raw_set.learn_stages : undefined, card_ratings: raw_set.card_ratings && typeof raw_set.card_ratings === 'object' ? raw_set.card_ratings : undefined, tricky: raw_set.tricky && typeof raw_set.tricky === 'object' ? raw_set.tricky : undefined};
 }
 // Accepts {format, sets:[...]}, a bare array of sets, or a single set object. Sets with an existing id go through compare_sets; nothing is saved until any conflicts are resolved.
 function import_json(json_text) {
@@ -128,11 +128,11 @@ function upgrade_demo_sets() {
 // ---- Views ----
 function study_pill(card_set) { if (!studyable_indexes(card_set).length) return null; const next_item = next_step(card_set); return el('a', {class: 'button study-pill', href: play_hash(card_set, next_item.mode)}, next_item.label); }
 // Every mode's progress on a set: cards known, Learn from scratch, the speed record, last studied. Trophies stay, once won.
-function reset_set_progress(card_set) { delete card_set.progress; card_set.learn_stages = {}; delete card_set.best_speed; delete card_set.last_studied; }
+function reset_set_progress(card_set) { delete card_set.progress; card_set.learn_stages = {}; card_set.card_ratings = {}; card_set.tricky = {}; delete card_set.best_speed; delete card_set.last_studied; }
 function reset_with_undo(chosen_sets) {
-  const saved_progress = chosen_sets.map(card_set => ({card_set, progress: card_set.progress, learn_stages: card_set.learn_stages, best_speed: card_set.best_speed, last_studied: card_set.last_studied}));
+  const saved_progress = chosen_sets.map(card_set => ({card_set, progress: card_set.progress, learn_stages: card_set.learn_stages, card_ratings: card_set.card_ratings, tricky: card_set.tricky, best_speed: card_set.best_speed, last_studied: card_set.last_studied}));
   chosen_sets.forEach(reset_set_progress); save_state(); route();
-  toast('Progress reset on ' + chosen_sets.length + (chosen_sets.length === 1 ? ' set' : ' sets'), {action: 'Undo', ms: 8000, on_action: () => { saved_progress.forEach(saved_item => { ['progress', 'learn_stages', 'best_speed', 'last_studied'].forEach(field_name => { if (saved_item[field_name] === undefined) delete saved_item.card_set[field_name]; else saved_item.card_set[field_name] = saved_item[field_name]; }); }); save_state(); route(); }});
+  toast('Progress reset on ' + chosen_sets.length + (chosen_sets.length === 1 ? ' set' : ' sets'), {action: 'Undo', ms: 8000, on_action: () => { saved_progress.forEach(saved_item => { ['progress', 'learn_stages', 'card_ratings', 'tricky', 'best_speed', 'last_studied'].forEach(field_name => { if (saved_item[field_name] === undefined) delete saved_item.card_set[field_name]; else saved_item.card_set[field_name] = saved_item[field_name]; }); }); save_state(); route(); }});
 }
 function set_row(card_set) {
   return el('div', {class: 'set-row', style: tint_style(card_set)},
@@ -222,14 +222,16 @@ function view_set(card_set) {
   function mode_group(group_name) { return el('div', {class: 'mode-group'}, el('h2', {class: 'list-heading'}, group_name), el('div', {class: 'mode-tiles', 'data-group': group_name}, ...modes_in_group(group_name).map(mode_tile))); }
   render(set_trail(card_set), [el('a', {class: 'button', href: '#/edit/' + card_set.id}, 'Edit')], [
     el('div', {class: 'set-hero', style: tint_style(card_set)},
-      card_set.description ? el('p', {}, card_set.description) : null,
-      el('span', {class: 'date-chips'}, el('span', {class: 'date-chip'}, el('b', {}, card_set.cards.length), 'cards'), ...date_chips(card_set).childNodes),
-      studyable_count ? el('div', {class: 'hero-progress'}, progress_meter(card_set), el('div', {class: 'form-note'}, counts.mastered + ' mastered · ' + counts.familiar + ' familiar · ' + counts.learning + ' learning · ' + counts.new + ' new' + (due_count ? ' · ' + due_count + ' due now' : ''))) : null,
+      el('h2', {class: 'hero-tape'}, card_set.title),
+      card_set.created || card_set.last_studied ? el('p', {class: 'hero-dates'}, [card_set.created ? 'Created ' + format_date(card_set.created) : '', card_set.last_studied ? 'Last studied ' + relative_day(card_set.last_studied) : ''].filter(Boolean).join(' · ')) : null,
+      el('div', {class: 'hero-main'}, el('div', {class: 'hero-count'}, el('strong', {}, card_set.cards.length), card_set.cards.length === 1 ? 'card' : 'cards'), card_set.description ? el('p', {class: 'hero-description'}, card_set.description) : null),
+      studyable_count ? el('div', {class: 'hero-progress'}, progress_meter(card_set), el('div', {class: 'form-note'}, counts.mastered + ' mastered · ' + counts.familiar + ' familiar · ' + counts.learning + ' learning · ' + counts.new + ' new', due_count ? el('b', {}, ' · ' + due_count + ' due now') : null)) : null,
+      tricky_indexes(card_set).length ? el('a', {class: 'tricky-link', href: play_hash(card_set, 'tricky'), title: 'Words you said you always remember, then got wrong'}, 'Practise ' + tricky_indexes(card_set).length + ' tricky ' + (tricky_indexes(card_set).length === 1 ? 'word' : 'words') + ' →') : null,
       !studyable_count ? el('div', {class: 'form-note'}, 'Add at least one card with a term and a definition to start learning.') : skipped_count ? el('div', {class: 'form-note'}, skipped_count + ' card(s) are missing a side and are left out.') : null),
     trophy_shelf(card_set), el('div', {class: 'mode-areas'}, mode_group('Learn'), mode_group('Practise'), mode_group('Games')), el('div', {class: 'muted mode-hint'}, 'Press and hold a tile to move it. ', el('button', {class: 'link-button', onclick: () => { app_state.mode_layout = {}; save_state(); view_set(card_set); }}, 'Reset')),
     el('div', {class: 'button-row set-actions'}, el('button', {onclick: () => reset_with_undo([card_set])}, '↺ Reset progress'),
       el('button', {onclick: () => download_json(safe_file_name(card_set.title), [card_set])}, 'Export set'),
-      el('button', {onclick: () => { const copied_set = JSON.parse(JSON.stringify(card_set)); copied_set.id = new_id(); copied_set.title = card_set.title + ' (copy)'; delete copied_set.last_studied; delete copied_set.last_opened; delete copied_set.progress; delete copied_set.learn_stages; delete copied_set.best_speed; delete copied_set.trophies; app_state.sets.push(copied_set); save_state(); location.hash = '#/set/' + copied_set.id; }}, 'Duplicate'),
+      el('button', {onclick: () => { const copied_set = JSON.parse(JSON.stringify(card_set)); copied_set.id = new_id(); copied_set.title = card_set.title + ' (copy)'; delete copied_set.last_studied; delete copied_set.last_opened; delete copied_set.progress; delete copied_set.learn_stages; delete copied_set.card_ratings; delete copied_set.tricky; delete copied_set.best_speed; delete copied_set.trophies; app_state.sets.push(copied_set); save_state(); location.hash = '#/set/' + copied_set.id; }}, 'Duplicate'),
       el('button', {class: 'danger', onclick: () => { const kept_before = app_state.sets.slice(); app_state.sets = app_state.sets.filter(other_set => other_set.id !== card_set.id); save_state(); location.hash = '#/library'; toast('"' + card_set.title + '" deleted', {action: 'Undo', ms: 8000, on_action: () => { app_state.sets = kept_before; save_state(); route(); }}); }}, 'Delete set'))
   ]);
   press_and_drag(view_el.querySelector('.mode-areas'), {item_selector: '.mode-tile', same_parent: true, on_drop: () => { const saved_layout = {}; view_el.querySelectorAll('.mode-tiles').forEach(group_el => { saved_layout[group_el.dataset.group] = Array.from(group_el.querySelectorAll('.mode-tile')).map(tile_el => tile_el.dataset.mode); }); app_state.mode_layout = saved_layout; save_state(); }});
@@ -294,7 +296,7 @@ function start_session(card_set, card_indexes, mode_key) { study_session = {set_
 function take_back_answer(card_set) {
   const last_answer = study_session.answer_history.pop(); if (!last_answer) return;
   (last_answer.was_known ? study_session.known : study_session.learning).pop(); study_session.position = last_answer.position;
-  if (card_set.progress) { if (last_answer.record) card_set.progress[last_answer.key_text] = last_answer.record; else delete card_set.progress[last_answer.key_text]; }
+  restore_card_memory(card_set, last_answer.key_text, last_answer.memory); if (study_session.flip_log) study_session.flip_log.pop();
   if (last_answer.last_studied) card_set.last_studied = last_answer.last_studied; else delete card_set.last_studied;
 }
 function previous_card_button(card_set) { return el('button', Object.assign({'data-key': 'Backspace', title: 'Go back and change your answer (Backspace)', onclick: () => { if (study_session.round_reward) { card_set.trophies.length -= study_session.round_trophy_count; study_session.round_reward = null; } take_back_answer(card_set); save_state(); view_study(card_set); }}, study_session.answer_history.length ? {} : {disabled: 'disabled'}), '← Previous card'); }
@@ -313,6 +315,7 @@ function view_study(card_set) {
   const inner_el = el('div', {class: 'flashcard-inner'}, el('div', {class: 'face front'}, current_card[front_key]), el('div', {class: 'face back'}, current_card[back_key]));
   const is_browsing = !!study_session.browsing, done_hash = study_session.return_hash || '#/set/' + card_set.id;
   const card_el = el('div', {class: 'flashcard'}, is_browsing ? null : learn_hint_el, is_browsing ? null : know_hint_el, inner_el);
+  let has_flipped = false; new MutationObserver(() => { if (card_el.classList.contains('flipped')) has_flipped = true; }).observe(card_el, {attributes: true, attributeFilter: ['class']});
   function move_card(step_by) { study_session.position = (study_session.position + step_by + study_session.queue.length) % study_session.queue.length; view_study(card_set); }
   function toggle_shuffle() {
     app_state.shuffle = !app_state.shuffle; save_state();
@@ -326,7 +329,7 @@ function view_study(card_set) {
     if (keep_score) start_flashcards(card_set, undefined, study_session.return_hash); else study_session.browsing = true;
     view_study(card_set);
   }
-  function answer(is_known) { const key_text = card_key(current_card); study_session.answer_history.push({position: study_session.position, was_known: is_known, key_text, record: (card_set.progress || {})[key_text], last_studied: card_set.last_studied}); record_answer(card_set, current_index, is_known); (is_known ? study_session.known : study_session.learning).push(study_session.queue[study_session.position]); study_session.position++; view_study(card_set); }
+  function answer(is_known) { const key_text = card_key(current_card); study_session.answer_history.push({position: study_session.position, was_known: is_known, key_text, memory: card_memory(card_set, key_text), last_studied: card_set.last_studied}); record_answer(card_set, current_index, is_known); if (study_session.mode === 'cards' && smart_learning_on()) { set_rating(card_set, key_text, is_known ? (has_flipped ? 'sometimes' : 'always') : 'never'); study_session.flip_log = study_session.flip_log || []; study_session.flip_log.push({key_text, is_known, has_flipped}); save_state(); } (is_known ? study_session.known : study_session.learning).push(study_session.queue[study_session.position]); study_session.position++; view_study(card_set); }
   // Tap flips. A horizontal swipe answers (right = know, left = still learning), or without score turns to the next or last card.
   let drag_start = null;
   function drag_begin(start_x, start_y) { drag_start = {x: start_x, y: start_y}; inner_el.style.transition = 'none'; }
@@ -356,7 +359,14 @@ function view_study(card_set) {
     el('div', {class: 'muted'}, is_browsing ? 'Tap to flip · swipe or press ← → to move · nothing is recorded' : 'Tap to flip · swipe right if you know it, left if not · keys: space, ← →, Backspace for the previous card'))]);
 }
 
+// Know without flipping counts as always, Know after flipping as sometimes. Someone who flips nearly every card is just in the habit, so for that round a flip says nothing.
+function settle_flip_ratings(card_set) {
+  const flip_log = study_session.flip_log || [], flip_count = flip_log.filter(log_item => log_item.has_flipped).length, is_habit = flip_log.length >= 5 && flip_count / flip_log.length >= 0.9;
+  flip_log.forEach(log_item => { if (log_item.is_known && log_item.has_flipped) set_rating(card_set, log_item.key_text, is_habit ? 'always' : 'sometimes'); });
+  if (flip_log.length) save_state();
+}
 function view_study_summary(card_set) {
+  settle_flip_ratings(card_set);
   const learning_indexes = study_session.learning.slice(), reward_el = award_round(card_set, find_mode(study_session.mode), study_session.known.length, study_session.known.length + learning_indexes.length), next_tiles = round_next_tiles(card_set, learning_indexes, study_session.known.length, study_session.mode);
   render(set_trail(card_set, find_mode(study_session.mode).label), [el('a', {class: 'button', href: '#/set/' + card_set.id}, 'Done')], [el('div', {class: 'study-wrap empty', style: tint_style(card_set)},
     el('h2', {class: 'summary-title'}, learning_indexes.length ? 'Round complete' : 'All known!'), reward_el,
@@ -376,7 +386,7 @@ function round_next_tiles(card_set, learning_indexes, known_count, session_mode)
     learning_indexes.length ? next_tile('more', 'Study more', "Let's go through the " + (learning_indexes.length === 1 ? 'one' : learning_indexes.length) + " you're still learning.", () => { start_session(card_set, learning_indexes, session_mode); view_study(card_set); }) : null,
     next_tile('all', 'Go through all cards', 'Another round of all ' + total_count + ' cards.', () => { study_session = null; view_mode(card_set, 'cards'); }),
     session_mode === 'revise' ? null : next_tile('revise', 'Move on to Revise', due_count ? due_count + (due_count === 1 ? ' card is' : ' cards are') + ' ready to come back.' : 'Nothing is ready yet. It will tell you when the next card is.', play_hash(card_set, 'revise')),
-    next_tile('learn', 'Move on to Learn from scratch', is_learn_unfinished ? 'Showing cards, multiple choice and typing, with ' + learn_now.learned + ' of ' + learn_now.cards + ' cards learned so far.' : 'You have finished it for this set. Start it again from there.', play_hash(card_set, 'learn'))
+    next_tile('learn', 'Move on to Learn from scratch', is_learn_unfinished ? (smart_learning_on() ? 'Words you know get one quick check, and the rest get the full route. ' : 'Showing cards, multiple choice and typing. ') + learn_now.learned + ' of ' + learn_now.cards + ' cards learned so far.' : 'You have finished it for this set. Start it again from there.', play_hash(card_set, 'learn'))
   ].filter(Boolean);
 }
 

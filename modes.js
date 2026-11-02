@@ -1,8 +1,8 @@
 // Learning modes. Loaded before app.js, which supplies el, render, save_state and the set helpers.
 const MODES = [
   {key: 'vocab', label: 'View all vocab', blurb: 'See every term beside its meaning, to read through or look something up.', art: '<rect x="9" y="10" width="46" height="44" rx="4"/><path d="M9 21h46M9 32h46M9 43h46M28 10v44"/><path d="M14 15.500h9M33 15.500h16M14 26.500h8M33 26.500h12M14 37.500h9M33 37.500h17M14 48.500h7M33 48.500h11"/>', group: 'Learn', tint: '#8fd3ff', min_cards: 1},
-  {key: 'cards', label: 'Flashcards', blurb: 'Flip through every card, saying whether you know it or just browsing.', art: '<rect x="19" y="9" width="34" height="24" rx="3" transform="rotate(8 36 21)"/><rect x="11" y="24" width="38" height="28" rx="3" transform="rotate(-5 30 38)"/><path d="M19 34l20-2M20 41l21-2M20 47l12-1"/>', group: 'Learn', tint: '#a8b8ff', min_cards: 1},
   {key: 'learn', label: 'Learn from scratch', blurb: 'A mix of showing cards, multiple choice and typing, in small batches. Remembers where you got to.', art: '<path d="M18 40h28l-3 15a2 2 0 0 1-2 1.500H23a2 2 0 0 1-2-1.500z"/><path d="M15 40h34"/><path d="M32 40V21"/><path d="M32 28c-1-8-7-12-15-12 0 8 6 13 15 12z"/><path d="M32 22c0-7 5-12 14-13 1 8-5 14-14 13z"/>', group: 'Learn', tint: '#9be7a8', min_cards: 1},
+  {key: 'cards', label: 'Flashcards', blurb: 'Flip through every card, saying whether you know it or just browsing.', art: '<rect x="19" y="9" width="34" height="24" rx="3" transform="rotate(8 36 21)"/><rect x="11" y="24" width="38" height="28" rx="3" transform="rotate(-5 30 38)"/><path d="M19 34l20-2M20 41l21-2M20 47l12-1"/>', group: 'Learn', tint: '#a8b8ff', min_cards: 1},
   {key: 'revise', label: 'Revise', blurb: 'Cards you have practised that are ready to come back. Get one right and it waits longer next time.', art: '<path d="M52 27a21 21 0 0 0-37-8l-5 5"/><path d="M10 13v11h11"/><path d="M12 37a21 21 0 0 0 37 8l5-5"/><path d="M54 51V40H43"/><rect x="24" y="25" width="16" height="14" rx="2"/><path d="M28 30h8M28 34h5"/>', group: 'Learn', tint: '#ffc285', min_cards: 1},
   {key: 'type', label: 'Type the answer', blurb: 'Spell each answer yourself, the toughest test of what you remember.', art: '<rect x="6" y="28" width="52" height="27" rx="4"/><path d="M13 35h2M21 35h2M29 35h2M37 35h2M45 35h6M13 41h6M25 41h2M33 41h2M41 41h2M49 41h2M13 48h4M23 48h20M49 48h2"/><path d="M22 9h20M32 9v13M27 22h10"/>', group: 'Practise', tint: '#86e3d0', min_cards: 1, how: 'Type the answer, then press Enter.'},
   {key: 'choice', label: 'Multiple choice', blurb: 'Pick the right answer from four, a gentle way to get to know new words.', art: '<circle cx="14" cy="13" r="6"/><path d="M26 13h27"/><circle cx="14" cy="32" r="6"/><circle cx="14" cy="32" r="2" fill="currentColor"/><path d="M26 32h27"/><circle cx="14" cy="51" r="6"/><path d="M26 51h27"/><path d="M47 26l4 5 7-9"/>', group: 'Practise', tint: '#c3a6ff', min_cards: 2, how: 'Pick the right answer, or press 1 to 4.'},
@@ -26,10 +26,30 @@ function find_mode(mode_key) { return MODES.find(mode_item => mode_item.key === 
 const BOX_DAYS = [0, 1, 3, 7, 16, 35], DAY_MS = 86400000;
 function card_record(card_set, card_index) { return (card_set.progress || {})[card_key(card_set.cards[card_index])]; }
 function record_answer(card_set, card_index, is_right) {
-  const now_ms = Date.now(), old_record = card_record(card_set, card_index) || {box: 0, right: 0, wrong: 0}, new_box = is_right ? Math.min(5, old_record.box + 1) : 1;
+  const now_ms = Date.now(), key_text = card_key(card_set.cards[card_index]), old_record = card_record(card_set, card_index) || {box: 0, right: 0, wrong: 0}, tricky_item = smart_learning_on() ? (card_set.tricky || {})[key_text] : null;
+  let new_box = is_right ? Math.min(5, old_record.box + 1) : 1;
+  if (is_right && tricky_item) new_box = Math.min(new_box, 2);
   card_set.progress = card_set.progress || {};
-  card_set.progress[card_key(card_set.cards[card_index])] = {box: new_box, due: is_right ? now_ms + BOX_DAYS[new_box] * DAY_MS : now_ms, right: old_record.right + (is_right ? 1 : 0), wrong: old_record.wrong + (is_right ? 0 : 1), last: now_ms};
+  card_set.progress[key_text] = {box: new_box, due: is_right ? now_ms + BOX_DAYS[new_box] * DAY_MS : now_ms, right: old_record.right + (is_right ? 1 : 0), wrong: old_record.wrong + (is_right ? 0 : 1), last: now_ms};
+  note_confidence(card_set, key_text, is_right);
   card_set.last_studied = now_ms; save_state();
+}
+// ---- Ratings and Tricky words. Each card can carry how well you say you know it (always, sometimes, never), from Learn from scratch or from Flashcards. A card rated always that you then get wrong is a Tricky word: you think you know it and don't. It comes back sooner until you get it right twice running. All of this can be switched off (smart_learn), and the data stays.
+function smart_learning_on() { return app_state.smart_learn !== false; }
+function card_rating(card_set, card_index) { return smart_learning_on() ? (card_set.card_ratings || {})[card_key(card_set.cards[card_index])] : undefined; }
+function set_rating(card_set, key_text, rating_name) { card_set.card_ratings = card_set.card_ratings || {}; card_set.card_ratings[key_text] = rating_name; }
+function note_confidence(card_set, key_text, is_right) {
+  if (!smart_learning_on()) return;
+  const tricky_item = (card_set.tricky || {})[key_text];
+  if (!is_right && (card_set.card_ratings || {})[key_text] === 'always') { card_set.tricky = card_set.tricky || {}; card_set.tricky[key_text] = {at: Date.now(), streak: 0}; set_rating(card_set, key_text, 'never'); }
+  else if (!is_right && tricky_item) tricky_item.streak = 0;
+  else if (is_right && tricky_item) { tricky_item.streak = (tricky_item.streak || 0) + 1; if (tricky_item.streak >= 2) delete card_set.tricky[key_text]; }
+}
+function tricky_indexes(card_set) { return smart_learning_on() ? studyable_indexes(card_set).filter(card_index => (card_set.tricky || {})[card_key(card_set.cards[card_index])]) : []; }
+// What a card's answers changed, so Back and Previous can put it back.
+function card_memory(card_set, key_text) { const tricky_item = (card_set.tricky || {})[key_text]; return {record: (card_set.progress || {})[key_text], rating: (card_set.card_ratings || {})[key_text], tricky: tricky_item ? Object.assign({}, tricky_item) : undefined}; }
+function restore_card_memory(card_set, key_text, memory_item) {
+  [['progress', memory_item.record], ['card_ratings', memory_item.rating], ['tricky', memory_item.tricky]].forEach(field_pair => { const saved_value = field_pair[1]; if (saved_value !== undefined) { card_set[field_pair[0]] = card_set[field_pair[0]] || {}; card_set[field_pair[0]][key_text] = saved_value; } else if (card_set[field_pair[0]]) delete card_set[field_pair[0]][key_text]; });
 }
 function card_status(card_set, card_index) { const record_item = card_record(card_set, card_index); return !record_item ? 'new' : record_item.box >= 5 ? 'mastered' : record_item.box >= 3 ? 'familiar' : 'learning'; }
 function is_due(card_set, card_index) { const record_item = card_record(card_set, card_index); return !!record_item && record_item.due <= Date.now(); }
@@ -159,7 +179,7 @@ function ask_listen(card_set, mode_item, card_index, finish) {
 function view_vocab(card_set) {
   const hide_key = 'vocab-hide', hide_answers = !!view_vocab[hide_key], direction_name = direction_of(card_set) === 'definition' ? 'definition' : 'term', other_name = direction_name === 'term' ? 'definition' : 'term', mode_item = find_mode('vocab');
   const status_names = {new: 'New', learning: 'Learning', familiar: 'Familiar', mastered: 'Mastered'};
-  const rows = card_set.cards.map((card_item, card_index) => { const can_open = !!(card_item.term.trim() && card_item.definition.trim()), card_hash = play_hash(card_set, 'cards') + '/' + card_index, status_name = can_open ? card_status(card_set, card_index) : 'new', answer_el = el('div', {class: 'card-definition' + (hide_answers ? ' hidden-answer' : ''), onclick: click_event => { if (click_event.currentTarget.classList.contains('hidden-answer')) click_event.currentTarget.classList.remove('hidden-answer'); else if (can_open) location.hash = card_hash; }}, card_item[other_name]); return el('div', {class: 'card-row'}, el('div', {class: 'line-margin line-number'}), el('div', {}, el('span', {class: 'status-dot status-' + status_name, title: status_names[status_name]}), can_open ? el('a', {class: 'word-link', href: card_hash}, card_item[direction_name]) : card_item[direction_name]), answer_el); });
+  const rows = card_set.cards.map((card_item, card_index) => { const can_open = !!(card_item.term.trim() && card_item.definition.trim()), card_hash = play_hash(card_set, 'cards') + '/' + card_index, status_name = can_open ? card_status(card_set, card_index) : 'new', answer_el = el('div', {class: 'card-definition' + (hide_answers ? ' hidden-answer' : ''), onclick: click_event => { if (click_event.currentTarget.classList.contains('hidden-answer')) click_event.currentTarget.classList.remove('hidden-answer'); else if (can_open) location.hash = card_hash; }}, card_item[other_name]); return el('div', {class: 'card-row'}, el('div', {class: 'line-margin line-number'}), el('div', {}, el('span', {class: 'status-dot status-' + status_name, title: status_names[status_name]}), can_open ? el('a', {class: 'word-link', href: card_hash}, card_item[direction_name]) : card_item[direction_name], can_open && smart_learning_on() && (card_set.tricky || {})[card_key(card_item)] ? el('span', {class: 'tricky-tag'}, 'Tricky') : null), answer_el); });
   clear_mode_timers();
   render(set_trail(card_set, mode_item.label), [el('a', {class: 'button', href: '#/set/' + card_set.id}, 'Done')], [
     el('div', {class: 'button-row'}, switch_buttons(['term', 'definition'], direction_name, new_direction => { card_set.front = new_direction; save_state(); view_vocab(card_set); }), el('button', {onclick: () => { view_vocab[hide_key] = !hide_answers; view_vocab(card_set); }}, hide_answers ? 'Show answers' : 'Hide answers'),
@@ -167,50 +187,69 @@ function view_vocab(card_set) {
     el('div', {class: 'muted vocab-hint'}, 'Tap a word to see it as a flashcard. Nothing is recorded.'),
     el('div', {class: 'ruled'}, ...rows)]);
 }
-// Learn from scratch takes each card through the same steps in order: see it, pick it, type it. Multiple choice and typing can be switched off. How far each card has got is kept on the set (learn_stages), so it carries on where you left off. A wrong answer repeats that step two cards later.
+// Learn from scratch takes each card through the same steps in order: see it, pick it, type it. Multiple choice and typing can be switched off. A card rated sometimes or always has just the one question: always comes late in the batch and waits longer afterwards. A wrong answer sends it back to the full route. How far each card has got is kept on the set (learn_stages), so it carries on where you left off. A wrong answer repeats that step two cards later.
 const LEARN_FINISHED = 3;
 function learn_stage_list(card_set) { return [0].concat(app_state.learn_choice !== false && studyable_indexes(card_set).length > 1 ? [1] : [], app_state.learn_type !== false ? [2] : []); }
-function learn_stage_of(card_set, card_index, stage_list) { const saved_stage = (card_set.learn_stages || {})[card_key(card_set.cards[card_index])] || 0, next_stage = stage_list.find(stage_item => stage_item >= saved_stage); return next_stage === undefined ? LEARN_FINISHED : next_stage; }
+function learn_route(card_set, card_index, stage_list) { const rating_name = card_rating(card_set, card_index); return (rating_name === 'always' || rating_name === 'sometimes') && stage_list.length > 1 ? stage_list.slice(-1) : stage_list; }
+function learn_stage_of(card_set, card_index, stage_list) { const saved_stage = (card_set.learn_stages || {})[card_key(card_set.cards[card_index])] || 0, next_stage = learn_route(card_set, card_index, stage_list).find(stage_item => stage_item >= saved_stage); return next_stage === undefined ? LEARN_FINISHED : next_stage; }
 function learn_counts(card_set) {
-  const stage_list = learn_stage_list(card_set), card_indexes = studyable_indexes(card_set), counts = {cards: card_indexes.length, learned: 0, done_steps: 0, total_steps: card_indexes.length * stage_list.length};
-  card_indexes.forEach(card_index => { const card_stage = learn_stage_of(card_set, card_index, stage_list); if (card_stage === LEARN_FINISHED) counts.learned++; counts.done_steps += stage_list.filter(stage_item => stage_item < card_stage).length; });
+  const stage_list = learn_stage_list(card_set), card_indexes = studyable_indexes(card_set), counts = {cards: card_indexes.length, learned: 0, done_steps: 0, total_steps: 0};
+  card_indexes.forEach(card_index => { const card_stage = learn_stage_of(card_set, card_index, stage_list), route_stages = learn_route(card_set, card_index, stage_list); if (card_stage === LEARN_FINISHED) counts.learned++; counts.total_steps += route_stages.length; counts.done_steps += route_stages.filter(stage_item => stage_item < card_stage).length; });
   return counts;
 }
 function view_learn(card_set, mode_item) {
   const stage_list = learn_stage_list(card_set);
-  function start_over() { const saved_stages = card_set.learn_stages; card_set.learn_stages = {}; save_state(); start_mode_session(card_set, 'learn', []); view_learn(card_set, mode_item); toast('Started again. Revision progress and trophies stay.', {action: 'Undo', ms: 8000, on_action: () => { card_set.learn_stages = saved_stages; save_state(); route(); }}); }
+  function start_over() { const saved_stages = card_set.learn_stages, saved_ratings = card_set.card_ratings; card_set.learn_stages = {}; card_set.card_ratings = {}; save_state(); start_mode_session(card_set, 'learn', []); view_learn(card_set, mode_item); toast('Started again. Revision progress and trophies stay.', {action: 'Undo', ms: 8000, on_action: () => { card_set.learn_stages = saved_stages; card_set.card_ratings = saved_ratings; save_state(); route(); }}); }
   function start_over_button() { return el('button', {class: 'link-button', onclick: start_over}, 'Start again'); }
   function status_nodes() { const counts = learn_counts(card_set); return el('span', {class: 'learn-status'}, (counts.done_steps < counts.total_steps ? 'Step ' + (counts.done_steps + 1) + ' of ' + counts.total_steps : 'All steps done') + ' · ' + counts.learned + ' of ' + counts.cards + ' cards learned', start_over_button()); }
   function switch_type(setting_name, is_on) { app_state[setting_name] = is_on; save_state(); study_session.steps = null; view_learn(card_set, mode_item); }
-  function type_switches() { return el('div', {class: 'learn-switches'}, studyable_indexes(card_set).length > 1 ? el('label', {class: 'toggle-line'}, el('input', {type: 'checkbox', checked: app_state.learn_choice !== false, onchange: change_event => switch_type('learn_choice', change_event.target.checked)}), 'Multiple choice') : null, el('label', {class: 'toggle-line'}, el('input', {type: 'checkbox', checked: app_state.learn_type !== false, onchange: change_event => switch_type('learn_type', change_event.target.checked)}), 'Typing')); }
+  function type_switches() { return el('div', {class: 'learn-switches'}, studyable_indexes(card_set).length > 1 ? el('label', {class: 'toggle-line'}, el('input', {type: 'checkbox', checked: app_state.learn_choice !== false, onchange: change_event => switch_type('learn_choice', change_event.target.checked)}), 'Multiple choice') : null, el('label', {class: 'toggle-line'}, el('input', {type: 'checkbox', checked: app_state.learn_type !== false, onchange: change_event => switch_type('learn_type', change_event.target.checked)}), 'Typing'), el('label', {class: 'toggle-line', title: 'Rate words, skip steps for ones you know, and track Tricky words. Off works as it did before.'}, el('input', {type: 'checkbox', checked: smart_learning_on(), onchange: change_event => switch_type('smart_learn', change_event.target.checked)}), 'Ratings')); }
   if (!study_session.steps) {
-    const unfinished_cards = weakest_first(card_set, studyable_indexes(card_set).filter(card_index => learn_stage_of(card_set, card_index, stage_list) !== LEARN_FINISHED)), is_begun = card_index => learn_stage_of(card_set, card_index, stage_list) > 0 ? 0 : 1, batch_cards = unfinished_cards.sort((index_a, index_b) => is_begun(index_a) - is_begun(index_b)).slice(0, 5);
+    const unfinished_cards = weakest_first(card_set, studyable_indexes(card_set).filter(card_index => learn_stage_of(card_set, card_index, stage_list) !== LEARN_FINISHED)), is_begun = card_index => learn_stage_of(card_set, card_index, stage_list) > 0 ? 0 : 1, is_always = card_index => card_rating(card_set, card_index) === 'always' ? 1 : 0, batch_cards = unfinished_cards.sort((index_a, index_b) => is_begun(index_a) - is_begun(index_b)).slice(0, 5).sort((index_a, index_b) => is_always(index_a) - is_always(index_b));
     if (!batch_cards.length) { mode_frame(card_set, mode_item, [status_nodes()], [el('div', {class: 'empty'}, el('h2', {class: 'summary-title'}, 'You have learned everything here'), el('div', {class: 'button-row center-row'}, el('a', {class: 'button primary', href: play_hash(card_set, 'revise')}, 'Revise'))), type_switches()]); return; }
     study_session.steps = batch_cards.map(card_index => ({card_index, stage: learn_stage_of(card_set, card_index, stage_list)})); study_session.history = []; study_session.batch_size = batch_cards.length;
   }
   if (!study_session.steps.length) { const reward_el = award_round(card_set, mode_item, study_session.right, study_session.right + study_session.wrong), counts = learn_counts(card_set); mode_frame(card_set, mode_item, [status_nodes()], [el('div', {class: 'empty'}, el('h2', {class: 'summary-title'}, 'Batch finished'), reward_el, el('div', {class: 'button-row center-row'}, counts.learned < counts.cards ? el('button', {class: 'primary', onclick: () => { start_mode_session(card_set, 'learn', []); view_learn(card_set, mode_item); }}, 'Next cards') : null, el('a', {class: 'button', href: '#/set/' + card_set.id}, 'Back to set')))]); return; }
   const current_step = study_session.steps[0], current_key = card_key(card_set.cards[current_step.card_index]);
   // Back undoes the last step, including what it did to the card's progress. Forward moves on without marking the card either way.
-  function remember_step() { study_session.history.push({steps: study_session.steps.map(step_item => Object.assign({}, step_item)), right: study_session.right, wrong: study_session.wrong, card_key_text: current_key, record: (card_set.progress || {})[current_key], stage: (card_set.learn_stages || {})[current_key]}); }
-  function go_back() { const last_step = study_session.history.pop(); if (!last_step) return; Object.assign(study_session, {steps: last_step.steps, right: last_step.right, wrong: last_step.wrong}); if (card_set.progress) { if (last_step.record) card_set.progress[last_step.card_key_text] = last_step.record; else delete card_set.progress[last_step.card_key_text]; } card_set.learn_stages = card_set.learn_stages || {}; if (last_step.stage) card_set.learn_stages[last_step.card_key_text] = last_step.stage; else delete card_set.learn_stages[last_step.card_key_text]; save_state(); view_learn(card_set, mode_item); }
+  function remember_step() { study_session.history.push({steps: study_session.steps.map(step_item => Object.assign({}, step_item)), right: study_session.right, wrong: study_session.wrong, card_key_text: current_key, memory: card_memory(card_set, current_key), stage: (card_set.learn_stages || {})[current_key]}); }
+  function go_back() { const last_step = study_session.history.pop(); if (!last_step) return; Object.assign(study_session, {steps: last_step.steps, right: last_step.right, wrong: last_step.wrong}); restore_card_memory(card_set, last_step.card_key_text, last_step.memory); card_set.learn_stages = card_set.learn_stages || {}; if (last_step.stage) card_set.learn_stages[last_step.card_key_text] = last_step.stage; else delete card_set.learn_stages[last_step.card_key_text]; save_state(); view_learn(card_set, mode_item); }
   function put_back_later() { study_session.steps.splice(Math.min(2, study_session.steps.length), 0, current_step); }
   function finish_step(is_right) {
+    const rating_before = card_rating(card_set, current_step.card_index), route_stages = learn_route(card_set, current_step.card_index, stage_list);
     remember_step(); study_session.steps.shift();
     if (is_right) {
       if (current_step.stage > 0) study_session.right++;
-      const next_stage = stage_list.find(stage_item => stage_item > current_step.stage);
+      const next_stage = route_stages.find(stage_item => stage_item > current_step.stage);
       // Saved as the step after this one, not the next one switched on, so turning typing back on picks up where it was skipped.
       card_set.learn_stages = card_set.learn_stages || {}; card_set.learn_stages[current_key] = current_step.stage + 1;
       current_step.stage = next_stage === undefined ? LEARN_FINISHED : next_stage;
-      if (current_step.stage === LEARN_FINISHED) { if (stage_list.length > 1) record_answer(card_set, current_step.card_index, true); } else put_back_later();
+      if (current_step.stage === LEARN_FINISHED) { if (stage_list.length > 1) { record_answer(card_set, current_step.card_index, true); if (rating_before === 'always' && !(card_set.tricky || {})[current_key]) { const card_progress = card_set.progress[current_key]; card_progress.box = Math.max(card_progress.box, 3); card_progress.due = Date.now() + BOX_DAYS[card_progress.box] * DAY_MS; } } } else put_back_later();
       save_state();
-    } else { study_session.wrong++; record_answer(card_set, current_step.card_index, false); put_back_later(); }
+    } else {
+      study_session.wrong++; record_answer(card_set, current_step.card_index, false);
+      if (rating_before === 'always' || rating_before === 'sometimes') { set_rating(card_set, current_key, 'never'); card_set.learn_stages[current_key] = 0; current_step.stage = 0; save_state(); }
+      put_back_later();
+    }
     view_learn(card_set, mode_item);
+  }
+  // The first time a word shows, you say how well you know it. That decides the rest of its route.
+  function rate_card(rating_name) {
+    remember_step(); study_session.steps.shift();
+    set_rating(card_set, current_key, rating_name); card_set.learn_stages = card_set.learn_stages || {}; card_set.learn_stages[current_key] = 1;
+    current_step.stage = learn_stage_of(card_set, current_step.card_index, stage_list);
+    if (rating_name === 'always') study_session.steps.push(current_step); else put_back_later();
+    save_state(); view_learn(card_set, mode_item);
   }
   function go_forward() { remember_step(); study_session.steps.shift(); put_back_later(); view_learn(card_set, mode_item); }
   function learn_footer(forward_button) { return el('div', {class: 'learn-footer'}, el('div', {class: 'learn-nav'}, el('button', Object.assign({'data-key': 'ArrowLeft', onclick: go_back}, study_session.history.length ? {} : {disabled: 'disabled'}), '← Back'), forward_button), type_switches()); }
   const counts_now = learn_counts(card_set); study_session.position = counts_now.done_steps; study_session.queue = {length: counts_now.total_steps};
-  if (current_step.stage === 0) { const pair_sides = card_sides(card_set, current_step.card_index), got_it_el = el('button', {class: 'primary', 'data-key': 'ArrowRight', onclick: () => finish_step(true)}, 'Got it →'); mode_frame(card_set, Object.assign({}, mode_item, {how: 'Have a good look, then press Got it.'}), [status_nodes()], [session_progress(), pair_card(pair_sides.front_key, pair_sides.prompt, pair_sides.answer), learn_footer(got_it_el)]); return; }
+  if (current_step.stage === 0) {
+    const pair_sides = card_sides(card_set, current_step.card_index), should_rate = smart_learning_on() && stage_list.length > 1 && !card_rating(card_set, current_step.card_index);
+    const rate_row = should_rate ? el('div', {class: 'rating-row'}, el('button', {class: 'rate-never', 'data-key': '1', onclick: () => rate_card('never')}, "Don't know it"), el('button', {class: 'rate-sometimes', 'data-key': '2', onclick: () => rate_card('sometimes')}, 'Sometimes'), el('button', {class: 'rate-always', 'data-key': '3', onclick: () => rate_card('always')}, 'Always')) : null;
+    const got_it_el = should_rate ? null : el('button', {class: 'primary', 'data-key': 'ArrowRight', onclick: () => finish_step(true)}, 'Got it →');
+    mode_frame(card_set, Object.assign({}, mode_item, {how: should_rate ? 'How well do you remember this one? You can also press 1, 2 or 3.' : 'Have a good look, then press Got it.'}), [status_nodes()], [session_progress(), pair_card(pair_sides.front_key, pair_sides.prompt, pair_sides.answer), rate_row, learn_footer(got_it_el)]); return;
+  }
   const question_footer = learn_footer(el('button', Object.assign({'data-key': 'ArrowRight', title: 'Come back to this one later', onclick: go_forward}, study_session.steps.length > 1 ? {} : {disabled: 'disabled'}), 'Forward →'));
   (current_step.stage === 1 ? ask_choice : ask_type)(card_set, mode_item, current_step.card_index, finish_step, {status: status_nodes(), footer: question_footer});
 }
@@ -316,6 +355,7 @@ function view_mode_summary(card_set, mode_item) {
 }
 const QUESTION_ASKERS = {type: ask_type, choice: ask_choice, truefalse: ask_true_false, scramble: ask_scramble, listen: ask_listen};
 function view_mode(card_set, mode_key, start_card_text) {
+  if (mode_key === 'tricky') { const tricky_list = tricky_indexes(card_set); if (!tricky_list.length) { location.hash = '#/set/' + card_set.id; return; } start_session(card_set, tricky_list, 'cards'); study_session.tricky_round = true; return view_study(card_set); }
   const mode_item = find_mode(mode_key) || find_mode('cards');
   if (studyable_indexes(card_set).length < mode_item.min_cards) { location.hash = '#/set/' + card_set.id; return; }
   if (mode_item.key === 'vocab') return view_vocab(card_set);

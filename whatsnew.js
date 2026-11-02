@@ -8,6 +8,13 @@
 // No `at`: no Show me. PUBLISHED holds when each version went live (UTC), filled in by tools/publish.py.
 const FIRST_SET = ['.set-row .row-title'];
 const WHATS_NEW = {
+  '1.4.00': [
+    {text: 'Learn from scratch: when a word first shows, say whether you know it: Don\'t know it, Sometimes or Always. Words you know get one quick check rather than every step, and a wrong answer sends them back to the full route.', go: '#/library', open: FIRST_SET, at: '[data-mode="learn"]', more: 'The Ratings switch in Learn from scratch turns all of this off, including Tricky words.'},
+    {text: 'Flashcards now helps Learn from scratch: Know without flipping counts as Always, Know after flipping as Sometimes, and Still learning as Don\'t know it.'},
+    {text: 'Tricky words: a word you said you always remember but then got wrong comes back sooner, and shows as Tricky on its set until you get it right twice.'},
+    {text: 'Each set: a new header, like a note stuck on the page, with its title on the tape, the card count in big type and the description beside it.', go: '#/library', open: FIRST_SET, at: '.set-hero'},
+    {text: 'Each set: tiles now run View all vocab, Learn from scratch, Flashcards, Revise. If you have moved tiles, Reset under them gives this order.', go: '#/library', open: FIRST_SET, at: '.mode-hint'}
+  ],
   '1.3.12': [{text: 'Open Flashcards is now called Quizaroo, and lives at quizaroo.github.io. The old address sends you here and brings your sets with you. If you use sync, sign in again on this address.'}],
   '1.3.11': [{text: 'Dusk is now the usual view mode, alongside Plain. If you already picked Dawn, it stays.', go: '#/', at: '#view-button'}],
   '1.3.10': [
@@ -105,6 +112,7 @@ const WHATS_NEW = {
   '1.0.00': [{text: 'Open Flashcards goes live: make sets, flip and swipe through them, and import or export them as JSON.'}]
 };
 const PUBLISHED = {
+  '1.4.00': '2026-11-02T23:14:31Z',
   '1.3.12': '2026-11-02T21:23:20Z',
   '1.3.11': '2026-11-02T20:56:31Z',
   '1.3.10': '2026-11-02T20:51:23Z',
