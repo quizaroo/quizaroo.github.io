@@ -269,11 +269,13 @@ const sync_engine = (() => {
     adopt_sets(app_state.sets.filter(saved_set => !is_untouched(saved_set)));
     write_state_quietly();
   }
+  // A server that confirms addresses sends a code first, which goes in with register.
+  function request_signup_code(server_url, email_text) { return api('POST', '/api/signup/code', {email: email_text}, server_url.replace(/\/+$/, '')); }
   // New account: returns the recovery code to show once.
-  async function register(server_url, email_text, password_text) {
+  async function register(server_url, email_text, password_text, email_code) {
     server_url = server_url.replace(/\/+$/, '');
     const kdf = sync_crypto.new_kdf(), master_key = await sync_crypto.derive_master(password_text, kdf), data_key = sync_crypto.new_data_key();
-    const login_reply = await api('POST', '/api/register', {email: email_text, kdf, auth_hash: await sync_crypto.login_hash(master_key, password_text), wrapped_data_key: await sync_crypto.wrap_data_key(master_key, data_key), recovery_hash: await sync_crypto.recovery_hash(data_key), device_name: device_name()}, server_url);
+    const login_reply = await api('POST', '/api/register', {email: email_text, kdf, auth_hash: await sync_crypto.login_hash(master_key, password_text), wrapped_data_key: await sync_crypto.wrap_data_key(master_key, data_key), recovery_hash: await sync_crypto.recovery_hash(data_key), device_name: device_name(), code: email_code}, server_url);
     await keep_login(server_url, email_text, login_reply, data_key);
     return sync_crypto.recovery_code(data_key);
   }
@@ -587,5 +589,5 @@ const sync_engine = (() => {
       catch_up();
     });
   }
-  return {DEFAULT_SERVER, admin_url, ready, init, watch_other_tabs, on_status, get status() { return status; }, sync_now, note_change, check_link, server_info, register, recover, change_password, sign_in, sign_out, start, signed_in, devices, data_code, add_file, remove_file, files_on, get_file};
+  return {DEFAULT_SERVER, admin_url, ready, init, watch_other_tabs, on_status, get status() { return status; }, sync_now, note_change, check_link, server_info, request_signup_code, register, recover, change_password, sign_in, sign_out, start, signed_in, devices, data_code, add_file, remove_file, files_on, get_file};
 })();

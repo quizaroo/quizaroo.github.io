@@ -162,7 +162,7 @@ function sync_section() {
       field('Recovery code', code_el, 'wide'), field('New password', recover_password_el), el('div', {class: 'button-row'}, recover_button, recover_message_el));
     [reach_el, create_button, cert_el, help_el, recover_form].forEach(hidden_el => { hidden_el.hidden = true; });
     // Whether the server answers, and if so whether it takes new accounts (that's when Create account shows). Checked again on leaving the field, with Check again, and every 12 seconds while it can't be reached or isn't taking accounts: that may change on the server meanwhile.
-    let check_number = 0, last_result = '', checked_server = null;
+    let check_number = 0, last_result = '', checked_server = null, server_wants_code = false;
     function check_server(is_quiet) {
       const server_url = chosen_server(), this_check = ++check_number;
       clearTimeout(server_el.check_timer); clearTimeout(reach_timer);
@@ -174,6 +174,7 @@ function sync_section() {
       sync_engine.server_info(server_url).then(server_reply => {
         if (this_check !== check_number || !section_el.isConnected) return;
         const is_open = server_reply.registration === 'open';
+        server_wants_code = !!server_reply.email_codes;
         last_result = is_open ? 'open' : 'closed';
         create_button.hidden = !is_open; help_el.hidden = true; cert_el.hidden = true;
         if (uses_own_server) reach_text_el.textContent = is_open ? '✓ Server found. It is taking new accounts: sign in, or create an account.' : "✓ Server found. It isn't taking new accounts, so there's no Create account: sign in with an account that already exists. To add a person, the server has to allow new accounts first (flashcards-admin registration open, see the server guide). This updates by itself once it does.";
@@ -195,11 +196,29 @@ function sync_section() {
         } catch (url_err) {}
       });
     }
+    // On a server that confirms addresses, Create account sends a code first, and the same button then finishes with it.
+    const email_code_el = text_input('email_code', {inputmode: 'numeric', autocomplete: 'one-time-code', maxlength: '8'}), email_code_field = field('Code from your email', email_code_el), resend_button = el('button', {type: 'button'});
+    email_code_field.hidden = true; resend_button.hidden = true; resend_button.textContent = 'Send a new code';
+    let code_sent_to = '';
+    const send_code = async show_message => {
+      show_message('Sending a code…');
+      await sync_engine.request_signup_code(chosen_server(), email_el.value.trim());
+      code_sent_to = email_el.value.trim().toLowerCase();
+      email_code_field.hidden = false; resend_button.hidden = false;
+      create_button.disabled = false; create_button.textContent = 'Finish creating account';
+      email_code_el.value = ''; email_code_el.focus();
+      show_message('Check your email (and its spam folder) for a code from Open Flashcards. It lasts 15 minutes.');
+    };
+    resend_button.onclick = button_work(resend_button, message_el, send_code);
+    email_el.addEventListener('input', () => { if (email_el.value.trim().toLowerCase() === code_sent_to || !code_sent_to) return; code_sent_to = ''; email_code_field.hidden = true; resend_button.hidden = true; create_button.textContent = 'Create account'; });
     create_button.addEventListener('click', button_work(create_button, message_el, async show_message => {
       if (!email_el.value.trim() || !password_el.value) return show_message('Enter your email and password');
       if (password_el.value.length < 10) return show_message('Use at least 10 characters');
-      create_button.disabled = true; show_message('Creating your account and keys…');
-      const code_text = await sync_engine.register(chosen_server(), email_el.value.trim(), password_el.value);
+      create_button.disabled = true;
+      if (server_wants_code && !code_sent_to) return send_code(show_message);
+      if (server_wants_code && !email_code_el.value.trim()) { create_button.disabled = false; return show_message('Enter the code from your email'); }
+      show_message('Creating your account and keys…');
+      const code_text = await sync_engine.register(chosen_server(), email_el.value.trim(), password_el.value, server_wants_code ? email_code_el.value.trim() : undefined);
       offer_to_save_login(email_el.value.trim(), password_el.value);
       show_recovery_code(code_text);
     }));
@@ -209,7 +228,7 @@ function sync_section() {
       await sync_engine.sign_in(chosen_server(), email_el.value.trim(), password_el.value);
       offer_to_save_login(email_el.value.trim(), password_el.value);
       await sync_engine.start(); draw();
-    })(); }}, server_field_el, field('Email', email_el), field('Password', password_el), reach_el, el('div', {class: 'button-row'}, sign_in_button, create_button, el('button', {type: 'button', onclick: () => { recover_form.hidden = !recover_form.hidden; }}, 'Forgot password?'), message_el));
+    })(); }}, server_field_el, field('Email', email_el), field('Password', password_el), email_code_field, reach_el, el('div', {class: 'button-row'}, sign_in_button, create_button, resend_button, el('button', {type: 'button', onclick: () => { recover_form.hidden = !recover_form.hidden; }}, 'Forgot password?'), message_el));
     const reason_el = sync_status.error ? el('p', {class: 'sync-out-reason'}, sync_status.error) : null;
     body_el.replaceChildren(...[reason_el, el('p', {class: 'muted'}, 'Sync keeps your phone and laptop in step. Everything is encrypted here first; the server only stores scrambled copies.'), sync_note(), sign_in_form, cert_el, help_el, recover_form, el('div', {class: 'button-row'}, own_server_button)].filter(Boolean));
     check_server();

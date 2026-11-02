@@ -13,9 +13,13 @@
 //   QUOTA_MB          default 1024 per user (records and files together); accounts in ADMIN_EMAILS have no limit but the disk
 //   MAX_SIGNUPS_PER_DAY  default 0 (no limit): new accounts per UTC day
 //   ADMIN_EMAILS      comma list of accounts that can use /admin
+//   EMAIL_CODES       on | off (default): new accounts confirm their address with a code sent by email
+//   MAIL_FROM         the address codes come from, e.g. noreply@example.com
+//   SMTP_HOST, SMTP_PORT  the mail server that sends them; default 127.0.0.1 and 25, with no sign-in
 //   SHARING           on | off (default): the sharing routes, which let any account look others up by email
 
 import http from 'node:http';
+import net from 'node:net';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -29,6 +33,11 @@ const ENV_REGISTRATION = process.env.REGISTRATION || 'first';
 const ENV_SIGNUP_LIMIT = Number(process.env.MAX_SIGNUPS_PER_DAY) || 0;
 const ADMINS = new Set((process.env.ADMIN_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean));
 const SHARING = process.env.SHARING === 'on';
+const EMAIL_CODES = process.env.EMAIL_CODES === 'on';
+const MAIL_FROM = process.env.MAIL_FROM || '';
+const SMTP_HOST = process.env.SMTP_HOST || '127.0.0.1';
+const SMTP_PORT = Number(process.env.SMTP_PORT || 25);
+if (EMAIL_CODES && !MAIL_FROM) throw new Error('EMAIL_CODES=on needs MAIL_FROM');
 const NO_LIMIT_QUOTA = 100 * 1024 * 1024 * 1024;
 const QUOTA = Number(process.env.QUOTA_MB || 1024) * 1024 * 1024;
 const MAX_BODY = 20 * 1024 * 1024;
@@ -121,6 +130,10 @@ db.exec('CREATE TABLE IF NOT EXISTS signups (at TEXT NOT NULL)');
 if (!db.prepare('PRAGMA table_info(users)').all().some(c => c.name === 'quota_mb')) db.exec('ALTER TABLE users ADD COLUMN quota_mb REAL');
 // The admin's whitelist: addresses to keep, whether or not they have an account yet.
 db.exec('CREATE TABLE IF NOT EXISTS whitelist (email TEXT PRIMARY KEY, added_at TEXT NOT NULL)');
+if (!db.prepare('PRAGMA table_info(users)').all().some(c => c.name === 'email_confirmed_at')) db.exec('ALTER TABLE users ADD COLUMN email_confirmed_at TEXT');
+// Codes waiting to be typed in, and every email sent, so the limits can be checked.
+db.exec('CREATE TABLE IF NOT EXISTS signup_codes (email TEXT PRIMARY KEY, code_hash TEXT NOT NULL, expires_at TEXT NOT NULL, tries INTEGER NOT NULL DEFAULT 0)');
+db.exec('CREATE TABLE IF NOT EXISTS mail_log (at TEXT NOT NULL, email TEXT NOT NULL, ip TEXT NOT NULL)');
 // How much each account does each day (UTC), for spotting abuse.
 db.exec(`CREATE TABLE IF NOT EXISTS activity (
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -164,6 +177,68 @@ function scrypt(value, salt) {
   return new Promise((resolve, reject) => crypto.scrypt(value, salt, 64, { N: 16384, r: 8, p: 1 }, (e, k) => (e ? reject(e) : resolve(k.toString('hex')))));
 }
 const same = (a, b) => a.length === b.length && crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
+
+// ---------- email ----------
+// Plain SMTP to a mail server this machine can already use. Nothing from the caller goes into a message but
+// the address, which has been checked, so nobody can use this to send words of their own.
+
+const STRICT_EMAIL = /^[a-z0-9_%+'][a-z0-9._%+'-]*@[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}$/;
+const CODE_MINUTES = 15;
+const MAX_CODE_TRIES = 5;
+const MAIL_LIMITS = { gapSeconds: 60, perEmailHour: 3, perIpHour: 6, perDay: 30 };
+
+function sendMail(to, subject, lines) {
+  const domain = MAIL_FROM.split('@')[1];
+  const message = [`From: Open Flashcards <${MAIL_FROM}>`, `To: ${to}`, `Subject: ${subject}`, `Date: ${new Date().toUTCString().replace('GMT', '+0000')}`, `Message-ID: <${crypto.randomUUID()}@${domain}>`, 'MIME-Version: 1.0', 'Content-Type: text/plain; charset=utf-8', 'Auto-Submitted: auto-generated', '', ...lines].join('\r\n');
+  const steps = [['', 220], [`EHLO ${domain}`, 250], [`MAIL FROM:<${MAIL_FROM}>`, 250], [`RCPT TO:<${to}>`, 250], ['DATA', 354], [`${message}\r\n.`, 250], ['QUIT', 221]];
+  return new Promise((resolve, reject) => {
+    const socket = net.connect(SMTP_PORT, SMTP_HOST);
+    let buffer = '';
+    let step = 0;
+    const finish = err => { socket.destroy(); if (err) reject(err); else resolve(); };
+    socket.setTimeout(15000, () => finish(new Error('Mail server took too long')));
+    socket.on('error', finish);
+    socket.on('close', () => finish(step >= steps.length ? null : new Error('Mail server hung up')));
+    socket.on('data', chunk => {
+      buffer += chunk;
+      // A reply is finished by a line with a space after its code.
+      const last = buffer.split('\r\n').filter(Boolean).at(-1) || '';
+      if (!buffer.endsWith('\r\n') || !/^\d{3} /.test(last)) return;
+      const code = Number(last.slice(0, 3));
+      buffer = '';
+      if (code !== steps[step][1]) return finish(new Error(`Mail server said ${last}`));
+      step++;
+      if (step === steps.length) return finish();
+      socket.write(`${steps[step][0]}\r\n`);
+    });
+  });
+}
+
+// Each limit answers the same way, so it can't be used to learn about an address.
+function checkMailLimits(email, ip) {
+  const since = ms => new Date(Date.now() - ms).toISOString();
+  const count = (sql, ...args) => db.prepare(`SELECT COUNT(*) n FROM mail_log WHERE ${sql}`).get(...args).n;
+  if (count('email = ? AND at > ?', email, since(MAIL_LIMITS.gapSeconds * 1000))) throw new HttpError(429, 'A code was only just sent. Wait a minute, then try again.');
+  if (count('email = ? AND at > ?', email, since(3600000)) >= MAIL_LIMITS.perEmailHour || count('ip = ? AND at > ?', ip, since(3600000)) >= MAIL_LIMITS.perIpHour) throw new HttpError(429, 'Too many codes asked for. Try again in an hour.');
+  if (count('at > ?', since(24 * 3600000)) >= MAIL_LIMITS.perDay) throw new HttpError(429, "No more codes can be sent today. Try again tomorrow.");
+}
+const codeHash = (email, code) => crypto.createHmac('sha256', secret).update(`${email}/${code}`).digest('hex');
+
+// Used up if right; a few wrong tries and a new code is needed.
+function useCode(email, code, ip) {
+  const row = db.prepare('SELECT * FROM signup_codes WHERE email = ?').get(email);
+  const expired = row && row.expires_at < now();
+  if (!row || expired) {
+    if (expired) db.prepare('DELETE FROM signup_codes WHERE email = ?').run(email);
+    throw new HttpError(400, 'That code has run out. Ask for a new one.');
+  }
+  if (typeof code !== 'string' || !same(codeHash(email, code.replace(/\s/g, '')), row.code_hash)) {
+    fail(`i:${ip}`);
+    if (row.tries + 1 >= MAX_CODE_TRIES) { db.prepare('DELETE FROM signup_codes WHERE email = ?').run(email); throw new HttpError(400, 'Too many wrong tries. Ask for a new code.'); }
+    db.prepare('UPDATE signup_codes SET tries = tries + 1 WHERE email = ?').run(email);
+    throw new HttpError(400, "That code isn't right. Check the email and try again.");
+  }
+}
 
 // ---------- tiny router ----------
 
@@ -385,7 +460,7 @@ const ownShare = (userId, shareId) => {
 // ---------- endpoints ----------
 
 const routes = {
-  'GET /api/health': () => ({ ok: true, registration: registrationNow(), day_is_full: dayIsFull(), all_off: allOff(), quota_mb: defaultQuotaMb() }),
+  'GET /api/health': () => ({ ok: true, registration: registrationNow(), day_is_full: dayIsFull(), all_off: allOff(), quota_mb: defaultQuotaMb(), email_codes: EMAIL_CODES }),
 
   // The app needs its key-derivation settings before it can make the login hash.
   'POST /api/prelogin': async ({ body }) => {
@@ -395,7 +470,33 @@ const routes = {
     return { kdf: { name: 'PBKDF2-SHA256', iterations: 600000, salt: crypto.createHmac('sha256', secret).update(email).digest('base64') } };
   },
 
-  'POST /api/register': async ({ body }) => {
+  // The first step of a new account: a code to this address. If it already has an account it gets a note
+  // saying so instead of a code, and the caller gets the same answer either way.
+  'POST /api/signup/code': async ({ body, ip }) => {
+    if (!EMAIL_CODES) throw new HttpError(404, 'This server does not use email codes');
+    if (registrationNow() !== 'open') throw new HttpError(403, dayIsFull() ? "Today's new accounts have all gone. Try again tomorrow." : 'Registration is closed on this server');
+    const email = String(body.email || '').trim().toLowerCase();
+    if (!STRICT_EMAIL.test(email) || email.length > 200) throw new HttpError(400, 'Enter a valid email address');
+    checkLimit(`i:${ip}`);
+    checkMailLimits(email, ip);
+    db.prepare('INSERT INTO mail_log (at, email, ip) VALUES (?, ?, ?)').run(now(), email, ip);
+    const known = db.prepare('SELECT 1 FROM users WHERE email = ?').get(email) || adminPins()[email];
+    try {
+      if (known) {
+        await sendMail(email, 'You already have an Open Flashcards account', ['Someone, probably you, tried to create an Open Flashcards account with this address, but it already has one.', '', 'To use it, sign in under Settings, Sync. If you have forgotten your password, Forgot password? is there too, and needs your recovery code.', '', 'If this was not you, you can ignore this email.']);
+      } else {
+        const code = String(crypto.randomInt(1000000)).padStart(6, '0');
+        db.prepare('INSERT INTO signup_codes (email, code_hash, expires_at) VALUES (?, ?, ?) ON CONFLICT (email) DO UPDATE SET code_hash = excluded.code_hash, expires_at = excluded.expires_at, tries = 0').run(email, codeHash(email, code), new Date(Date.now() + CODE_MINUTES * 60000).toISOString());
+        await sendMail(email, 'Your Open Flashcards code', [`Your code is ${code}`, '', `Type it into Open Flashcards to finish creating your account. It lasts ${CODE_MINUTES} minutes.`, '', 'If you did not ask for this, you can ignore this email.']);
+      }
+    } catch (e) {
+      console.error('Mail not sent:', e.message);
+      throw new HttpError(502, "The email couldn't be sent. Try again later.");
+    }
+    return { ok: true };
+  },
+
+  'POST /api/register': async ({ body, ip }) => {
     const refuseIfClosed = () => { if (registrationNow() !== 'open') throw new HttpError(403, dayIsFull() ? "Today's new accounts have all gone. Try again tomorrow." : 'Registration is closed on this server'); };
     refuseIfClosed();
     const email = String(body.email || '').trim().toLowerCase();
@@ -403,6 +504,8 @@ const routes = {
     if (typeof body.auth_hash !== 'string' || body.auth_hash.length < 32) throw new HttpError(400, 'Missing auth_hash');
     if (typeof body.wrapped_data_key !== 'string' || !body.kdf) throw new HttpError(400, 'Missing keys');
     if (typeof body.recovery_hash !== 'string' || body.recovery_hash.length < 32) throw new HttpError(400, 'Missing recovery_hash');
+    if (EMAIL_CODES && body.code === undefined) throw new HttpError(400, 'This server needs a code sent by email. Update the app, then try again.');
+    if (EMAIL_CODES) { checkLimit(`i:${ip}`); useCode(email, body.code, ip); }
     const taken = () => db.prepare('SELECT 1 FROM users WHERE email = ?').get(email) || adminPins()[email];
     if (taken()) throw new HttpError(409, 'That email already has an account');
     const salt = b64url(crypto.randomBytes(16));
@@ -414,8 +517,10 @@ const routes = {
     refuseIfClosed();
     if (taken()) throw new HttpError(409, 'That email already has an account');
     db.prepare('INSERT INTO signups (at) VALUES (?)').run(now());
+    if (EMAIL_CODES) db.prepare('DELETE FROM signup_codes WHERE email = ?').run(email);
     db.prepare('INSERT INTO users (id, email, auth_hash, auth_salt, kdf, wrapped_data_key, recovery_hash, recovery_salt, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
       .run(userId, email, authHash, salt, JSON.stringify(body.kdf), body.wrapped_data_key, recoveryHash, rsalt, now());
+    if (EMAIL_CODES) db.prepare('UPDATE users SET email_confirmed_at = ? WHERE id = ?').run(now(), userId);
     pinAdmins();
     return { user_id: userId, ...newDevice(userId, body.device_name) };
   },
@@ -625,7 +730,7 @@ const routes = {
     const today = now().slice(0, 10);
     const week = new Date(Date.now() - 6 * DAY_MS).toISOString().slice(0, 10);
     const seen = metaGet('admin_seen') || '';
-    const accounts = db.prepare(`SELECT u.id, u.email, u.created_at, u.quota_mb,
+    const accounts = db.prepare(`SELECT u.id, u.email, u.created_at, u.quota_mb, u.email_confirmed_at,
         (u.email IN (SELECT email FROM whitelist)) AS whitelisted,
         (SELECT COUNT(*) FROM devices d WHERE d.user_id = u.id) AS devices,
         (SELECT MAX(last_seen) FROM devices d WHERE d.user_id = u.id) AS last_seen,
@@ -816,7 +921,7 @@ function adminFile(req, res, url) {
 }
 
 // Sign-in and account requests are the only ones allowed before a device is known.
-const PUBLIC = new Set(['/api/prelogin', '/api/register', '/api/login', '/api/recover']);
+const PUBLIC = new Set(['/api/signup/code', '/api/prelogin', '/api/register', '/api/login', '/api/recover']);
 
 // The caller's address: behind Caddy or Apache (the server only listens on
 // 127.0.0.1) it is the last X-Forwarded-For entry, the one the proxy added.

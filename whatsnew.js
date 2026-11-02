@@ -8,6 +8,7 @@
 // No `at`: no Show me. PUBLISHED holds when each version went live (UTC), filled in by tools/publish.py.
 const FIRST_SET = ['.set-row .row-title'];
 const WHATS_NEW = {
+  '1.3.05': [{text: 'Sync: creating an account now emails you a code to confirm your address.', go: '#/settings', at: '#sync-section'}],
   '1.3.04': [
     {text: 'Sync: clearer wording before you sign in, including the address to email to keep using it after 24 hours.', go: '#/settings', at: '#sync-section'},
     {text: 'iPhone and iPad: a tip on Home to add the app to your Home Screen, because Safari can clear saved data after about a week away.'}
@@ -78,6 +79,7 @@ const WHATS_NEW = {
   '1.0.00': [{text: 'Open Flashcards goes live: make sets, flip and swipe through them, and import or export them as JSON.'}]
 };
 const PUBLISHED = {
+  '1.3.05': '2026-11-02T19:22:24Z',
   '1.3.04': '2026-11-02T19:17:34Z',
   '1.3.03': '2026-11-02T17:58:13Z',
   '1.3.02': '2026-11-02T17:50:20Z',

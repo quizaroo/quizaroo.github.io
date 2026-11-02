@@ -108,7 +108,7 @@ function draw_list() {
     const quota_text = account.is_admin ? 'no limit' : size_text(account.quota_bytes) + (account.quota_mb === null ? '' : ' (own)');
     return el('tr', {},
       el('td', {}, account.is_admin ? null : el('input', {type: 'checkbox', checked: selected.has(account.email), 'aria-label': 'Select ' + account.email, onchange: change_event => { if (change_event.target.checked) selected.add(account.email); else selected.delete(account.email); paint_count(); }})),
-      el('td', {class: 'email'}, account.email, account.is_new ? el('span', {class: 'tag'}, 'new') : null, account.is_admin ? el('span', {class: 'tag plain'}, 'you') : null, warnings(account).map(([warning_text, warning_kind]) => el('span', {class: 'tag ' + warning_kind}, warning_text))),
+      el('td', {class: 'email'}, account.email, account.is_new ? el('span', {class: 'tag'}, 'new') : null, account.email_confirmed_at ? el('span', {class: 'tag plain'}, 'confirmed') : null, account.is_admin ? el('span', {class: 'tag plain'}, 'you') : null, warnings(account).map(([warning_text, warning_kind]) => el('span', {class: 'tag ' + warning_kind}, warning_text))),
       el('td', {}, el('input', {type: 'checkbox', checked: account.is_admin || account.whitelisted, disabled: account.is_admin, 'aria-label': 'Whitelist ' + account.email, onchange: change_event => act(() => api('POST', '/api/admin/whitelist', {op: change_event.target.checked ? 'add' : 'remove', emails: [account.email]}))})),
       el('td', {}, when_text(account.created_at), account.under_a_day ? el('span', {class: 'tag plain'}, 'under 24 h') : null),
       el('td', {}, when_text(account.last_seen)), el('td', {}, account.devices),

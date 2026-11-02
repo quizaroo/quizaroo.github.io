@@ -27,7 +27,7 @@ Add it to your phone's home screen from the browser's Share menu to use it like 
 
 **You don't need an account.** The app works fully without signing in, and you won't lose your data as long as you keep a backup: one button, Export all in Your Library, downloads everything to a single JSON file.
 
-**This app is free.** If you'd like your phone and laptop to stay in step, sync is open to you too. Just sign up in the app, under Settings → Sync.
+**This app is free.** If you'd like your phone and laptop to stay in step, sync is open to you too. Just sign up in the app, under Settings → Sync. It emails you a code to confirm your address.
 
 - **Please email me to keep it.** To keep using sync after 24 hours, email <hazymat@gmail.com>. Otherwise your account may be deleted, though not within its first 24 hours unless the server has to be closed because of abuse. You won't lose anything if it is: your data stays on your device, and it just stops syncing.
 - **Private by design.** Everything is encrypted on your device first, with a key made from your password. The server can't read your data, and nobody can reset your password, so save the recovery code it gives you.
