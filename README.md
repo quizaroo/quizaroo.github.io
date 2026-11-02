@@ -14,6 +14,8 @@ A simple, open-source flashcards app that runs entirely in your browser. No acco
 - Your sets are stored in your browser (localStorage). Export regularly if you want a backup.
 - A browser with nothing saved starts with the demo sets from `demo-sets.json`. "Load demo sets" adds any that are missing and never changes your existing sets.
 
+A bar tells you when a new version is ready, and Settings lets you check for updates and read what changed in every version. Once loaded, it works without a connection.
+
 Add it to your phone's home screen from the browser's Share menu to use it like an app.
 
 ## File format
@@ -29,5 +31,9 @@ Add it to your phone's home screen from the browser's Share menu to use it like 
 ```
 
 Import also accepts a bare array of sets, or a single set object. If a set's `id` already exists and its cards differ, the app asks whether to merge, replace, keep both or skip. Identical sets are skipped. Optional fields on a set: `"description"`, `"created"` (`YYYY-MM-DD`), `"colour"` (`rose`, `coral`, `peach`, `butter`, `lime`, `mint`, `teal`, `sky`, `periwinkle`, `lavender`, `orchid` or `sand`), `"last_studied"` and `"last_opened"` (milliseconds since 1970), `"front"` (`definition` or `mixed`) for which side shows first, plus `"progress"` and `"best_speed"`, which the app writes to record how well you know each card.
+
+## Publishing a version
+
+Merging to `main` deploys. For each release, add an entry to `WHATS_NEW` in `whatsnew.js`, set `VERSION` in `sw.js` to match, check each Show me, run `python3 tools/publish.py --now`, and commit.
 
 MIT licensed.

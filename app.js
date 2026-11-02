@@ -6,7 +6,7 @@ let app_state = load_state(), study_session = null, editor_has_changes = null, s
 
 function load_state() {
   try { const stored_state = JSON.parse(localStorage.getItem(STORAGE_KEY)); if (stored_state && Array.isArray(stored_state.sets)) return stored_state; } catch (storage_err) {}
-  return {sets: [], shuffle: true, library_sort: 'name', demo_version: DEMO_VERSION};
+  return {sets: [], shuffle: true, library_sort: 'name', demo_version: DEMO_VERSION, seen_version: APP_VERSION};
 }
 function save_state() { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(app_state)); } catch (storage_err) { alert('Could not save: browser storage is full or blocked.'); } }
 function new_id() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
@@ -294,21 +294,36 @@ document.addEventListener('keydown', key_event => {
   else if (key_event.key === 'ArrowLeft') study_buttons[0].click(); else if (key_event.key === 'ArrowRight') study_buttons[2].click();
 });
 
-// ---- Routing: #/ , #/library, #/new, #/set/<id>, #/edit/<id>, #/play/<id>/<mode> ----
+function view_settings() {
+  const check_button = el('button', {onclick: async () => {
+    check_button.disabled = true; check_button.textContent = 'Checking…';
+    const check_result = await check_for_update();
+    if (check_result === 'ready') { toast('Updating…'); await apply_update(); return; }
+    check_button.disabled = false; check_button.textContent = 'Check for updates';
+    toast(check_result === 'offline' ? 'Could not reach the server. Try again when you are online.' : 'You have the latest version.');
+  }}, 'Check for updates');
+  render('Settings', [], [el('section', {class: 'updates-section'}, el('h2', {class: 'list-heading'}, 'Updates'),
+    el('div', {class: 'ruled'},
+      el('div', {class: 'detail-row'}, el('div', {class: 'line-margin'}, 'Version'), el('div', {class: 'settings-line'}, el('span', {}, 'Open Flashcards v' + APP_VERSION), check_button, el('button', {onclick: () => show_whats_new(app_state.whatsnew_last || APP_VERSION)}, "What's new"))),
+      el('div', {class: 'detail-row'}, el('div', {class: 'line-margin'}, 'After'), el('label', {class: 'settings-line'}, el('input', {type: 'checkbox', checked: app_state.show_update_info !== false, onchange: change_event => { app_state.show_update_info = change_event.target.checked; save_state(); toast(change_event.target.checked ? "What's new shows after each update." : "What's new won't show after updates."); }}), 'Show update info', el('span', {class: 'muted'}, 'After an update, a list of what changed, each with Show me.')))))]);
+}
+
+// ---- Routing: #/ , #/library, #/settings, #/new, #/set/<id>, #/edit/<id>, #/play/<id>/<mode> ----
 function route() {
   const route_parts = location.hash.replace(/^#\/?/, '').split('/'), route_name = route_parts[0], route_set = find_set(decodeURIComponent(route_parts[1] || ''));
-  const is_home = !['library', 'new', 'set', 'edit', 'play'].includes(route_name) || (['set', 'edit', 'play'].includes(route_name) && !route_set);
+  const is_home = !['library', 'settings', 'new', 'set', 'edit', 'play'].includes(route_name) || (['set', 'edit', 'play'].includes(route_name) && !route_set);
   editor_has_changes = null;
   study_session = null; clear_mode_timers();
   if (['set', 'edit', 'play'].includes(route_name) && route_set) { route_set.last_opened = Date.now(); save_state(); }
   if (is_home) last_list_hash = '#/'; else if (route_name === 'library') last_list_hash = '#/library';
-  document.querySelectorAll('.nav-item').forEach(nav_el => nav_el.classList.toggle('active', nav_el.dataset.nav === (is_home ? 'home' : 'library')));
+  document.querySelectorAll('.nav-item').forEach(nav_el => nav_el.classList.toggle('active', nav_el.dataset.nav === (is_home ? 'home' : route_name === 'settings' ? 'settings' : 'library')));
   if (['new', 'edit', 'play'].includes(route_name) && !is_home) document.body.dataset.focus = ''; else delete document.body.dataset.focus;
   if (route_name === 'set' && route_set) view_set(route_set);
   else if (route_name === 'edit' && route_set) view_edit(route_set, false);
   else if (route_name === 'play' && route_set) view_mode(route_set, route_parts[2]);
   else if (route_name === 'new') view_edit({id: new_id(), title: '', cards: []}, true);
   else if (route_name === 'library') view_library();
+  else if (route_name === 'settings') view_settings();
   else view_home();
 }
 // Leaving the editor by any route (sidebar, back button) asks first if something would be lost.
@@ -322,3 +337,5 @@ document.getElementById('theme-button').addEventListener('click', () => { try { 
 route();
 seed_demo_sets();
 upgrade_demo_sets();
+after_update();
+register_service_worker();
