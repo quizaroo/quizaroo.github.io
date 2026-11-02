@@ -88,3 +88,66 @@ function press_and_drag(root_el, drag_options) {
   root_el.addEventListener('contextmenu', menu_event => { if (pressed || dragging_el) menu_event.preventDefault(); });
   root_el.addEventListener('dragstart', drag_event => drag_event.preventDefault());
 }
+
+// Selecting in a list, the same as Sift: hold an item and let go, then tap others. A bar at the bottom moves or deletes them together, and they drag as one. Keys: Esc, Delete, Shift+arrows to extend, Shift+Alt+arrows to move, Ctrl+A for all. Each row's item is row_el.list_item.
+//   selectable_list(rows_el, {item_selector, fixed_selector, skip_selector, noun, on_reorder(), on_delete(chosen_items) returning an undo, on_paint(is_selecting), extra_buttons(chosen_items)})
+let selection_keys = null;
+function end_selection_bar() { selection_keys = null; document.querySelectorAll('.select-bar').forEach(bar_el => bar_el.remove()); document.body.classList.remove('has-select-bar'); }
+function selectable_list(rows_el, list_options) {
+  const selected_items = new Set(); let select_anchor = null, select_cursor = null, carried_rows = [];
+  const fixed_selector = list_options.fixed_selector || null;
+  const item_rows = () => Array.from(rows_el.children).filter(row_el => !(fixed_selector && row_el.matches(fixed_selector)));
+  function clear_selection() { selected_items.clear(); select_anchor = select_cursor = null; paint_selection(); }
+  function select_range(to_item) { const row_items = item_rows().map(row_el => row_el.list_item), from_index = row_items.indexOf(select_anchor), to_index = row_items.indexOf(to_item); selected_items.clear(); row_items.slice(Math.min(from_index, to_index), Math.max(from_index, to_index) + 1).forEach(row_item => selected_items.add(row_item)); select_cursor = to_item; paint_selection(); }
+  function pick_item(list_item, is_range) { if (is_range && select_anchor && item_rows().some(row_el => row_el.list_item === select_anchor)) return select_range(list_item); if (selected_items.has(list_item)) selected_items.delete(list_item); else selected_items.add(list_item); select_anchor = select_cursor = list_item; paint_selection(); }
+  function select_all() { item_rows().forEach(row_el => selected_items.add(row_el.list_item)); paint_selection(); }
+  function move_selected(step_by) {
+    const selected_rows = item_rows().filter(row_el => selected_items.has(row_el.list_item));
+    (step_by < 0 ? selected_rows : selected_rows.slice().reverse()).forEach(row_el => { const next_row = step_by < 0 ? row_el.previousElementSibling : row_el.nextElementSibling; if (!next_row || (fixed_selector && next_row.matches(fixed_selector)) || selected_items.has(next_row.list_item)) return; if (step_by < 0) next_row.before(row_el); else next_row.after(row_el); });
+    list_options.on_reorder(); if (selected_rows[0]) selected_rows[0].scrollIntoView({block: 'nearest'});
+  }
+  function delete_selected() {
+    const chosen_items = Array.from(selected_items);
+    if (!chosen_items.length) return;
+    selected_items.clear(); select_anchor = select_cursor = null;
+    const undo_delete = list_options.on_delete(chosen_items); paint_selection();
+    toast(chosen_items.length + ' ' + list_options.noun + (chosen_items.length === 1 ? '' : 's') + ' deleted', {action: 'Undo', on_action: undo_delete, ms: 8000});
+  }
+  function paint_selection() {
+    if (!rows_el.isConnected && selected_items.size) { selected_items.clear(); }
+    const is_selecting = selected_items.size > 0;
+    Array.from(rows_el.children).forEach(row_el => row_el.classList.toggle('selected', selected_items.has(row_el.list_item)));
+    rows_el.classList.toggle('is-selecting', is_selecting);
+    if (list_options.on_paint) list_options.on_paint(is_selecting);
+    end_selection_bar();
+    if (!is_selecting) return;
+    const key_hint = key_text => el('kbd', {}, key_text), chosen_items = item_rows().map(row_el => row_el.list_item).filter(row_item => selected_items.has(row_item));
+    const extra_buttons = list_options.extra_buttons ? list_options.extra_buttons(chosen_items) : [];
+    document.body.classList.add('has-select-bar');
+    document.body.appendChild(el('div', {class: 'select-bar', role: 'toolbar', 'aria-label': 'Selected ' + list_options.noun + 's'}, el('span', {class: 'select-count'}, selected_items.size + ' selected'),
+      el('button', {'aria-label': 'Clear selection', title: 'Clear selection (Esc)', onclick: clear_selection}, '✕', key_hint('Esc')), el('button', {title: 'Select all (Ctrl+A)', onclick: select_all}, 'All'),
+      el('button', {'aria-label': 'Move up', title: 'Move up (Shift+Alt+↑)', onclick: () => move_selected(-1)}, '↑'), el('button', {'aria-label': 'Move down', title: 'Move down (Shift+Alt+↓)', onclick: () => move_selected(1)}, '↓'),
+      ...extra_buttons, el('button', {class: 'danger', title: 'Delete (Delete)', onclick: delete_selected}, 'Delete', key_hint('Del'))));
+    selection_keys = key_event => {
+      if (key_event.target.matches('input, textarea, select') && !key_event.target.readOnly) return false;
+      const is_up_or_down = key_event.key === 'ArrowUp' || key_event.key === 'ArrowDown', step_by = key_event.key === 'ArrowUp' ? -1 : 1;
+      if (key_event.key === 'Escape') clear_selection();
+      else if (key_event.key === 'Delete' || key_event.key === 'Backspace') delete_selected();
+      else if ((key_event.ctrlKey || key_event.metaKey) && key_event.key.toLowerCase() === 'a') select_all();
+      else if (is_up_or_down && key_event.shiftKey && key_event.altKey) move_selected(step_by);
+      else if (is_up_or_down && key_event.shiftKey) { const row_items = item_rows().map(row_el => row_el.list_item), next_item = row_items[row_items.indexOf(select_cursor) + step_by]; if (next_item) select_range(next_item); }
+      else return false;
+      return true;
+    };
+  }
+  function end_carrying(row_el) { carried_rows.forEach(other_row => other_row.classList.remove('carried-along')); carried_rows = []; delete row_el.dataset.carrying; }
+  rows_el.addEventListener('mousedown', mouse_event => { if (selected_items.size && !(list_options.skip_selector && mouse_event.target.closest(list_options.skip_selector))) mouse_event.preventDefault(); });
+  press_and_drag(rows_el, {item_selector: list_options.item_selector, fixed_selector, skip_selector: list_options.skip_selector, one_axis: true,
+    on_lift: row_el => { carried_rows = selected_items.has(row_el.list_item) && selected_items.size > 1 ? item_rows().filter(other_row => selected_items.has(other_row.list_item)) : []; carried_rows.forEach(other_row => { if (other_row !== row_el) other_row.classList.add('carried-along'); }); if (carried_rows.length) row_el.dataset.carrying = carried_rows.length + ' ' + list_options.noun + 's'; },
+    on_still: row_el => { end_carrying(row_el); if (document.activeElement) document.activeElement.blur(); if (!selected_items.has(row_el.list_item)) pick_item(row_el.list_item, false); },
+    on_cancel: row_el => end_carrying(row_el),
+    on_drop: row_el => { const held_index = carried_rows.indexOf(row_el); carried_rows.slice(0, held_index).forEach(other_row => row_el.before(other_row)); carried_rows.slice(held_index + 1).reverse().forEach(other_row => row_el.after(other_row)); end_carrying(row_el); list_options.on_reorder(); }});
+  // After press_and_drag's own click listener, which swallows the click that ends a hold.
+  rows_el.addEventListener('click', click_event => { const row_el = click_event.target.closest(list_options.item_selector); if (!selected_items.size || !row_el || (fixed_selector && row_el.matches(fixed_selector)) || (list_options.skip_selector && click_event.target.closest(list_options.skip_selector))) return; click_event.preventDefault(); click_event.stopPropagation(); pick_item(row_el.list_item, click_event.shiftKey); }, true);
+  return {clear: clear_selection, paint: paint_selection, forget: list_item => { selected_items.delete(list_item); paint_selection(); }};
+}

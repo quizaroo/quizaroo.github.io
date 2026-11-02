@@ -2,7 +2,7 @@
 const STORAGE_KEY = 'open-flashcards:v1', THEME_KEY = 'open-flashcards:theme', STYLE_KEY = 'open-flashcards:style', view_button_el = document.getElementById('view-button'), DEMO_VERSION = 2, view_el = document.getElementById('view'), topbar_actions_el = document.getElementById('topbar-actions'), page_title_el = document.getElementById('page-title'), import_input_el = document.getElementById('import-file');
 // The same twelve soft hues as Sift. A set keeps the colour it was given (`colour`); until then its colour comes from its id, so it never changes.
 const TINTS = [['rose', '#ff9aa2'], ['coral', '#ffab91'], ['peach', '#ffc285'], ['butter', '#ffe27a'], ['lime', '#d4ef8a'], ['mint', '#9be7a8'], ['teal', '#86e3d0'], ['sky', '#8fd3ff'], ['periwinkle', '#a8b8ff'], ['lavender', '#c3a6ff'], ['orchid', '#f4a6e0'], ['sand', '#e3c9a8']];
-let editor_selection_keys = null, app_state = load_state(), study_session = null, editor_has_changes = null, skip_next_route = false, last_list_hash = '#/';
+let app_state = load_state(), study_session = null, editor_has_changes = null, skip_next_route = false, last_list_hash = '#/';
 
 function load_state() {
   try { const stored_state = JSON.parse(localStorage.getItem(STORAGE_KEY)); if (stored_state && Array.isArray(stored_state.sets)) return stored_state; } catch (storage_err) {}
@@ -127,6 +127,8 @@ function upgrade_demo_sets() {
 
 // ---- Views ----
 function study_pill(card_set) { if (!studyable_indexes(card_set).length) return null; const next_item = next_step(card_set); return el('a', {class: 'button study-pill', href: play_hash(card_set, next_item.mode)}, next_item.label); }
+// Every mode's progress on a set: cards known, Learn from scratch, the speed record, last studied. Trophies stay, once won.
+function reset_set_progress(card_set) { delete card_set.progress; card_set.learn_stages = {}; delete card_set.best_speed; delete card_set.last_studied; }
 function set_row(card_set) {
   return el('div', {class: 'set-row', style: tint_style(card_set)},
     el('div', {class: 'line-margin'}, el('span', {class: 'count-chip', title: card_set.cards.length + ' cards'}, card_set.cards.length)),
@@ -155,13 +157,29 @@ function view_home() {
 }
 function view_library() {
   const sort_rules = {name: (set_a, set_b) => set_a.title.localeCompare(set_b.title), newest: (set_a, set_b) => (set_b.created || '').localeCompare(set_a.created || '') || set_a.title.localeCompare(set_b.title), studied: (set_a, set_b) => (set_b.last_studied || 0) - (set_a.last_studied || 0) || set_a.title.localeCompare(set_b.title)};
+  // Custom: the order you dragged them into, kept when you sort another way. A set made since goes at the top.
+  const custom_places = new Map((app_state.library_custom_order || []).map((set_id, set_place) => [set_id, set_place]));
+  sort_rules.custom = (set_a, set_b) => (custom_places.has(set_a.id) ? custom_places.get(set_a.id) : -1) - (custom_places.has(set_b.id) ? custom_places.get(set_b.id) : -1) || sort_rules.newest(set_a, set_b);
   const library_sort = sort_rules[app_state.library_order] ? app_state.library_order : 'newest', sorted_sets = app_state.sets.slice().sort(sort_rules[library_sort]);
-  const sort_select_el = el('select', {onchange: change_event => { app_state.library_order = change_event.target.value; save_state(); view_library(); }}, el('option', {value: 'newest'}, 'Newest'), el('option', {value: 'name'}, 'Name'), el('option', {value: 'studied'}, 'Last studied'));
+  const sort_select_el = el('select', {onchange: change_event => { app_state.library_order = change_event.target.value; save_state(); view_library(); }}, el('option', {value: 'newest'}, 'Newest'), el('option', {value: 'name'}, 'Name'), el('option', {value: 'studied'}, 'Last studied'), el('option', {value: 'custom'}, 'Custom'));
   sort_select_el.value = library_sort;
   render(library_trail(), [plus_button()], [
     el('div', {class: 'button-row'}, el('label', {class: 'toggle-line'}, 'Sort by', sort_select_el), el('button', {onclick: () => import_input_el.click()}, 'Import'), el('button', {onclick: () => download_json('open-flashcards-all.json', app_state.sets)}, 'Export all'), el('button', {onclick: add_missing_demo_sets}, 'Load demo sets')),
-    sorted_sets.length ? el('div', {class: 'ruled'}, ...sorted_sets.map(set_row)) : el('p', {class: 'empty muted'}, 'No sets yet. Press + to make one, or import a .json file.')
+    sorted_sets.length ? el('div', {class: 'muted library-hint'}, 'Press and hold a set to move it, or let go to select it.') : '',
+    sorted_sets.length ? el('div', {class: 'ruled set-rows'}, ...sorted_sets.map(card_set => { const row_el = set_row(card_set); row_el.list_item = card_set; return row_el; })) : el('p', {class: 'empty muted'}, 'No sets yet. Press + to make one, or import a .json file.')
   ]);
+  const rows_el = view_el.querySelector('.set-rows');
+  if (!rows_el) return;
+  function count_label(chosen_sets) { return chosen_sets.length + (chosen_sets.length === 1 ? ' set' : ' sets'); }
+  const set_selection = selectable_list(rows_el, {item_selector: '.set-row', skip_selector: '.study-pill', noun: 'set',
+    on_reorder: () => { app_state.library_custom_order = Array.from(rows_el.children).map(row_el => row_el.list_item.id); app_state.library_order = 'custom'; save_state(); sort_select_el.value = 'custom'; },
+    on_delete: chosen_sets => { const kept_before = app_state.sets.slice(); app_state.sets = app_state.sets.filter(card_set => !chosen_sets.includes(card_set)); save_state(); view_library(); return () => { app_state.sets = kept_before; save_state(); view_library(); }; },
+    extra_buttons: chosen_sets => [el('button', {title: 'Reset all progress', onclick: () => {
+      const saved_progress = chosen_sets.map(card_set => ({card_set, progress: card_set.progress, learn_stages: card_set.learn_stages, best_speed: card_set.best_speed, last_studied: card_set.last_studied}));
+      chosen_sets.forEach(reset_set_progress); save_state(); view_library();
+      toast('Progress reset on ' + count_label(chosen_sets), {action: 'Undo', ms: 8000, on_action: () => { saved_progress.forEach(saved_item => { ['progress', 'learn_stages', 'best_speed', 'last_studied'].forEach(field_name => { if (saved_item[field_name] === undefined) delete saved_item.card_set[field_name]; else saved_item.card_set[field_name] = saved_item[field_name]; }); }); save_state(); view_library(); }});
+    }}, '↺ Reset')]});
+  set_selection.paint();
 }
 
 function view_import_conflicts(new_sets, conflicts, identical_count) {
@@ -207,7 +225,7 @@ function view_set(card_set) {
       studyable_count ? el('div', {class: 'hero-progress'}, progress_meter(card_set), el('div', {class: 'form-note'}, counts.mastered + ' mastered · ' + counts.familiar + ' familiar · ' + counts.learning + ' learning · ' + counts.new + ' new' + (due_count ? ' · ' + due_count + ' due now' : ''))) : null,
       !studyable_count ? el('div', {class: 'form-note'}, 'Add at least one card with a term and a definition to start learning.') : skipped_count ? el('div', {class: 'form-note'}, skipped_count + ' card(s) are missing a side and are left out.') : null),
     trophy_shelf(card_set), el('div', {class: 'mode-areas'}, mode_group('Learn'), mode_group('Practise'), mode_group('Games')), el('div', {class: 'muted mode-hint'}, 'Press and hold a tile to move it. ', el('button', {class: 'link-button', onclick: () => { app_state.mode_layout = {}; save_state(); view_set(card_set); }}, 'Reset')),
-    el('div', {class: 'button-row set-actions'}, el('button', {onclick: () => { if (!confirm('Reset your progress on "' + card_set.title + '"? Every card goes back to new. Your trophies stay.')) return; delete card_set.progress; card_set.learn_stages = {}; delete card_set.best_speed; delete card_set.last_studied; save_state(); view_set(card_set); }}, '↺ Reset progress'),
+    el('div', {class: 'button-row set-actions'}, el('button', {onclick: () => { if (!confirm('Reset your progress on "' + card_set.title + '"? Every card goes back to new. Your trophies stay.')) return; reset_set_progress(card_set); save_state(); view_set(card_set); }}, '↺ Reset progress'),
       el('button', {onclick: () => download_json(safe_file_name(card_set.title), [card_set])}, 'Export set'),
       el('button', {onclick: () => { const copied_set = JSON.parse(JSON.stringify(card_set)); copied_set.id = new_id(); copied_set.title = card_set.title + ' (copy)'; delete copied_set.last_studied; delete copied_set.last_opened; delete copied_set.progress; delete copied_set.learn_stages; delete copied_set.best_speed; delete copied_set.trophies; app_state.sets.push(copied_set); save_state(); location.hash = '#/set/' + copied_set.id; }}, 'Duplicate'),
       el('button', {class: 'danger', onclick: () => { if (!confirm('Delete "' + card_set.title + '"? This cannot be undone.')) return; app_state.sets = app_state.sets.filter(other_set => other_set.id !== card_set.id); save_state(); location.hash = '#/library'; }}, 'Delete set'))
@@ -228,64 +246,17 @@ function view_edit(card_set, is_new) {
   function is_blank(draft_card) { return !draft_card.term.trim() && !draft_card.definition.trim(); }
   function fit_height(textarea_el) { if (!textarea_el.isConnected) return; textarea_el.style.height = 'auto'; textarea_el.style.height = textarea_el.scrollHeight + 2 + 'px'; }
   function card_input(draft_card, side_key, side_label, row_el) { return el('textarea', {rows: 1, class: 'line-field', placeholder: side_label, 'aria-label': side_label, onfocus: focus_event => fit_height(focus_event.target), oninput: input_event => { draft_card[side_key] = input_event.target.value; fit_height(input_event.target); row_el.classList.toggle('blank-row', is_blank(draft_card)); add_blank_row(); error_el.hidden = true; }}, draft_card[side_key]); }
-  // Selecting: hold a card and let go, then tap others. The bar moves or deletes them together, and they drag as one. Keys as in Sift: Esc, Delete, Shift+arrows to extend, Shift+Alt+arrows to move, Ctrl+A for all.
-  const selected_cards = new Set(); let select_anchor = null, select_cursor = null, carried_rows = [];
-  const card_rows = () => Array.from(rows_el.children).filter(row_el => !row_el.matches('.blank-row'));
-  function sync_draft_order() { draft_cards.splice(0, draft_cards.length, ...Array.from(rows_el.children).map(row_el => row_el.draft_card)); }
-  function clear_selection() { selected_cards.clear(); select_anchor = select_cursor = null; paint_selection(); }
-  function select_range(to_card) { const row_cards = card_rows().map(row_el => row_el.draft_card), from_index = row_cards.indexOf(select_anchor), to_index = row_cards.indexOf(to_card); selected_cards.clear(); row_cards.slice(Math.min(from_index, to_index), Math.max(from_index, to_index) + 1).forEach(card_item => selected_cards.add(card_item)); select_cursor = to_card; paint_selection(); }
-  function pick_card(draft_card, is_range) { if (is_range && select_anchor && card_rows().some(row_el => row_el.draft_card === select_anchor)) return select_range(draft_card); if (selected_cards.has(draft_card)) selected_cards.delete(draft_card); else selected_cards.add(draft_card); select_anchor = select_cursor = draft_card; paint_selection(); }
-  function select_all() { card_rows().forEach(row_el => selected_cards.add(row_el.draft_card)); paint_selection(); }
-  function move_selected(step_by) {
-    const selected_rows = card_rows().filter(row_el => selected_cards.has(row_el.draft_card));
-    (step_by < 0 ? selected_rows : selected_rows.reverse()).forEach(row_el => { const next_row = step_by < 0 ? row_el.previousElementSibling : row_el.nextElementSibling; if (!next_row || next_row.matches('.blank-row') || selected_cards.has(next_row.draft_card)) return; if (step_by < 0) next_row.before(row_el); else next_row.after(row_el); });
-    sync_draft_order(); if (selected_rows[0]) selected_rows[0].scrollIntoView({block: 'nearest'});
-  }
-  function delete_selected() {
-    const kept_before = draft_cards.slice(), deleted_count = selected_cards.size;
-    if (!deleted_count) return;
-    draft_cards.splice(0, draft_cards.length, ...draft_cards.filter(draft_card => !selected_cards.has(draft_card))); clear_selection(); draw_rows();
-    toast(deleted_count + (deleted_count === 1 ? ' card' : ' cards') + ' deleted', {action: 'Undo', on_action: () => { draft_cards.splice(0, draft_cards.length, ...kept_before); draw_rows(); }, ms: 8000});
-  }
-  function paint_selection() {
-    const is_selecting = selected_cards.size > 0;
-    Array.from(rows_el.children).forEach(row_el => { row_el.classList.toggle('selected', selected_cards.has(row_el.draft_card)); row_el.querySelectorAll('textarea').forEach(textarea_el => { textarea_el.readOnly = is_selecting; }); });
-    rows_el.classList.toggle('is-selecting', is_selecting); document.body.classList.toggle('has-select-bar', is_selecting);
-    document.querySelectorAll('.select-bar').forEach(bar_el => bar_el.remove());
-    if (!is_selecting) { editor_selection_keys = null; return; }
-    const key_hint = key_text => el('kbd', {}, key_text);
-    document.body.appendChild(el('div', {class: 'select-bar', role: 'toolbar', 'aria-label': 'Selected cards'}, el('span', {class: 'select-count'}, selected_cards.size + ' selected'),
-      el('button', {'aria-label': 'Clear selection', title: 'Clear selection (Esc)', onclick: clear_selection}, '✕', key_hint('Esc')), el('button', {title: 'Select all (Ctrl+A)', onclick: select_all}, 'All'),
-      el('button', {'aria-label': 'Move up', title: 'Move up (Shift+Alt+↑)', onclick: () => move_selected(-1)}, '↑'), el('button', {'aria-label': 'Move down', title: 'Move down (Shift+Alt+↓)', onclick: () => move_selected(1)}, '↓'),
-      el('button', {class: 'danger', title: 'Delete (Delete)', onclick: delete_selected}, 'Delete', key_hint('Del'))));
-    editor_selection_keys = key_event => {
-      if (key_event.target.matches('input, textarea, select') && !key_event.target.readOnly) return false;
-      const is_up_or_down = key_event.key === 'ArrowUp' || key_event.key === 'ArrowDown', step_by = key_event.key === 'ArrowUp' ? -1 : 1;
-      if (key_event.key === 'Escape') clear_selection();
-      else if (key_event.key === 'Delete' || key_event.key === 'Backspace') delete_selected();
-      else if ((key_event.ctrlKey || key_event.metaKey) && key_event.key.toLowerCase() === 'a') select_all();
-      else if (is_up_or_down && key_event.shiftKey && key_event.altKey) move_selected(step_by);
-      else if (is_up_or_down && key_event.shiftKey) { const row_cards = card_rows().map(row_el => row_el.draft_card), next_card = row_cards[row_cards.indexOf(select_cursor) + step_by]; if (next_card) select_range(next_card); }
-      else return false;
-      return true;
-    };
-  }
-  rows_el.addEventListener('mousedown', mouse_event => { if (selected_cards.size && !mouse_event.target.closest('.remove-card')) mouse_event.preventDefault(); });
   function make_row(draft_card) {
-    const row_el = el('div', {class: 'edit-row' + (is_blank(draft_card) ? ' blank-row' : '')}, el('div', {class: 'line-margin line-number'})); row_el.draft_card = draft_card;
-    row_el.append(card_input(draft_card, 'term', 'Term', row_el), card_input(draft_card, 'definition', 'Definition', row_el), el('button', {class: 'remove-card', title: 'Remove card', 'aria-label': 'Remove card', tabindex: -1, onclick: () => { draft_cards.splice(draft_cards.indexOf(draft_card), 1); selected_cards.delete(draft_card); row_el.remove(); add_blank_row(); paint_selection(); }}, '✕'));
+    const row_el = el('div', {class: 'edit-row' + (is_blank(draft_card) ? ' blank-row' : '')}, el('div', {class: 'line-margin line-number'})); row_el.list_item = draft_card;
+    row_el.append(card_input(draft_card, 'term', 'Term', row_el), card_input(draft_card, 'definition', 'Definition', row_el), el('button', {class: 'remove-card', title: 'Remove card', 'aria-label': 'Remove card', tabindex: -1, onclick: () => { draft_cards.splice(draft_cards.indexOf(draft_card), 1); row_el.remove(); add_blank_row(); card_selection.forget(draft_card); }}, '✕'));
     rows_el.appendChild(row_el); row_el.querySelectorAll('textarea').forEach(fit_height);
   }
-  press_and_drag(rows_el, {item_selector: '.edit-row', fixed_selector: '.blank-row', skip_selector: '.remove-card', one_axis: true,
-    on_lift: row_el => { carried_rows = selected_cards.has(row_el.draft_card) && selected_cards.size > 1 ? card_rows().filter(other_row => selected_cards.has(other_row.draft_card)) : []; carried_rows.forEach(other_row => { if (other_row !== row_el) other_row.classList.add('carried-along'); }); if (carried_rows.length) row_el.dataset.carrying = carried_rows.length + ' cards'; },
-    on_still: row_el => { end_carrying(row_el); if (document.activeElement) document.activeElement.blur(); if (!selected_cards.has(row_el.draft_card)) pick_card(row_el.draft_card, false); },
-    on_cancel: row_el => end_carrying(row_el),
-    on_drop: row_el => { const held_index = carried_rows.indexOf(row_el); carried_rows.slice(0, held_index).forEach(other_row => row_el.before(other_row)); carried_rows.slice(held_index + 1).reverse().forEach(other_row => row_el.after(other_row)); end_carrying(row_el); sync_draft_order(); }});
-  // After press_and_drag's own click listener, which swallows the click that ends a hold.
-  rows_el.addEventListener('click', click_event => { const row_el = click_event.target.closest('.edit-row'); if (!selected_cards.size || !row_el || row_el.matches('.blank-row') || click_event.target.closest('.remove-card')) return; click_event.preventDefault(); pick_card(row_el.draft_card, click_event.shiftKey); }, true);
-  function end_carrying(row_el) { carried_rows.forEach(other_row => other_row.classList.remove('carried-along')); carried_rows = []; delete row_el.dataset.carrying; }
+  const card_selection = selectable_list(rows_el, {item_selector: '.edit-row', fixed_selector: '.blank-row', skip_selector: '.remove-card', noun: 'card',
+    on_reorder: () => draft_cards.splice(0, draft_cards.length, ...Array.from(rows_el.children).map(row_el => row_el.list_item)),
+    on_delete: chosen_cards => { const kept_before = draft_cards.slice(); draft_cards.splice(0, draft_cards.length, ...draft_cards.filter(draft_card => !chosen_cards.includes(draft_card))); draw_rows(); return () => { draft_cards.splice(0, draft_cards.length, ...kept_before); draw_rows(); }; },
+    on_paint: is_selecting => rows_el.querySelectorAll('textarea').forEach(textarea_el => { textarea_el.readOnly = is_selecting; })});
   function add_blank_row() { if (draft_cards.length && is_blank(draft_cards[draft_cards.length - 1])) return; const blank_card = {term: '', definition: ''}; draft_cards.push(blank_card); make_row(blank_card); }
-  function draw_rows() { rows_el.replaceChildren(); draft_cards.forEach(make_row); add_blank_row(); paint_selection(); }
+  function draw_rows() { rows_el.replaceChildren(); draft_cards.forEach(make_row); add_blank_row(); card_selection.paint(); }
   function bulk_add() {
     const pasted_text = prompt('Paste one card per line: term, then a Tab (or " - "), then definition.'); if (!pasted_text) return;
     while (draft_cards.length && is_blank(draft_cards[draft_cards.length - 1])) draft_cards.pop();
@@ -385,7 +356,7 @@ function view_study_summary(card_set) {
 }
 
 document.addEventListener('keydown', key_event => {
-  if (editor_selection_keys && editor_selection_keys(key_event)) { key_event.preventDefault(); return; }
+  if (selection_keys && selection_keys(key_event)) { key_event.preventDefault(); return; }
   if (!location.hash.startsWith('#/play/')) return;
   const is_typing = key_event.target.tagName === 'INPUT' || key_event.target.tagName === 'TEXTAREA', key_button = Array.from(view_el.querySelectorAll('[data-key]')).find(button_el => button_el.dataset.key === key_event.key && !button_el.disabled);
   if (key_button && !is_typing) { key_event.preventDefault(); key_button.click(); return; }
@@ -410,7 +381,7 @@ function view_settings() {
 }
 
 // Pages holding on to a set while someone works on it: sync leaves what's on them alone until they're left.
-function view_is_busy() { return /^#\/(new|edit|play)(\/|$)/.test(location.hash) || !!view_el.querySelector('.conflict-list'); }
+function view_is_busy() { return /^#\/(new|edit|play)(\/|$)/.test(location.hash) || !!selection_keys || document.body.classList.contains('is-carrying') || !!view_el.querySelector('.conflict-list'); }
 // Sync brought changes: draw the page again where it was, without counting as opening anything (route() would, and that would count as a change on every device in turn).
 function refresh_view() {
   if (view_is_busy()) return;
@@ -426,7 +397,7 @@ function refresh_view() {
 function route() {
   const route_parts = location.hash.replace(/^#\/?/, '').split('/'), route_name = route_parts[0], route_set = find_set(decodeURIComponent(route_parts[1] || ''));
   const is_home = !['library', 'settings', 'new', 'set', 'edit', 'play'].includes(route_name) || (['set', 'edit', 'play'].includes(route_name) && !route_set);
-  editor_has_changes = null; close_view_menu(); editor_selection_keys = null; document.querySelectorAll('.select-bar').forEach(bar_el => bar_el.remove()); document.body.classList.remove('has-select-bar');
+  editor_has_changes = null; close_view_menu(); end_selection_bar();
   study_session = null; clear_mode_timers();
   if (['set', 'edit', 'play'].includes(route_name) && route_set) { route_set.last_opened = Date.now(); save_state(); }
   if (is_home) last_list_hash = '#/'; else if (route_name === 'library') last_list_hash = '#/library';
