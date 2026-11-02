@@ -1,9 +1,9 @@
 // Learning modes. Loaded before app.js, which supplies el, render, save_state and the set helpers.
 const MODES = [
   {key: 'vocab', label: 'View all vocab', blurb: 'See every term beside its meaning, to read through or look something up.', art: '<rect x="9" y="10" width="46" height="44" rx="4"/><path d="M9 21h46M9 32h46M9 43h46M28 10v44"/><path d="M14 15.500h9M33 15.500h16M14 26.500h8M33 26.500h12M14 37.500h9M33 37.500h17M14 48.500h7M33 48.500h11"/>', group: 'Learn', tint: '#8fd3ff', min_cards: 1},
+  {key: 'cards', label: 'Flashcards', blurb: 'Flip through every card and say whether you know it.', art: '<rect x="19" y="9" width="34" height="24" rx="3" transform="rotate(8 36 21)"/><rect x="11" y="24" width="38" height="28" rx="3" transform="rotate(-5 30 38)"/><path d="M19 34l20-2M20 41l21-2M20 47l12-1"/>', group: 'Learn', tint: '#a8b8ff', min_cards: 1},
   {key: 'learn', label: 'Learn from scratch', blurb: 'Start new words from nothing, in small batches: see, pick, then type.', art: '<path d="M18 40h28l-3 15a2 2 0 0 1-2 1.500H23a2 2 0 0 1-2-1.500z"/><path d="M15 40h34"/><path d="M32 40V21"/><path d="M32 28c-1-8-7-12-15-12 0 8 6 13 15 12z"/><path d="M32 22c0-7 5-12 14-13 1 8-5 14-14 13z"/>', group: 'Learn', tint: '#9be7a8', min_cards: 1},
   {key: 'revise', label: 'Revise', blurb: 'Only the cards due today, so words stick for the long term.', art: '<path d="M52 27a21 21 0 0 0-37-8l-5 5"/><path d="M10 13v11h11"/><path d="M12 37a21 21 0 0 0 37 8l5-5"/><path d="M54 51V40H43"/><rect x="24" y="25" width="16" height="14" rx="2"/><path d="M28 30h8M28 34h5"/>', group: 'Learn', tint: '#ffc285', min_cards: 1},
-  {key: 'cards', label: 'Flashcards', blurb: 'Flip through every card and say whether you know it.', art: '<rect x="19" y="9" width="34" height="24" rx="3" transform="rotate(8 36 21)"/><rect x="11" y="24" width="38" height="28" rx="3" transform="rotate(-5 30 38)"/><path d="M19 34l20-2M20 41l21-2M20 47l12-1"/>', group: 'Learn', tint: '#a8b8ff', min_cards: 1},
   {key: 'type', label: 'Type the answer', blurb: 'Spell each answer yourself, the toughest test of what you remember.', art: '<rect x="6" y="28" width="52" height="27" rx="4"/><path d="M13 35h2M21 35h2M29 35h2M37 35h2M45 35h6M13 41h6M25 41h2M33 41h2M41 41h2M49 41h2M13 48h4M23 48h20M49 48h2"/><path d="M22 9h20M32 9v13M27 22h10"/>', group: 'Practise', tint: '#86e3d0', min_cards: 1, how: 'Type the answer, then press Enter.'},
   {key: 'choice', label: 'Multiple choice', blurb: 'Pick the right answer from four, a gentle way to get to know new words.', art: '<circle cx="14" cy="13" r="6"/><path d="M26 13h27"/><circle cx="14" cy="32" r="6"/><circle cx="14" cy="32" r="2" fill="currentColor"/><path d="M26 32h27"/><circle cx="14" cy="51" r="6"/><path d="M26 51h27"/><path d="M47 26l4 5 7-9"/>', group: 'Practise', tint: '#c3a6ff', min_cards: 2, how: 'Pick the right answer, or press 1 to 4.'},
   {key: 'truefalse', label: 'True or false', blurb: 'Decide quickly whether two things belong together.', art: '<path d="M32 8v44M20 56h24M32 52c-3 0-6 2-7 4M32 52c3 0 6 2 7 4"/><path d="M12 15h40"/><path d="M12 15L5 34M12 15l7 19M3 34a9 6 0 0 0 18 0zM52 15l-7 19M52 15l7 19M43 34a9 6 0 0 0 18 0z"/><circle cx="32" cy="11" r="3"/>', group: 'Practise', tint: '#ffe27a', min_cards: 2, how: 'Do these two go together? Press ← for false, → for true.'},
@@ -15,6 +15,11 @@ const MODES = [
   {key: 'memory', label: 'Memory', blurb: 'Find pairs among hidden cards, building recall as you play.', art: '<rect x="8" y="8" width="21" height="21" rx="3"/><rect x="35" y="8" width="21" height="21" rx="3"/><rect x="8" y="35" width="21" height="21" rx="3"/><rect x="35" y="35" width="21" height="21" rx="3"/><path d="M41 15c1-3 8-3 9 1 1 3-4 4-4 7M46 25.500v.100"/><path d="M18.5 13l1.8 3.7 4 .600-3 2.8.800 4-3.6-1.9-3.6 1.9.700-4-3-2.8 4.1-.600zM45.5 40l1.8 3.7 4 .600-3 2.8.800 4-3.6-1.9-3.6 1.9.700-4-3-2.8 4.1-.600z"/><path d="M14 41l9 9M23 41l-9 9"/>', group: 'Games', tint: '#c3a6ff', min_cards: 2, how: 'Turn over two cards at a time to find the pairs.', fixed_direction: true},
   {key: 'speed', label: 'Speed round', blurb: 'As many right answers as you can in 60 seconds, to build speed.', art: '<circle cx="32" cy="36" r="22"/><path d="M26 6h12M32 6v8M49 17l4 4"/><path d="M35 21l-9 16h7l-3 13 10-17h-7z"/>', group: 'Games', tint: '#ffe27a', min_cards: 2, how: 'As many right answers as you can in 60 seconds.'}
 ];
+// Tiles can be moved, within a group or to another: app_state.mode_layout keeps where each one went. A mode that has not been moved stays in its usual group.
+function modes_in_group(group_name) {
+  const saved_layout = app_state.mode_layout || {}, moved_keys = Object.values(saved_layout).flat(), saved_modes = (saved_layout[group_name] || []).map(find_mode).filter(Boolean);
+  return saved_modes.concat(MODES.filter(mode_item => mode_item.group === group_name && !moved_keys.includes(mode_item.key)));
+}
 function find_mode(mode_key) { return MODES.find(mode_item => mode_item.key === mode_key); }
 
 // ---- Card progress: boxes 1 to 5, each with a longer wait. Right moves a card up a box; wrong sends it back to box 1, due again now. ----
@@ -112,7 +117,7 @@ function ask_type(card_set, mode_item, card_index, finish, ask_options) {
   function show_result(is_right, extra_nodes) { is_answered = true; input_el.disabled = true; form_button.hidden = true; if (is_right) { result_el.replaceChildren(answer_panel(true, sides.answer)); later(() => finish(true), 900); return; } const next_el = next_button(() => finish(false)); result_el.replaceChildren(answer_panel(false, 'The answer is: ' + sides.answer, [el('div', {class: 'button-row'}, next_el, el('button', {onclick: () => finish(true)}, 'I was right'))])); next_el.focus(); }
   const form_button = el('button', {class: 'primary', type: 'submit'}, 'Check');
   const form_el = el('form', {class: 'answer-form', onsubmit: submit_event => { submit_event.preventDefault(); if (is_answered) return; const verdict = check_answer(input_el.value, sides.answer); if (verdict === 'close' && !tried_close) { tried_close = true; result_el.replaceChildren(el('div', {class: 'answer-panel is-close', role: 'status'}, 'So close. Check the spelling and try again.')); input_el.focus(); return; } show_result(verdict !== 'wrong'); }}, input_el, form_button);
-  mode_frame(card_set, mode_item, [(ask_options && ask_options.status) || position_label()], [session_progress(), (ask_options && ask_options.prompt_node) || prompt_card(sides.prompt), form_el, result_el]);
+  mode_frame(card_set, mode_item, [(ask_options && ask_options.status) || position_label()], [session_progress(), (ask_options && ask_options.prompt_node) || prompt_card(sides.prompt), form_el, result_el, ask_options && ask_options.footer]);
   input_el.focus();
 }
 function ask_choice(card_set, mode_item, card_index, finish, ask_options) {
@@ -125,7 +130,7 @@ function ask_choice(card_set, mode_item, card_index, finish, ask_options) {
     const next_el = next_button(() => finish(false)); result_el.replaceChildren(answer_panel(false, null, [next_el])); next_el.focus();
   }}, el('span', {class: 'choice-number'}, option_index + 1), option_text));
   option_buttons.forEach((button_el, option_index) => { if (option_texts[option_index] === sides.answer) button_el.dataset.answer = 'yes'; });
-  mode_frame(card_set, mode_item, [(ask_options && ask_options.status) || position_label()], [is_quick && ask_options.top_node ? ask_options.top_node : session_progress(), prompt_card(sides.prompt), el('div', {class: 'choice-grid'}, ...option_buttons), result_el]);
+  mode_frame(card_set, mode_item, [(ask_options && ask_options.status) || position_label()], [is_quick && ask_options.top_node ? ask_options.top_node : session_progress(), prompt_card(sides.prompt), el('div', {class: 'choice-grid'}, ...option_buttons), result_el, ask_options && ask_options.footer]);
 }
 function ask_true_false(card_set, mode_item, card_index, finish) {
   const sides = card_sides(card_set, card_index), wrong_options = other_answers(card_set, card_index, sides.back_key, 1), is_true_pair = !wrong_options.length || Math.random() < 0.5, shown_answer = is_true_pair ? sides.answer : wrong_options[0], result_el = el('div', {class: 'answer-slot'});
@@ -166,20 +171,26 @@ function view_learn(card_set, mode_item) {
   if (!study_session.steps) {
     const unmastered_cards = weakest_first(card_set, studyable_indexes(card_set).filter(card_index => card_status(card_set, card_index) !== 'mastered')), batch_cards = unmastered_cards.slice(0, 5);
     if (!batch_cards.length) { mode_frame(card_set, mode_item, ['All learned'], [el('div', {class: 'empty'}, el('h2', {class: 'summary-title'}, 'You have learned everything here'), el('div', {class: 'button-row center-row'}, el('a', {class: 'button primary', href: play_hash(card_set, 'revise')}, 'Revise')))]); return; }
-    study_session.steps = batch_cards.map(card_index => ({card_index, stage: 0})); study_session.total_steps = study_session.steps.length * 3; study_session.done_steps = 0; study_session.batch_size = batch_cards.length;
+    study_session.steps = batch_cards.map(card_index => ({card_index, stage: 0})); study_session.history = []; study_session.total_steps = study_session.steps.length * 3; study_session.done_steps = 0; study_session.batch_size = batch_cards.length;
   }
   if (!study_session.steps.length) { const left_count = studyable_indexes(card_set).filter(card_index => card_status(card_set, card_index) !== 'mastered').length; const reward_el = award_round(card_set, mode_item, study_session.right - study_session.batch_size * 3 + study_session.batch_size * 2, study_session.batch_size * 2 + study_session.wrong); mode_frame(card_set, mode_item, [study_session.batch_size + ' cards practised'], [el('div', {class: 'empty'}, el('h2', {class: 'summary-title'}, 'Batch finished'), reward_el, el('div', {class: 'button-row center-row'}, left_count ? el('button', {class: 'primary', onclick: () => { start_mode_session(card_set, 'learn', []); view_learn(card_set, mode_item); }}, 'Next cards') : null, el('a', {class: 'button', href: '#/set/' + card_set.id}, 'Back to set')))]); return; }
   const current_step = study_session.steps[0];
+  // Back undoes the last step, including what it did to the card's progress. Forward moves on without marking the card either way.
+  function remember_step() { const card_key_text = card_key(card_set.cards[current_step.card_index]); study_session.history.push({steps: study_session.steps.map(step_item => Object.assign({}, step_item)), right: study_session.right, wrong: study_session.wrong, done_steps: study_session.done_steps, card_key_text, record: (card_set.progress || {})[card_key_text]}); }
+  function go_back() { const last_step = study_session.history.pop(); if (!last_step) return; Object.assign(study_session, {steps: last_step.steps, right: last_step.right, wrong: last_step.wrong, done_steps: last_step.done_steps}); if (card_set.progress) { if (last_step.record) card_set.progress[last_step.card_key_text] = last_step.record; else delete card_set.progress[last_step.card_key_text]; } save_state(); view_learn(card_set, mode_item); }
   function finish_step(is_right) {
-    study_session.steps.shift();
+    remember_step(); study_session.steps.shift();
     if (is_right) { study_session.right++; study_session.done_steps++; current_step.stage++; if (current_step.stage < 3) study_session.steps.splice(Math.min(2, study_session.steps.length), 0, current_step); else record_answer(card_set, current_step.card_index, true); }
     else { study_session.wrong++; record_answer(card_set, current_step.card_index, false); study_session.steps.splice(Math.min(2, study_session.steps.length), 0, current_step); }
     view_learn(card_set, mode_item);
   }
+  function go_forward() { remember_step(); study_session.steps.shift(); study_session.steps.splice(Math.min(2, study_session.steps.length), 0, current_step); view_learn(card_set, mode_item); }
+  function nav_row(forward_button) { return el('div', {class: 'learn-nav'}, el('button', Object.assign({'data-key': 'ArrowLeft', onclick: go_back}, study_session.history.length ? {} : {disabled: 'disabled'}), '← Back'), forward_button); }
   study_session.position = study_session.done_steps; study_session.queue = {length: study_session.total_steps};
   const status_text = 'Step ' + (study_session.done_steps + 1) + ' of ' + study_session.total_steps;
-  if (current_step.stage === 0) { const pair_sides = card_sides(card_set, current_step.card_index), got_it_el = el('button', {class: 'primary', 'data-key': 'Enter', onclick: () => finish_step(true)}, 'Got it'); mode_frame(card_set, Object.assign({}, mode_item, {how: 'Have a good look, then press Got it.'}), [status_text], [session_progress(), pair_card(pair_sides.front_key, pair_sides.prompt, pair_sides.answer), got_it_el]); return; }
-  if (current_step.stage === 1 && studyable_indexes(card_set).length > 1) ask_choice(card_set, mode_item, current_step.card_index, finish_step, {status: status_text}); else if (current_step.stage === 1) finish_step(true); else ask_type(card_set, mode_item, current_step.card_index, finish_step, {status: status_text});
+  if (current_step.stage === 0) { const pair_sides = card_sides(card_set, current_step.card_index), got_it_el = el('button', {class: 'primary', 'data-key': 'ArrowRight', onclick: () => finish_step(true)}, 'Got it →'); mode_frame(card_set, Object.assign({}, mode_item, {how: 'Have a good look, then press Got it.'}), [status_text], [session_progress(), pair_card(pair_sides.front_key, pair_sides.prompt, pair_sides.answer), nav_row(got_it_el)]); return; }
+  const question_nav = nav_row(el('button', Object.assign({'data-key': 'ArrowRight', title: 'Come back to this one later', onclick: go_forward}, study_session.steps.length > 1 ? {} : {disabled: 'disabled'}), 'Forward →'));
+  if (current_step.stage === 1 && studyable_indexes(card_set).length > 1) ask_choice(card_set, mode_item, current_step.card_index, finish_step, {status: status_text, footer: question_nav}); else if (current_step.stage === 1) finish_step(true); else ask_type(card_set, mode_item, current_step.card_index, finish_step, {status: status_text, footer: question_nav});
 }
 function view_revise_start(card_set) {
   const due_list = weakest_first(card_set, due_indexes(card_set)), mode_item = find_mode('revise');
