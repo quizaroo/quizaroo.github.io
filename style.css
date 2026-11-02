@@ -26,6 +26,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 #page-title { flex: 1; display: flex; align-items: center; gap: 7px; min-width: 0; margin: 0; font-size: clamp(1.3rem, 4vw, 1.7rem); font-weight: 300; white-space: nowrap; }
 .crumb { display: inline-flex; align-items: center; gap: 7px; flex: 0 1 auto; min-width: 0; }
 .crumb-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+a.crumb:first-child { flex-shrink: 0 !important; }
 a.crumb { flex-shrink: 2; color: var(--muted); font-size: 1rem; font-weight: 400; }
 @media (hover: hover) { a.crumb:hover { color: var(--accent); } }
 a.crumb .icon { width: 20px; height: 20px; }
@@ -291,7 +292,7 @@ body.is-carrying .select-bar { opacity: 0; pointer-events: none; }
 
 /* ---- Set header: a note stuck on the page, its title written on the tape that holds it ---- */
 .set-hero { margin: 22px 0 20px; padding: 0 20px 16px; color: var(--text); background: color-mix(in srgb, var(--tint) 34%, var(--sheet)); border-radius: 3px 3px 14px 3px; box-shadow: var(--shadow); }
-.hero-tape { position: relative; top: -13px; display: table; max-width: 100%; margin: 0 0 -5px -4px; padding: 7px 22px 8px; font: 700 clamp(1.15rem, 3.4vw, 1.5rem)/1.2 "Segoe Print", "Bradley Hand", "Noteworthy", "Chalkboard SE", "Comic Sans MS", cursive; color: var(--text); overflow-wrap: anywhere; background: linear-gradient(90deg, rgba(255, 255, 255, .08), rgba(255, 255, 255, .28) 50%, rgba(255, 255, 255, .08)), color-mix(in srgb, var(--tint) 62%, transparent); transform: rotate(-1.2deg); clip-path: polygon(0 0, 100% 0, calc(100% - 6px) 16%, 100% 33%, calc(100% - 6px) 50%, 100% 66%, calc(100% - 6px) 83%, 100% 100%, 0 100%, 6px 83%, 0 66%, 6px 50%, 0 33%, 6px 16%); }
+.hero-tape { position: relative; top: -17px; display: table; max-width: calc(100% + 8px); margin: 0 0 -7px -4px; padding: 11px 30px 12px; font: 650 clamp(1.3rem, 4vw, 1.75rem)/1.2 system-ui, -apple-system, "Segoe UI", sans-serif; letter-spacing: -.005em; color: #111; overflow-wrap: anywhere; background: repeating-linear-gradient(90deg, rgba(120, 100, 60, .05) 0 2px, transparent 2px 5px), rgba(244, 234, 206, .72); box-shadow: 0 2px 6px rgba(0, 0, 0, .18); transform: rotate(-1.4deg); clip-path: polygon(0 0, 100% 0, calc(100% - 6px) 16%, 100% 33%, calc(100% - 6px) 50%, 100% 66%, calc(100% - 6px) 83%, 100% 100%, 0 100%, 6px 83%, 0 66%, 6px 50%, 0 33%, 6px 16%); }
 .hero-dates { margin: 0 0 12px; color: var(--muted); font-size: 14px; }
 .hero-main { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 20px; }
 .hero-count { display: grid; justify-items: center; line-height: 1; color: var(--muted); font-size: 13px; }

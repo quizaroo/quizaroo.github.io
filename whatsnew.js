@@ -8,6 +8,7 @@
 // No `at`: no Show me. PUBLISHED holds when each version went live (UTC), filled in by tools/publish.py.
 const FIRST_SET = ['.set-row .row-title'];
 const WHATS_NEW = {
+  '1.4.07': [{text: 'Each set: the title tape is bigger and see-through like masking tape, with plain black lettering.', go: '#/library', open: FIRST_SET, at: '.hero-tape'}],
   '1.4.06': [{text: 'A right answer now gets a circle round it with a little flash and a ping, in place of the fading word. A wrong one gets a short, soft blip. Sound under the eye button turns them off.', go: '#/', at: '#view-button'}],
   '1.4.05': [{text: 'Learn from scratch: the words in a batch now take turns, so you see all of them before any word comes back for its next step. Fixed.'}],
   '1.4.04': [{text: 'A right answer now draws a tick on the card instead of a green bar. The next word comes up while an echo of the last one shrinks away into the corner.'}],
@@ -118,6 +119,7 @@ const WHATS_NEW = {
   '1.0.00': [{text: 'Open Flashcards goes live: make sets, flip and swipe through them, and import or export them as JSON.'}]
 };
 const PUBLISHED = {
+  '1.4.07': '2026-11-02T23:41:21Z',
   '1.4.06': '2026-11-02T23:38:19Z',
   '1.4.05': '2026-11-02T23:34:42Z',
   '1.4.04': '2026-11-02T23:31:14Z',
