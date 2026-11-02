@@ -12,6 +12,7 @@ function settings_panel(panel_key, title_text, status_el, panel_attributes, ...b
 function sync_pill() {
   const pill_el = document.getElementById('sync-status');
   const settings_nav_el = document.querySelector('.nav-item[data-nav="settings"]');
+  pill_el.addEventListener('click', () => { if (document.querySelector('.sync-popup')) close_sync_popup(); else open_sync_popup(); });
   sync_engine.on_status(sync_status => {
     settings_nav_el.classList.toggle('has-alert', !!(sync_status.admin && sync_status.admin.new_accounts));
     const pill_text = {off: 'Local only', idle: 'Sync on', syncing: 'Syncing…', ok: 'In sync', offline: 'Offline', error: 'Sync problem'}[sync_status.state] || 'Local only';
@@ -20,15 +21,39 @@ function sync_pill() {
     pill_el.title = sync_status.state === 'off' ? 'Stored on this device only' : sync_status.error || pill_text;
   });
 }
-// Safari can clear a website's saved data after about a week away from it. Added to the Home Screen, the app is kept. Shown once per device until dismissed, only in Safari on an iPhone or iPad.
-const HOME_SCREEN_TIP_KEY = 'open-flashcards:home-screen-tip';
-function home_screen_tip() {
-  const is_ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-  let was_dismissed = false;
-  try { was_dismissed = !!localStorage.getItem(HOME_SCREEN_TIP_KEY); } catch (storage_err) {}
-  if (!is_ios || navigator.standalone || was_dismissed) return null;
-  const tip_el = el('p', {class: 'sync-note home-screen-tip'}, el('b', {}, 'Keep your sets safe on this device.'), ' Safari can clear saved data after about a week away, so tap Share, then Add to Home Screen, and open the app from there. ', el('button', {class: 'link-button', onclick: () => { try { localStorage.setItem(HOME_SCREEN_TIP_KEY, '1'); } catch (storage_err) {} tip_el.remove(); }}, 'Got it'));
-  return tip_el;
+// Open a Settings panel and bring it into view.
+function go_to_settings_panel(panel_key, panel_selector) {
+  let open_panels = {};
+  try { open_panels = JSON.parse(localStorage.getItem(PANELS_KEY)) || {}; } catch (storage_err) {}
+  open_panels[panel_key] = true;
+  try { localStorage.setItem(PANELS_KEY, JSON.stringify(open_panels)); } catch (storage_err) {}
+  if (location.hash === '#/settings') route(); else location.hash = '#/settings';
+  setTimeout(() => { const panel_el = document.querySelector(panel_selector); if (panel_el) { panel_el.open = true; panel_el.scrollIntoView({block: 'start'}); } }, 150);
+}
+// Tapping the pill: what this state means, and what to do about it.
+function close_sync_popup() { const popup_el = document.querySelector('.sync-popup'); if (!popup_el) return; popup_el.remove(); document.getElementById('sync-status').setAttribute('aria-expanded', 'false'); removeEventListener('pointerdown', close_popup_if_outside, true); removeEventListener('keydown', close_popup_on_escape, true); }
+function close_popup_if_outside(pointer_event) { if (!pointer_event.target.closest('.sync-popup, #sync-status')) close_sync_popup(); }
+function close_popup_on_escape(key_event) { if (key_event.key === 'Escape') { key_event.stopPropagation(); close_sync_popup(); document.getElementById('sync-status').focus(); } }
+function open_sync_popup() {
+  const pill_el = document.getElementById('sync-status'), pill_rect = pill_el.getBoundingClientRect(), sync_status = sync_engine.status, is_off = !sync_engine.signed_in();
+  const set_up_button = el('button', {class: 'primary', onclick: () => { close_sync_popup(); go_to_settings_panel('sync', '#sync-section'); }}, is_off ? 'Set up sync' : 'Open Sync');
+  const nodes = is_off ? [
+    el('h3', {}, "Your data here isn't synced"),
+    el('p', {}, "Your sets are only on this device. If it's lost or its saved data is cleared, they're gone unless you have a backup."),
+    el('p', {}, 'To keep them safe, do either or both:'),
+    el('ul', {},
+      el('li', {}, el('b', {}, 'Sync'), ': create an account under Settings, Sync, then sign in on your other devices.'),
+      el('li', {}, el('b', {}, 'Export all'), ': save everything to one file as a backup.'),
+      install_warning() ? el('li', {}, el('b', {}, 'Add to Home Screen'), ': otherwise Safari may delete your data after 7 days.') : null),
+    el('div', {class: 'button-row'}, set_up_button, el('button', {onclick: () => { close_sync_popup(); download_json('open-flashcards-all.json', app_state.sets); }}, 'Export all'), install_warning() ? el('button', {onclick: () => { close_sync_popup(); go_to_settings_panel('install', '#install-section'); }}, 'Add to Home Screen') : null)
+  ] : [
+    el('h3', {}, pill_el.textContent),
+    el('p', {}, sync_state_text(sync_status) || 'Sync is on.'),
+    el('div', {class: 'button-row'}, set_up_button)
+  ];
+  const popup_el = el('div', {class: 'view-menu sync-popup', role: 'dialog', 'aria-label': 'Sync status', style: 'top:' + (pill_rect.bottom + 8) + 'px;right:' + Math.max(12, Math.min(innerWidth - pill_rect.right, innerWidth - 320 - 12)) + 'px'}, ...nodes);
+  document.body.appendChild(popup_el); pill_el.setAttribute('aria-expanded', 'true');
+  addEventListener('pointerdown', close_popup_if_outside, true); addEventListener('keydown', close_popup_on_escape, true);
 }
 function typed_sync_form() { try { return JSON.parse(localStorage.getItem(SYNC_FORM_KEY)) || {}; } catch (storage_err) { return {}; } }
 function remember_sync_form(form_changes) { try { localStorage.setItem(SYNC_FORM_KEY, JSON.stringify(Object.assign(typed_sync_form(), form_changes))); } catch (storage_err) {} }
@@ -46,7 +71,8 @@ function sync_section() {
   const body_el = el('div', {id: 'sync-body'}), panel_status_el = el('span', {class: 'settings-panel-status', id: 'sync-panel-status'}), section_el = settings_panel('sync', 'Sync', panel_status_el, {class: 'settings-panel sync-section', id: 'sync-section'}, body_el);
   function paint_panel_status(sync_status) {
     const account_now = sync_engine.signed_in();
-    panel_status_el.textContent = !account_now ? 'Not signed in: on this device only' : (sync_status.state === 'ok' && !sync_status.pending ? 'In sync' : sync_state_text(sync_status).split('.')[0] || 'Sync on') + ' · ' + account_now.email;
+    const led_state = !account_now ? 'off' : sync_status.state === 'ok' && !sync_status.pending ? 'ok' : sync_status.state === 'error' ? 'bad' : sync_status.state === 'offline' ? 'warn' : 'busy';
+    panel_status_el.replaceChildren(el('span', {class: 'sync-led', 'data-state': led_state, 'aria-hidden': 'true'}), !account_now ? 'Not signed in: on this device only' : (sync_status.state === 'ok' && !sync_status.pending ? 'In sync' : sync_state_text(sync_status).split('.')[0] || 'Sync on') + ' · ' + account_now.email);
   }
   let was_signed_in = null, data_code_now = null, code_made_at = 0, reach_timer = null, unwatch_status = null;
   // Keep a saved login in the browser (Chrome and Edge ask straight away; Safari and Firefox go by the form being submitted and going away).
@@ -141,8 +167,7 @@ function sync_section() {
     const email_el = text_input('email', {type: 'email', value: typed_form.email || '', autocomplete: 'username', oninput: () => remember_sync_form({email: email_el.value.trim()})}), password_el = text_input('password', {type: 'password', autocomplete: 'current-password'});
     const reach_text_el = el('span', {}), reach_el = el('p', {class: 'sync-reach'}, reach_text_el, el('button', {type: 'button', class: 'link-button', onclick: () => check_server()}, 'Check again'));
     const sign_in_button = el('button', {type: 'submit', class: 'primary'}, 'Sign in'), create_button = el('button', {type: 'button'}, 'Create account');
-    const is_ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-    const cert_url_el = el('code', {}), cert_link_el = el('a', Object.assign({class: 'button'}, is_ios ? {} : {target: '_blank', rel: 'noopener'}), 'Get the certificate');
+    const cert_url_el = el('code', {}), cert_link_el = el('a', Object.assign({class: 'button'}, is_ios() ? {} : {target: '_blank', rel: 'noopener'}), 'Get the certificate');
     const cert_el = el('div', {class: 'trust-cert'}, el('p', {class: 'muted'}, "A server at home makes its own security certificate, and each device has to trust it once. (A server with a proper web address doesn't need this.)"), el('div', {class: 'button-row'}, cert_link_el, cert_url_el));
     const help_el = el('details', {class: 'trust-help'}, el('summary', {}, 'Trust this server: the steps for each device'), el('ul', {class: 'trust-steps'},
       el('li', {}, el('b', {}, 'iPhone / iPad:'), ' get the certificate (above) in Safari and tap Allow. Then Settings → Profile Downloaded → Install. Then Settings → General → About → Certificate Trust Settings → switch it on. Installing the profile isn\'t enough without this switch. After an iOS update, check it again.'),
@@ -186,7 +211,7 @@ function sync_section() {
         create_button.hidden = true;
         reach_el.hidden = false;
         if (!uses_own_server) { reach_text_el.textContent = "Can't reach the sync server just now. Check your connection, or try again later."; check_again(); return; }
-        reach_text_el.textContent = "Can't reach the server. Create account only shows once it can. Check this device is on the same network as the server" + (is_https ? (is_ios ? ", and that the certificate is switched on: Settings → General → About → Certificate Trust Settings (installing the profile isn't enough)" : ', and that it trusts the certificate (below)') : '') + '.';
+        reach_text_el.textContent = "Can't reach the server. Create account only shows once it can. Check this device is on the same network as the server" + (is_https ? (is_ios() ? ", and that the certificate is switched on: Settings → General → About → Certificate Trust Settings (installing the profile isn't enough)" : ', and that it trusts the certificate (below)') : '') + '.';
         check_again();
         if (!is_https || (is_quiet && last_result === 'down')) return;
         last_result = 'down';

@@ -8,6 +8,12 @@
 // No `at`: no Show me. PUBLISHED holds when each version went live (UTC), filled in by tools/publish.py.
 const FIRST_SET = ['.set-row .row-title'];
 const WHATS_NEW = {
+  '1.3.07': [
+    {text: 'Tap the pill at the top: it explains what it means. If your data is local only, it says what to do, with buttons for Sync and Export all.', go: '#/', at: '#sync-status'},
+    {text: 'Settings: a light beside Sync shows its state while the panel is closed: green in sync, amber syncing or offline, red for a problem, and an empty ring when not signed in.', go: '#/settings', at: '#sync-panel-status'},
+    {text: 'Settings: Home Screen and your data, with the steps for adding the app.', go: '#/settings', at: '#install-section'},
+    {text: 'iPhone and iPad in Safari: a red reminder at the top when the app is not on your Home Screen, because Safari may delete your data after 7 days. Hiding it keeps it away for 3 days.'}
+  ],
   '1.3.06': [
     {text: 'Flashcards with Keep score on: Previous card goes back and takes back your answer, so you can change your mind. Start again restarts the round and takes back its answers.', go: '#/library', open: FIRST_SET.concat('[data-mode="cards"]'), at: '.study-nav'},
     {text: 'End of a round of Flashcards: big tiles saying what to do next, such as Study more or Move on to Revise, with one marked Recommended from how the round went.'},
@@ -85,6 +91,7 @@ const WHATS_NEW = {
   '1.0.00': [{text: 'Open Flashcards goes live: make sets, flip and swipe through them, and import or export them as JSON.'}]
 };
 const PUBLISHED = {
+  '1.3.07': '2026-11-02T20:34:26Z',
   '1.3.06': '2026-11-02T20:32:35Z',
   '1.3.05': '2026-11-02T19:22:24Z',
   '1.3.04': '2026-11-02T19:17:34Z',
