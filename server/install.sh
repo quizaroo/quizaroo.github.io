@@ -45,7 +45,7 @@ fi
 id openflashcards >/dev/null 2>&1 || useradd --system --home /var/lib/open-flashcards --shell /usr/sbin/nologin openflashcards
 install -d -o openflashcards -g openflashcards -m 700 /var/lib/open-flashcards
 install -d "$APP" /etc/open-flashcards
-install -m 644 "$HERE"/server.js "$HERE"/admin.js "$HERE"/package.json "$APP"/
+install -m 644 "$HERE"/server.js "$HERE"/admin.js "$HERE"/admin-page.html "$HERE"/admin-page.js "$HERE"/admin-page.css "$HERE"/package.json "$APP"/
 [ -f /etc/open-flashcards/open-flashcards.env ] || install -m 640 -o root -g openflashcards "$HERE"/deploy/open-flashcards.env.example /etc/open-flashcards/open-flashcards.env
 install -m 644 "$HERE"/deploy/open-flashcards-server.service /etc/systemd/system/open-flashcards-server.service
 # `registration` edits /etc/open-flashcards/open-flashcards.env and restarts the service, which needs root.

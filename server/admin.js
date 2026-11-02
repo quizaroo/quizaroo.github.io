@@ -54,11 +54,12 @@ if (cmd === 'users') {
   console.log(r.changes ? 'Account and all its stored data deleted.' : 'No account with that email.');
 } else if (cmd === 'registration') {
   const text = fs.existsSync(ENV_FILE) ? fs.readFileSync(ENV_FILE, 'utf8') : '';
-  const current = /^REGISTRATION=(.*)$/m.exec(text)?.[1] || 'first';
+  const current = (fs.existsSync(dbFile) && open().prepare("SELECT value FROM meta WHERE key = 'registration'").get()?.value) || /^REGISTRATION=(.*)$/m.exec(text)?.[1] || 'first';
   if (!arg) { console.log(`Registration is "${current}" (first = only until the first account exists, open = anyone, closed = nobody).`); process.exit(0); }
   if (!['first', 'open', 'closed'].includes(arg)) { console.error('Use first, open or closed.'); process.exit(1); }
   const next = /^REGISTRATION=/m.test(text) ? text.replace(/^REGISTRATION=.*$/m, `REGISTRATION=${arg}`) : `${text.replace(/\n?$/, '\n')}REGISTRATION=${arg}\n`;
   fs.writeFileSync(ENV_FILE, next);
+  open().prepare("DELETE FROM meta WHERE key = 'registration'").run(); // the admin page's choice gives way to this one
   try { execFileSync('systemctl', ['restart', 'open-flashcards-server'], { stdio: 'inherit' }); console.log(`Registration is now "${arg}".`); }
   catch { console.log(`Saved "${arg}" in ${ENV_FILE}. Restart the server to apply it.`); }
 } else {

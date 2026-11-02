@@ -8,6 +8,11 @@
 // No `at`: no Show me. PUBLISHED holds when each version went live (UTC), filled in by tools/publish.py.
 const FIRST_SET = ['.set-row .row-title'];
 const WHATS_NEW = {
+  '1.3.00': [
+    {text: 'Sync is open to try for free: sign up under Settings, Sync, with nothing else to set up. To keep it after 24 hours, send an email. The address is in Sync.', go: '#/settings', at: '#sync-section', more: 'You never need an account to use the app, and Export all in Your Library saves everything to one file.'},
+    {text: 'Settings: Sync and Updates are now panels you open and close, each showing a basic status while closed.', go: '#/settings', at: '.settings-panel'},
+    {text: 'Sync: Storage now shows how much of your account you have used.'}
+  ],
   '1.2.01': [
     {text: 'Learn from scratch now remembers where you got to, shows your progress on its tile, and has Start over next to the step count.', go: '#/library', open: FIRST_SET, at: '[data-mode="learn"]'},
     {text: 'Learn from scratch: switches to turn multiple choice or typing off, if you would rather not type.'},
@@ -63,6 +68,7 @@ const WHATS_NEW = {
   '1.0.00': [{text: 'Open Flashcards goes live: make sets, flip and swipe through them, and import or export them as JSON.'}]
 };
 const PUBLISHED = {
+  '1.3.00': '2026-11-02T17:20:11Z',
   '1.2.01': '2026-11-02T17:10:20Z',
   '1.2.00': '2026-11-02T15:52:25Z',
   '1.1.04': '2026-11-02T15:44:50Z',

@@ -352,7 +352,7 @@ function view_settings() {
     check_button.disabled = false; check_button.textContent = 'Check for updates';
     toast(check_result === 'offline' ? 'Could not reach the server. Try again when you are online.' : 'You have the latest version.');
   }}, 'Check for updates');
-  render([menu_crumb('settings', '#/settings')], [], [sync_section(), el('section', {class: 'updates-section'}, el('h2', {class: 'list-heading'}, 'Updates'),
+  render([menu_crumb('settings', '#/settings')], [], [sync_section(), settings_panel('updates', 'Updates', el('span', {class: 'settings-panel-status'}, 'Version ' + APP_VERSION), {class: 'settings-panel updates-section'},
     el('div', {class: 'ruled'},
       el('div', {class: 'detail-row'}, el('div', {class: 'line-margin'}, 'Version'), el('div', {class: 'settings-line'}, el('span', {}, 'Open Flashcards v' + APP_VERSION), check_button, el('button', {onclick: () => show_whats_new(app_state.whatsnew_last || APP_VERSION)}, "What's new"))),
       el('div', {class: 'detail-row'}, el('div', {class: 'line-margin'}, 'After'), el('label', {class: 'settings-line'}, el('input', {type: 'checkbox', checked: app_state.show_update_info !== false, onchange: change_event => { app_state.show_update_info = change_event.target.checked; save_state(); toast(change_event.target.checked ? "What's new shows after each update." : "What's new won't show after updates."); }}), 'Show update info', el('span', {class: 'muted'}, 'After an update, a list of what changed, each with Show me.')))))]);

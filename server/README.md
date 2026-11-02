@@ -22,7 +22,7 @@ Accounts are made in the app, never on the server. Everything is encrypted on yo
 | Remove an account | `sudo flashcards-admin delete-user <email>` (deletes everything stored for it) |
 | See accounts | `sudo flashcards-admin users` |
 
-**Create account** only shows once the server address is typed and the server is accepting new accounts. By default (`REGISTRATION=first`) that's only until the first account exists; after that it closes by itself. With Docker, use `docker compose exec flashcards node admin.js <command>`; to change registration there, set `REGISTRATION` in `.env` and run `docker compose up -d`.
+In the app, your own address goes under Settings → Sync → **Use your own server**. **Create account** only shows once the server is accepting new accounts. By default (`REGISTRATION=first`) that's only until the first account exists; after that it closes by itself. With Docker, use `docker compose exec flashcards node admin.js <command>`; to change registration there, set `REGISTRATION` in `.env` and run `docker compose up -d`.
 
 ## Install: Ubuntu or Debian
 
@@ -64,16 +64,17 @@ Then make an HTTPS site for it (e.g. `flashcards.example.com`, with its DNS poin
 ProxyPreserveHost On
 ProxyPass /api/ http://127.0.0.1:8797/api/
 ProxyPassReverse /api/ http://127.0.0.1:8797/api/
+ProxyPass /admin http://127.0.0.1:8797/admin
 LimitRequestBody 33554432
 ```
 
-With **ISPConfig**: Sites → Add website, tick SSL and Let's Encrypt SSL, PHP off. Put the four lines above in the site's Options tab, "Apache Directives". They affect only that site.
+With **ISPConfig**: Sites → Add website, tick SSL and Let's Encrypt SSL, PHP off. Put the lines above in the site's Options tab, "Apache Directives". They affect only that site.
 
 **nginx**, in the site's `server { listen 443 ssl; ... }` block:
 
 ```nginx
 client_max_body_size 32m;
-location /api/ {
+location ~ ^/(api|admin)(/|$) {
     proxy_pass http://127.0.0.1:8797;
     proxy_set_header Host $host;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -140,8 +141,13 @@ With Docker: `docker compose exec flashcards node admin.js users`.
 **Settings** are in `/etc/open-flashcards/open-flashcards.env`; after editing, `systemctl restart open-flashcards-server`.
 - `REGISTRATION`: `first` (default) lets the first account be created and then closes; `open`; `closed`.
 - `ALLOWED_ORIGINS`: the web address(es) the app runs from. Add yours if you host the app yourself.
-- `QUOTA_MB`: per-account storage limit.
+- `QUOTA_MB`: per-account storage limit. Accounts in `ADMIN_EMAILS` have no limit but the disk.
+- `MAX_SIGNUPS_PER_DAY`: new accounts allowed per day (UTC), counting ones since deleted. `0` is no limit.
+- `ADMIN_EMAILS`: accounts that can use the admin page.
+- `SHARING`: `on` turns on the sharing routes. Leave it off on a server open to the public: they let any account look others up by email.
 - `PORT`: the port it listens on, 8797 unless you change it.
+
+**Admin page**: `https://<address>/admin`, for accounts in `ADMIN_EMAILS`. It shows each account's size, devices, last use and activity today, with warnings near its limit or when unusually busy. It can close sign-ups, change the daily limit, change quotas (one account, several selected, everyone, by an amount or a percentage, the default for all, and named templates), keep a whitelist of addresses and delete every account not on it, and turn everything off for everyone but the admin with one switch, which deletes nothing. Nobody's data can be read from it, because it's encrypted. Sign-up addresses aren't verified, so create the admin account before opening sign-ups. Behind your own web server, pass `/admin` through as well as `/api/`.
 
 **Update**: get the new code, then `sudo ./install.sh update`.
 
@@ -162,4 +168,4 @@ The copy is still encrypted; it's useless without your password. Your devices al
 - Sign-in is limited to 10 wrong tries per 15 minutes, for each email and for each address.
 - On a machine that serves other sites, use `install.sh proxy`, never `public` (see [Behind a web server you already run](#install-behind-a-web-server-you-already-run)).
 - Keep the machine updated (`apt upgrade`), and reachable only over your VPN if it's at home.
-- Never put the server's address or certificate in a public repository.
+- Never put a home server's address or certificate in a public repository.

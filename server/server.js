@@ -10,7 +10,10 @@
 //   DATA_DIR          default ./data  (flashcards.db lives here)
 //   ALLOWED_ORIGINS   comma list, e.g. https://hazymat.github.io,http://localhost:5173
 //   REGISTRATION      first (default: only while there are no users) | open | closed
-//   QUOTA_MB          default 1024 per user (records and files together)
+//   QUOTA_MB          default 1024 per user (records and files together); accounts in ADMIN_EMAILS have no limit but the disk
+//   MAX_SIGNUPS_PER_DAY  default 0 (no limit): new accounts per UTC day
+//   ADMIN_EMAILS      comma list of accounts that can use /admin
+//   SHARING           on | off (default): the sharing routes, which let any account look others up by email
 
 import http from 'node:http';
 import crypto from 'node:crypto';
@@ -22,7 +25,11 @@ const PORT = Number(process.env.PORT || 8797);
 const HOST = process.env.HOST || '127.0.0.1';
 const DATA_DIR = process.env.DATA_DIR || path.join(process.cwd(), 'data');
 const ORIGINS = (process.env.ALLOWED_ORIGINS || 'https://hazymat.github.io,http://localhost:5173').split(',').map(s => s.trim()).filter(Boolean);
-const REGISTRATION = process.env.REGISTRATION || 'first';
+const ENV_REGISTRATION = process.env.REGISTRATION || 'first';
+const ENV_SIGNUP_LIMIT = Number(process.env.MAX_SIGNUPS_PER_DAY) || 0;
+const ADMINS = new Set((process.env.ADMIN_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean));
+const SHARING = process.env.SHARING === 'on';
+const NO_LIMIT_QUOTA = 100 * 1024 * 1024 * 1024;
 const QUOTA = Number(process.env.QUOTA_MB || 1024) * 1024 * 1024;
 const MAX_BODY = 20 * 1024 * 1024;
 const MAX_PUBLIC_BODY = 64 * 1024; // sign-in and account requests, before a device is known
@@ -108,6 +115,21 @@ for (const col of ['recovery_hash', 'recovery_salt', 'public_key', 'wrapped_priv
   if (!db.prepare('PRAGMA table_info(users)').all().some(c => c.name === col)) db.exec(`ALTER TABLE users ADD COLUMN ${col} TEXT`);
 }
 
+// Every sign-up, kept after its account is deleted, so deleting doesn't free up the day's limit.
+db.exec('CREATE TABLE IF NOT EXISTS signups (at TEXT NOT NULL)');
+// quota_mb: this account's own limit; empty means the server's default.
+if (!db.prepare('PRAGMA table_info(users)').all().some(c => c.name === 'quota_mb')) db.exec('ALTER TABLE users ADD COLUMN quota_mb REAL');
+// The admin's whitelist: addresses to keep, whether or not they have an account yet.
+db.exec('CREATE TABLE IF NOT EXISTS whitelist (email TEXT PRIMARY KEY, added_at TEXT NOT NULL)');
+// How much each account does each day (UTC), for spotting abuse.
+db.exec(`CREATE TABLE IF NOT EXISTS activity (
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  day TEXT NOT NULL,
+  requests INTEGER NOT NULL DEFAULT 0,
+  bytes_in INTEGER NOT NULL DEFAULT 0,
+  refused INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (user_id, day)
+)`);
 db.exec('CREATE UNIQUE INDEX IF NOT EXISTS users_username ON users (username COLLATE NOCASE) WHERE username IS NOT NULL');
 const NAMES = 'username, first_name, last_name';
 
@@ -120,6 +142,20 @@ if (!secret) {
 }
 
 const now = () => new Date().toISOString();
+const metaGet = key => db.prepare('SELECT value FROM meta WHERE key = ?').get(key)?.value;
+const metaSet = (key, value) => db.prepare('INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value').run(key, String(value));
+// The admin page's choices win over the settings file.
+const registrationSetting = () => metaGet('registration') || ENV_REGISTRATION;
+const signupLimit = () => { const saved = metaGet('signup_limit'); return saved === undefined ? ENV_SIGNUP_LIMIT : Number(saved); };
+const signupsToday = () => db.prepare('SELECT COUNT(*) n FROM signups WHERE at >= ?').get(now().slice(0, 10)).n;
+const dayIsFull = () => signupLimit() > 0 && signupsToday() >= signupLimit();
+const allOff = () => metaGet('all_off') === '1';
+const registrationNow = () => {
+  const setting = registrationSetting();
+  if (allOff()) return 'closed';
+  if (setting === 'closed' || (setting === 'first' && db.prepare('SELECT COUNT(*) n FROM users').get().n)) return 'closed';
+  return dayIsFull() ? 'closed' : 'open';
+};
 const sha256 = s => crypto.createHash('sha256').update(s).digest('hex');
 const id = () => crypto.randomUUID();
 const b64url = buf => buf.toString('base64url');
@@ -132,6 +168,12 @@ const same = (a, b) => a.length === b.length && crypto.timingSafeEqual(Buffer.fr
 // ---------- tiny router ----------
 
 class HttpError extends Error { constructor(status, message) { super(message); this.status = status; } }
+const ALL_OFF_MESSAGE = 'Sync is switched off on this server for now. Everything on this device is safe.';
+const isAdminId = userId => ADMINS.has(db.prepare('SELECT email FROM users WHERE id = ?').get(userId)?.email);
+function noteActivity(userId, { requests = 0, bytes = 0, refused = 0 }) {
+  db.prepare(`INSERT INTO activity (user_id, day, requests, bytes_in, refused) VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT (user_id, day) DO UPDATE SET requests = requests + excluded.requests, bytes_in = bytes_in + excluded.bytes_in, refused = refused + excluded.refused`).run(userId, now().slice(0, 10), requests, bytes, refused);
+}
 
 function readJson(req, limit) {
   return new Promise((resolve, reject) => {
@@ -176,7 +218,10 @@ function authed(req) {
   if (!m) throw new HttpError(401, 'Sign in first');
   const dev = db.prepare('SELECT d.id, d.user_id FROM devices d WHERE d.token_hash = ?').get(sha256(m[1]));
   if (!dev) throw new HttpError(401, 'This device has been signed out');
+  // All off: everyone but the admin, who needs to be able to turn it back on.
+  if (allOff() && !isAdminId(dev.user_id)) throw new HttpError(503, ALL_OFF_MESSAGE);
   db.prepare('UPDATE devices SET last_seen = ? WHERE id = ?').run(now(), dev.id);
+  noteActivity(dev.user_id, { requests: 1 });
   return dev;
 }
 
@@ -219,6 +264,42 @@ const usage = userId => db.prepare('SELECT COALESCE(SUM(size_bytes), 0) AS bytes
   + db.prepare('SELECT COALESCE(SUM(r.size_bytes), 0) AS bytes FROM share_records r JOIN shares s ON s.id = r.share_id WHERE s.owner_id = ?').get(userId).bytes
   + db.prepare('SELECT COALESCE(SUM(b.size_bytes), 0) AS bytes FROM share_blobs b JOIN shares s ON s.id = b.share_id WHERE s.owner_id = ?').get(userId).bytes;
 
+const defaultQuotaMb = () => { const saved = metaGet('default_quota_mb'); return saved === undefined ? QUOTA / 1048576 : Number(saved); };
+const quotaOf = userId => {
+  if (isAdminId(userId)) return NO_LIMIT_QUOTA;
+  const own = db.prepare('SELECT quota_mb FROM users WHERE id = ?').get(userId)?.quota_mb;
+  return (own ?? defaultQuotaMb()) * 1048576;
+};
+const quotaMessage = userId => `This account has reached its limit of ${Math.round(quotaOf(userId) / 1048576)} MB`;
+function adminOf(req) {
+  const dev = authed(req);
+  if (!isAdminId(dev.user_id)) throw new HttpError(403, 'Only the server admin can do that');
+  return dev;
+}
+const DEFAULT_TEMPLATES = [{ name: 'Trial', mb: 5 }, { name: 'Kept', mb: 25 }, { name: 'Large', mb: 100 }];
+const quotaTemplates = () => JSON.parse(metaGet('quota_templates') || 'null') || DEFAULT_TEMPLATES;
+const cleanEmails = list => [...new Set((Array.isArray(list) ? list : []).map(e => String(e).trim().toLowerCase()).filter(e => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)))];
+const quotaNumber = value => {
+  const mb = Number(value);
+  if (!Number.isFinite(mb) || mb < 0 || mb > 100000) throw new HttpError(400, 'Use a number of MB from 0 to 100000');
+  return mb;
+};
+const summary = () => {
+  const seen = metaGet('admin_seen') || '';
+  const disk = fs.statfsSync(DATA_DIR);
+  const today = now().slice(0, 10);
+  const activity = db.prepare('SELECT COALESCE(SUM(requests), 0) requests, COALESCE(SUM(bytes_in), 0) bytes_in, COALESCE(SUM(refused), 0) refused FROM activity WHERE day = ?').get(today);
+  return {
+    all_off: allOff(), disk_free_bytes: disk.bavail * disk.bsize, requests_today: activity.requests, bytes_in_today: activity.bytes_in, refused_today: activity.refused,
+    accounts: db.prepare('SELECT COUNT(*) n FROM users').get().n,
+    stored_bytes: db.prepare('SELECT COALESCE(SUM(size_bytes), 0) n FROM records').get().n + db.prepare('SELECT COALESCE(SUM(size_bytes), 0) n FROM blobs').get().n,
+    new_accounts: db.prepare('SELECT COUNT(*) n FROM users WHERE created_at > ?').get(seen).n,
+    signups_today: signupsToday(), signup_limit: signupLimit(), registration: registrationSetting(), registration_now: registrationNow(), quota_mb: defaultQuotaMb(), templates: quotaTemplates(),
+  };
+};
+const DAY_MS = 24 * 60 * 60 * 1000;
+const isUnderADay = user => Date.now() - Date.parse(user.created_at) < DAY_MS;
+
 // A place records are kept: one account's own (records) or a share (share_records).
 const PERSONAL = { table: 'records', key: 'user_id', counter: 'UPDATE users SET last_seq = last_seq + 1 WHERE id = ? RETURNING last_seq' };
 const SHARED = { table: 'share_records', key: 'share_id', counter: 'UPDATE shares SET last_seq = last_seq + 1 WHERE id = ? RETURNING last_seq' };
@@ -236,6 +317,7 @@ function pushInto(place, owner, quotaUser, body) {
   const put = db.prepare(`INSERT INTO ${place.table} (${place.key}, record_id, seq, ciphertext, size_bytes) VALUES (?, ?, ?, ?, ?)
     ON CONFLICT (${place.key}, record_id) DO UPDATE SET seq = excluded.seq, ciphertext = excluded.ciphertext, size_bytes = excluded.size_bytes`);
   let bytes = usage(quotaUser);
+  let sent = 0;
   db.exec('BEGIN IMMEDIATE');
   try {
     for (const r of list) {
@@ -245,16 +327,19 @@ function pushInto(place, owner, quotaUser, body) {
       if (have && have.seq !== (Number(r.base_seq) || 0)) { conflicts.push({ record_id: r.record_id, seq: have.seq, ciphertext: have.ciphertext }); continue; }
       const size = Buffer.byteLength(r.ciphertext);
       bytes += size - (have ? Buffer.byteLength(have.ciphertext) : 0);
-      if (bytes > QUOTA) throw new HttpError(507, 'Storage quota reached');
+      if (bytes > quotaOf(quotaUser)) throw new HttpError(507, quotaMessage(quotaUser));
       const seq = bump.get(owner).last_seq;
       put.run(owner, r.record_id, seq, r.ciphertext, size);
       accepted.push({ record_id: r.record_id, seq });
+      sent += size;
     }
     db.exec('COMMIT');
   } catch (e) {
     db.exec('ROLLBACK');
+    if (e.status === 507) noteActivity(quotaUser, { refused: 1 });
     throw e;
   }
+  noteActivity(quotaUser, { bytes: sent });
   return { accepted, conflicts };
 }
 
@@ -284,7 +369,7 @@ const ownShare = (userId, shareId) => {
 // ---------- endpoints ----------
 
 const routes = {
-  'GET /api/health': () => ({ ok: true, registration: REGISTRATION === 'first' ? (db.prepare('SELECT COUNT(*) n FROM users').get().n ? 'closed' : 'open') : REGISTRATION }),
+  'GET /api/health': () => ({ ok: true, registration: registrationNow(), day_is_full: dayIsFull(), all_off: allOff(), quota_mb: defaultQuotaMb() }),
 
   // The app needs its key-derivation settings before it can make the login hash.
   'POST /api/prelogin': async ({ body }) => {
@@ -295,8 +380,8 @@ const routes = {
   },
 
   'POST /api/register': async ({ body }) => {
-    const users = db.prepare('SELECT COUNT(*) n FROM users').get().n;
-    if (REGISTRATION === 'closed' || (REGISTRATION === 'first' && users > 0)) throw new HttpError(403, 'Registration is closed on this server');
+    const refuseIfClosed = () => { if (registrationNow() !== 'open') throw new HttpError(403, dayIsFull() ? "Today's new accounts have all gone. Try again tomorrow." : 'Registration is closed on this server'); };
+    refuseIfClosed();
     const email = String(body.email || '').trim().toLowerCase();
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new HttpError(400, 'Enter a valid email address');
     if (typeof body.auth_hash !== 'string' || body.auth_hash.length < 32) throw new HttpError(400, 'Missing auth_hash');
@@ -306,8 +391,14 @@ const routes = {
     const salt = b64url(crypto.randomBytes(16));
     const rsalt = b64url(crypto.randomBytes(16));
     const userId = id();
+    const authHash = await scrypt(body.auth_hash, salt);
+    const recoveryHash = await scrypt(body.recovery_hash, rsalt);
+    // Checked again now the slow part is done, so requests arriving together can't all get in.
+    refuseIfClosed();
+    if (db.prepare('SELECT 1 FROM users WHERE email = ?').get(email)) throw new HttpError(409, 'That email already has an account');
+    db.prepare('INSERT INTO signups (at) VALUES (?)').run(now());
     db.prepare('INSERT INTO users (id, email, auth_hash, auth_salt, kdf, wrapped_data_key, recovery_hash, recovery_salt, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(userId, email, await scrypt(body.auth_hash, salt), salt, JSON.stringify(body.kdf), body.wrapped_data_key, await scrypt(body.recovery_hash, rsalt), rsalt, now());
+      .run(userId, email, authHash, salt, JSON.stringify(body.kdf), body.wrapped_data_key, recoveryHash, rsalt, now());
     return { user_id: userId, ...newDevice(userId, body.device_name) };
   },
 
@@ -321,6 +412,7 @@ const routes = {
     const ok = user && typeof body.auth_hash === 'string' && same(hash, user.auth_hash);
     if (!ok) { fail(`e:${email}`); fail(`i:${ip}`); throw new HttpError(401, 'Email or password is wrong'); }
     failures.delete(`e:${email}`);
+    if (allOff() && !ADMINS.has(user.email)) throw new HttpError(503, ALL_OFF_MESSAGE);
     return { user_id: user.id, wrapped_data_key: user.wrapped_data_key, kdf: JSON.parse(user.kdf), ...newDevice(user.id, body.device_name) };
   },
 
@@ -334,6 +426,7 @@ const routes = {
     const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
     const ok = user?.recovery_hash && typeof body.recovery_hash === 'string' && same(await scrypt(body.recovery_hash, user.recovery_salt), user.recovery_hash);
     if (!ok) { fail(`e:${email}`); fail(`i:${ip}`); throw new HttpError(401, 'Email or recovery code is wrong'); }
+    if (allOff() && !ADMINS.has(user.email)) throw new HttpError(503, ALL_OFF_MESSAGE);
     failures.delete(`e:${email}`);
     replacePassword(user.id, body);
     db.prepare('DELETE FROM devices WHERE user_id = ?').run(user.id);
@@ -500,7 +593,146 @@ const routes = {
 
   'GET /api/usage': ({ req }) => {
     const dev = authed(req);
-    return { bytes: usage(dev.user_id), quota: QUOTA };
+    return { bytes: usage(dev.user_id), quota: quotaOf(dev.user_id), limited: !isAdminId(dev.user_id) };
+  },
+
+  // ---------- admin (ADMIN_EMAILS; the page is /admin) ----------
+  // Nothing here can read anyone's data: only how much there is and when it was last used.
+
+  'GET /api/admin/summary': ({ req }) => { adminOf(req); return summary(); },
+
+  // Reading the list counts as having seen who is new.
+  'GET /api/admin/accounts': ({ req }) => {
+    adminOf(req);
+    const today = now().slice(0, 10);
+    const week = new Date(Date.now() - 6 * DAY_MS).toISOString().slice(0, 10);
+    const seen = metaGet('admin_seen') || '';
+    const accounts = db.prepare(`SELECT u.id, u.email, u.created_at, u.quota_mb,
+        (u.email IN (SELECT email FROM whitelist)) AS whitelisted,
+        (SELECT COUNT(*) FROM devices d WHERE d.user_id = u.id) AS devices,
+        (SELECT MAX(last_seen) FROM devices d WHERE d.user_id = u.id) AS last_seen,
+        (SELECT COUNT(*) FROM records r WHERE r.user_id = u.id) AS records,
+        (SELECT COUNT(*) FROM blobs b WHERE b.user_id = u.id) AS files,
+        (SELECT COALESCE(SUM(size_bytes), 0) FROM records r WHERE r.user_id = u.id) + (SELECT COALESCE(SUM(size_bytes), 0) FROM blobs b WHERE b.user_id = u.id) AS stored_bytes,
+        (SELECT COALESCE(SUM(requests), 0) FROM activity a WHERE a.user_id = u.id AND a.day = ?) AS requests_today,
+        (SELECT COALESCE(SUM(bytes_in), 0) FROM activity a WHERE a.user_id = u.id AND a.day = ?) AS bytes_in_today,
+        (SELECT COALESCE(SUM(refused), 0) FROM activity a WHERE a.user_id = u.id AND a.day = ?) AS refused_today,
+        (SELECT COALESCE(SUM(bytes_in), 0) FROM activity a WHERE a.user_id = u.id AND a.day >= ?) AS bytes_in_week
+      FROM users u ORDER BY u.created_at DESC`).all(today, today, today, week).map(({ id: userId, ...row }) => ({ ...row, whitelisted: !!row.whitelisted, is_admin: ADMINS.has(row.email), under_a_day: isUnderADay(row), is_new: row.created_at > seen, quota_bytes: quotaOf(userId) }));
+    const out = {
+      ...summary(), list: accounts, whitelist: db.prepare('SELECT email FROM whitelist ORDER BY email').all().map(w => w.email),
+      signups_week: db.prepare('SELECT substr(at, 1, 10) AS day, COUNT(*) AS n FROM signups WHERE at >= ? GROUP BY day ORDER BY day').all(week),
+    };
+    metaSet('admin_seen', now());
+    return out;
+  },
+
+  // Add to, remove from, or replace the whole whitelist. An address needn't have an account yet.
+  'POST /api/admin/whitelist': ({ req, body }) => {
+    adminOf(req);
+    if (!['add', 'remove', 'replace'].includes(body.op)) throw new HttpError(400, 'Use add, remove or replace');
+    const emails = cleanEmails(body.emails);
+    const add = db.prepare('INSERT OR IGNORE INTO whitelist (email, added_at) VALUES (?, ?)');
+    const remove = db.prepare('DELETE FROM whitelist WHERE email = ?');
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      if (body.op === 'replace') db.exec('DELETE FROM whitelist');
+      for (const email of emails) { if (body.op === 'remove') remove.run(email); else add.run(email, now()); }
+      db.exec('COMMIT');
+    } catch (e) {
+      db.exec('ROLLBACK');
+      throw e;
+    }
+    return { whitelist: db.prepare('SELECT email FROM whitelist ORDER BY email').all().map(w => w.email) };
+  },
+
+  'POST /api/admin/delete': ({ req, body }) => {
+    adminOf(req);
+    const email = String(body.email || '').trim().toLowerCase();
+    if (ADMINS.has(email)) throw new HttpError(400, "The admin's own account can't be deleted here");
+    const hit = db.prepare('DELETE FROM users WHERE email = ?').run(email);
+    if (!hit.changes) throw new HttpError(404, 'No account with that email');
+    return { ok: true };
+  },
+
+  // Every account not on the whitelist. Accounts under a day old stay unless asked for: they were promised 24 hours.
+  'POST /api/admin/delete-unlisted': ({ req, body }) => {
+    adminOf(req);
+    if (body.confirm !== 'DELETE') throw new HttpError(400, 'Type DELETE to confirm');
+    const doomed = db.prepare('SELECT email, created_at FROM users WHERE email NOT IN (SELECT email FROM whitelist)').all().filter(user => !ADMINS.has(user.email) && (body.include_new === true || !isUnderADay(user)));
+    const del = db.prepare('DELETE FROM users WHERE email = ?');
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      for (const user of doomed) del.run(user.email);
+      db.exec('COMMIT');
+    } catch (e) {
+      db.exec('ROLLBACK');
+      throw e;
+    }
+    return { deleted: doomed.map(user => user.email) };
+  },
+
+  // Quotas for the chosen accounts, or everyone (`all`). set: a number of MB. add: raise or lower by MB. percent: raise or lower by a percentage. reset: back to the default. Never below 0; the admin's account isn't affected.
+  'POST /api/admin/quota': ({ req, body }) => {
+    adminOf(req);
+    const everyone = db.prepare('SELECT id, email, quota_mb FROM users').all().filter(user => !ADMINS.has(user.email));
+    const chosen = new Set(cleanEmails(body.emails));
+    const users = body.all === true ? everyone : everyone.filter(user => chosen.has(user.email));
+    const value = Number(body.value);
+    if (body.op !== 'reset' && (!Number.isFinite(value) || Math.abs(value) > 100000)) throw new HttpError(400, 'Use a number');
+    if (body.op === 'set') quotaNumber(value);
+    const next = {
+      set: () => value,
+      add: mb => mb + value,
+      percent: mb => mb * (1 + value / 100),
+      reset: () => null,
+    }[body.op];
+    if (!next) throw new HttpError(400, 'Use set, add, percent or reset');
+    const put = db.prepare('UPDATE users SET quota_mb = ? WHERE id = ?');
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      for (const user of users) {
+        const mb = next(user.quota_mb ?? defaultQuotaMb());
+        put.run(mb === null ? null : Math.min(100000, Math.max(0, Math.round(mb * 100) / 100)), user.id);
+      }
+      db.exec('COMMIT');
+    } catch (e) {
+      db.exec('ROLLBACK');
+      throw e;
+    }
+    return { changed: users.length };
+  },
+
+  // The limit for every account without one of its own, and the quick choices on the page.
+  'POST /api/admin/quota-defaults': ({ req, body }) => {
+    adminOf(req);
+    if (body.default_mb !== undefined) metaSet('default_quota_mb', quotaNumber(body.default_mb));
+    if (body.templates !== undefined) {
+      if (!Array.isArray(body.templates) || body.templates.length > 20) throw new HttpError(400, 'Up to 20 templates');
+      metaSet('quota_templates', JSON.stringify(body.templates.map(item => ({ name: String(item.name || '').trim().slice(0, 40), mb: quotaNumber(item.mb) })).filter(item => item.name)));
+    }
+    return summary();
+  },
+
+  // The big switch: nobody but the admin can sync, sign in or sign up until it's turned back on. Nothing is deleted.
+  'POST /api/admin/all-off': ({ req, body }) => {
+    adminOf(req);
+    metaSet('all_off', body.off === true ? '1' : '0');
+    return summary();
+  },
+
+  'POST /api/admin/registration': ({ req, body }) => {
+    adminOf(req);
+    if (body.state !== undefined) {
+      if (!['open', 'closed'].includes(body.state)) throw new HttpError(400, 'Use open or closed');
+      metaSet('registration', body.state);
+    }
+    if (body.limit !== undefined) {
+      const limit = Number(body.limit);
+      if (!Number.isInteger(limit) || limit < 0 || limit > 1000) throw new HttpError(400, 'The daily limit is a whole number from 0 (no limit) to 1000');
+      metaSet('signup_limit', limit);
+    }
+    return summary();
   },
 };
 
@@ -537,7 +769,8 @@ async function blobs(req, res, url, origin) {
     const data = await readRaw(req, MAX_BLOB);
     if (!data.length) throw new HttpError(400, 'Empty file');
     const had = db.prepare(`SELECT size_bytes FROM ${table} WHERE ${key} = ? AND blob_id = ?`).get(owner, id)?.size_bytes || 0;
-    if (usage(quotaUser) - had + data.length > QUOTA) throw new HttpError(507, 'Storage quota reached');
+    if (usage(quotaUser) - had + data.length > quotaOf(quotaUser)) { noteActivity(quotaUser, { refused: 1 }); throw new HttpError(507, quotaMessage(quotaUser)); }
+    noteActivity(quotaUser, { bytes: data.length });
     db.prepare(`INSERT OR REPLACE INTO ${table} (${key}, blob_id, size_bytes, data) VALUES (?, ?, ?, ?)`).run(owner, id, data.length, data);
     return send(res, 200, { ok: true, size: data.length }, origin);
   }
@@ -552,6 +785,15 @@ async function blobs(req, res, url, origin) {
     return send(res, 200, { ok: true }, origin);
   }
   throw new HttpError(405, 'Not allowed');
+}
+
+// The admin page: one fixed page and its script, allowed to load nothing else.
+const ADMIN_FILES = { '/admin': ['admin-page.html', 'text/html; charset=utf-8'], '/admin/admin-page.js': ['admin-page.js', 'text/javascript; charset=utf-8'], '/admin/admin-page.css': ['admin-page.css', 'text/css; charset=utf-8'] };
+function adminFile(req, res, url) {
+  const file = ADMIN_FILES[url.pathname.replace(/\/$/, '')];
+  if (!file || req.method !== 'GET') throw new HttpError(404, 'Not found');
+  res.writeHead(200, { 'Content-Type': file[1], 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'X-Frame-Options': 'DENY', 'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'" });
+  res.end(fs.readFileSync(new URL(file[0], import.meta.url)));
 }
 
 // Sign-in and account requests are the only ones allowed before a device is known.
@@ -578,6 +820,8 @@ async function handle(req, res) {
     return res.end();
   }
   const url = new URL(req.url, 'http://x');
+  if (url.pathname === '/admin' || url.pathname.startsWith('/admin/')) return adminFile(req, res, url);
+  if (!SHARING && /^\/api\/(shares|people|keypair)(\/|$)/.test(url.pathname)) return send(res, 404, { error: 'Sharing is off on this server' }, origin);
   if (/^\/api\/(shares\/[^/]+\/)?blobs(\/|$)/.test(url.pathname)) return blobs(req, res, url, origin);
   const route = match(req.method, url.pathname);
   if (!route) return send(res, 404, { error: 'Not found' }, origin);
@@ -596,4 +840,4 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, HOST, () => console.log(`open-flashcards-server listening on ${HOST}:${PORT} (registration: ${REGISTRATION}, origins: ${ORIGINS.join(' ')})`));
+server.listen(PORT, HOST, () => console.log(`open-flashcards-server listening on ${HOST}:${PORT} (registration: ${registrationSetting()}, origins: ${ORIGINS.join(' ')})`));

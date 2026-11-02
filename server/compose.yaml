@@ -13,6 +13,8 @@ services:
       REGISTRATION: ${REGISTRATION:-first}
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-https://hazymat.github.io,http://localhost:5173}
       QUOTA_MB: ${QUOTA_MB:-1024}
+      MAX_SIGNUPS_PER_DAY: ${MAX_SIGNUPS_PER_DAY:-0}
+      ADMIN_EMAILS: ${ADMIN_EMAILS:-}
     volumes:
       - flashcards-data:/data
 
