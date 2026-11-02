@@ -21,7 +21,7 @@ A simple, open-source flashcards app that runs in your browser. No tracking, no 
 
 A bar tells you when a new version is ready, and Settings lets you check for updates and read what changed in every version. Once loaded, it works without a connection.
 
-Add it to your phone's home screen from the browser's Share menu to use it like an app. On an iPhone or iPad this also keeps your sets safe, because Safari can clear a website's saved data after about a week away from it.
+Add it to your phone's home screen from the browser's Share menu to use it like an app. On an iPhone or iPad this also keeps your sets safe, because Safari can delete a website's saved data after 7 days without use. The app reminds you, and Settings has the steps. The Home Screen app keeps its own copy, so sign in to Sync there or export and import to bring your sets across.
 
 ## Sync between your devices
 

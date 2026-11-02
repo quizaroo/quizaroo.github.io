@@ -386,7 +386,7 @@ a.mode-tile:hover { transform: translateY(-2px); box-shadow: var(--shadow); back
 .empty { padding: 30px 0; text-align: center; }
 
 /* Sync: the pill at the top right and the Sync section of Settings. */
-.pill { flex: none; padding: 4px 12px; border-radius: 999px; font-size: 13px; color: var(--muted); background: var(--glass); border: 1px solid var(--glass-border); white-space: nowrap; }
+.pill { flex: none; cursor: pointer; padding: 4px 12px; border-radius: 999px; font-size: 13px; color: var(--muted); background: var(--glass); border: 1px solid var(--glass-border); white-space: nowrap; }
 #sync-status[data-state="syncing"] { opacity: .8; }
 #sync-status[data-state="ok"] { color: #1d8a55; border-color: rgba(29, 138, 85, .4); }
 :root[data-theme="glass"] #sync-status[data-state="ok"] { color: #7dd3a8; border-color: rgba(125, 211, 168, .4); }
@@ -430,3 +430,29 @@ a.mode-tile:hover { transform: translateY(-2px); box-shadow: var(--shadow); back
 .sync-admin { padding: 9px 12px; font-size: 14px; background: var(--glass-track); border: 1px solid var(--active-border); border-radius: 12px; }
 .nav-item.has-alert { position: relative; }
 .nav-item.has-alert::after { content: ''; position: absolute; top: 8px; right: 10px; width: 9px; height: 9px; background: var(--danger); border-radius: 50%; }
+
+/* Tapping the pill, and Home Screen: as in Sift. */
+.sync-popup { width: 320px; font-size: 14px; }
+.sync-popup h3 { color: var(--text); font-size: 15px; }
+.sync-popup p { margin: 6px 0; }
+.sync-popup ul { margin: 6px 0; padding-left: 1.2em; }
+.sync-popup li { margin: 4px 0; }
+.sync-popup .button-row { margin: 10px 0 0; }
+.install-alert { padding: 10px 14px; background: rgba(220, 60, 60, .12); border: 1px solid #ff8a8a; border-radius: 12px; }
+.install-alert p { margin: 6px 0; }
+.install-alert .primary { margin: 6px 0; }
+.install-steps { display: grid; gap: 6px; margin: 8px 0; padding-left: 1.3em; }
+.install-ok { margin: 0; color: #1d8a55; }
+:root[data-theme="glass"] .install-ok { color: #8fe0a8; }
+.install-banner { display: flex; align-items: flex-start; gap: 10px; padding: 8px 14px; font-size: 14px; line-height: 1.35; color: #fff; background: #b3261e; }
+.install-banner a { color: #fff; font-weight: 600; text-decoration: underline; }
+.install-banner button { flex: none; margin-left: auto; padding: 0 4px; font-size: 16px; color: #fff; background: none; border: 0; }
+.install-banner button:hover:not(:disabled) { background: none; }
+.sync-led { display: inline-block; width: 9px; height: 9px; margin-right: 7px; border-radius: 50%; vertical-align: 1px; background: var(--muted); }
+.sync-led[data-state="ok"] { background: #2fa866; box-shadow: 0 0 5px rgba(47, 168, 102, .7); }
+.sync-led[data-state="busy"] { background: #e0a020; animation: sync-led-pulse 1.1s ease-in-out infinite; }
+.sync-led[data-state="warn"] { background: #e0a020; }
+.sync-led[data-state="bad"] { background: var(--danger); }
+.sync-led[data-state="off"] { background: none; border: 2px solid var(--muted); box-sizing: border-box; }
+@keyframes sync-led-pulse { 50% { opacity: .35; } }
+@media (max-width: 400px) { .sync-popup { left: 12px; right: 12px !important; width: auto; } }
