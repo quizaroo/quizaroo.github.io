@@ -232,6 +232,7 @@ body.is-carrying { -webkit-user-select: none; user-select: none; cursor: grabbin
 .rate-never { background: var(--learn); } .rate-sometimes { background: #ffe27a; } .rate-always { background: var(--know); }
 @media (hover: hover) { .rating-row .rate-never:hover:not(:disabled) { background: color-mix(in srgb, var(--learn) 88%, #000); } .rating-row .rate-sometimes:hover:not(:disabled) { background: color-mix(in srgb, #ffe27a 88%, #000); } .rating-row .rate-always:hover:not(:disabled) { background: color-mix(in srgb, var(--know) 88%, #000); } }
 .tricky-tag { margin-left: 8px; padding: 1px 8px; font-size: 11px; font-weight: 600; color: var(--on-tint); background: var(--learn); border-radius: 9px; }
+.switch-note { flex-basis: 100%; text-align: center; font-size: 13px; }
 .learn-switches { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 16px; }
 .learn-nav { display: flex; justify-content: center; gap: 10px; width: 100%; }
 .learn-nav button { flex: 1; max-width: 220px; padding: 11px 14px; }
