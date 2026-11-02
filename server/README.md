@@ -144,7 +144,7 @@ With Docker: `docker compose exec flashcards node admin.js users`.
 - `QUOTA_MB`: per-account storage limit. Accounts in `ADMIN_EMAILS` have no limit but the disk.
 - `MAX_SIGNUPS_PER_DAY`: new accounts allowed per day (UTC), counting ones since deleted. `0` is no limit.
 - `ADMIN_EMAILS`: accounts that can use the admin page.
-- `EMAIL_CODES`: `on` asks new accounts to confirm their address with a code sent by email, from `MAIL_FROM`, through the mail server at `SMTP_HOST` and `SMTP_PORT` (default `127.0.0.1` and `25`, with no sign-in). Off, addresses aren't checked.
+- `EMAIL_CODES`: `on` asks new accounts to confirm their address with a code sent by email, from `MAIL_FROM`, through the mail server at `SMTP_HOST` and `SMTP_PORT` (default `127.0.0.1` and `25`, with no sign-in). Off, addresses aren't checked. With Microsoft 365, run `sudo flashcards-admin connect-m365 <mailbox>` instead: it signs you in as an admin, creates a shared mailbox if needed and an app with only this server's certificate, limited to that one mailbox. Delete the app in Entra to stop all sending. The mailbox's domain must already be in your Microsoft 365, with its SPF and DKIM records set up.
 - `SHARING`: `on` turns on the sharing routes. Leave it off on a server open to the public: they let any account look others up by email.
 - `PORT`: the port it listens on, 8797 unless you change it.
 

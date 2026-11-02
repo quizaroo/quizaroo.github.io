@@ -8,6 +8,8 @@
 //   flashcards-admin delete-user <email>      remove an account and everything stored for it
 //   flashcards-admin registration [first|open|closed]
 //                                       show or change who can create accounts
+//   flashcards-admin connect-m365 <mailbox>
+//                                       send email through Microsoft 365 from this mailbox (asks an admin to sign in)
 //   flashcards-admin reset-admin <email>
 //                                       free up an admin address whose account has gone, so it can be made again
 //
@@ -54,6 +56,8 @@ if (cmd === 'users') {
   if (!arg) { console.error('Usage: flashcards-admin delete-user <email>'); process.exit(1); }
   const r = open().prepare('DELETE FROM users WHERE email = ?').run(arg);   // devices and records cascade
   console.log(r.changes ? 'Account and all its stored data deleted.' : 'No account with that email.');
+} else if (cmd === 'connect-m365') {
+  try { await (await import('./connect-m365.js')).connectM365(arg); } catch (e) { console.error(e.message); process.exit(1); }
 } else if (cmd === 'reset-admin') {
   if (!arg) { console.error('Usage: flashcards-admin reset-admin <email>'); process.exit(1); }
   const db = open();
@@ -75,5 +79,5 @@ if (cmd === 'users') {
   try { execFileSync('systemctl', ['restart', 'open-flashcards-server'], { stdio: 'inherit' }); console.log(`Registration is now "${arg}".`); }
   catch { console.log(`Saved "${arg}" in ${ENV_FILE}. Restart the server to apply it.`); }
 } else {
-  console.log(fs.readFileSync(new URL(import.meta.url), 'utf8').split('\n').slice(1, 15).map(l => l.replace(/^\/\/ ?/, '')).join('\n'));
+  console.log(fs.readFileSync(new URL(import.meta.url), 'utf8').split('\n').slice(1, 17).map(l => l.replace(/^\/\/ ?/, '')).join('\n'));
 }

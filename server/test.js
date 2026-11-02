@@ -1,7 +1,7 @@
 // End-to-end check of open-flashcards-server against a throwaway database.
 //   node test.js      (starts its own server on a spare port)
 
-import { spawn } from 'node:child_process';
+import { spawn, execSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -541,6 +541,57 @@ try {
     coded.kill();
     smtp.close();
     fs.rmSync(dir3, { recursive: true, force: true });
+  }
+
+  // ---------- email through Microsoft 365, against a pretend Microsoft ----------
+  const microsoft = [];
+  const crypto = await import('node:crypto');
+  const fake = (await import('node:http')).createServer((req, res) => {
+    let raw = '';
+    req.on('data', c => { raw += c; });
+    req.on('end', () => {
+      microsoft.push({ url: req.url, auth: req.headers.authorization, raw });
+      res.writeHead(req.url.includes('/sendMail') && fake.refuse ? 403 : 202, { 'Content-Type': 'application/json' });
+      res.end(req.url.includes('/token') ? JSON.stringify({ access_token: 'tok', expires_in: 3600 }) : fake.refuse ? JSON.stringify({ error: { message: 'Access denied' } }) : '');
+    });
+  });
+  await new Promise(done => fake.listen(0, '127.0.0.1', done));
+  const fakeUrl = `http://127.0.0.1:${fake.address().port}`;
+  const dir4 = fs.mkdtempSync(path.join(os.tmpdir(), 'flashcards-test-'));
+  fs.mkdirSync(path.join(dir4, 'mail'));
+  execSync(`openssl req -x509 -newkey rsa:2048 -nodes -sha256 -days 2 -subj /CN=test -keyout ${path.join(dir4, 'mail/key.pem')} -out ${path.join(dir4, 'mail/cert.pem')}`, { stdio: 'ignore' });
+  fs.writeFileSync(path.join(dir4, 'mail/config.json'), JSON.stringify({ tenantId: 'tenant1', clientId: 'client1', mailbox: 'noreply@example.com' }));
+  const PORT4 = PORT + 3000;
+  const viaMs = spawn(process.execPath, ['server.js'], { env: { ...process.env, PORT: PORT4, DATA_DIR: dir4, REGISTRATION: 'open', EMAIL_CODES: 'on', MAIL_FROM: '', SMTP_PORT: '1', GRAPH_LOGIN_URL: fakeUrl, GRAPH_URL: fakeUrl }, stdio: ['ignore', 'pipe', 'pipe'] });
+  await new Promise(done => viaMs.stdout.once('data', done));
+  const ask = async (email, ipTail) => fetch(`http://127.0.0.1:${PORT4}/api/signup/code`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Forwarded-For': `203.0.113.${ipTail}` }, body: JSON.stringify({ email }) });
+  try {
+    assert.equal((await ask('h@example.com', 1)).status, 200);
+    const tokenCall = microsoft.find(m => m.url === '/tenant1/oauth2/v2.0/token');
+    const form = new URLSearchParams(tokenCall.raw);
+    assert.equal(form.get('grant_type'), 'client_credentials');
+    assert.equal(form.get('client_id'), 'client1');
+    const [head, body, signature] = form.get('client_assertion').split('.');
+    assert.ok(crypto.createVerify('RSA-SHA256').update(`${head}.${body}`).verify(new crypto.X509Certificate(fs.readFileSync(path.join(dir4, 'mail/cert.pem'))).publicKey, Buffer.from(signature, 'base64url')), 'signed with the certificate');
+    assert.equal(JSON.parse(Buffer.from(body, 'base64url')).iss, 'client1');
+    const sendCall = microsoft.find(m => m.url.includes('/sendMail'));
+    assert.equal(sendCall.url, '/v1.0/users/noreply%40example.com/sendMail');
+    assert.equal(sendCall.auth, 'Bearer tok');
+    const sent = JSON.parse(sendCall.raw).message;
+    assert.equal(sent.toRecipients[0].emailAddress.address, 'h@example.com');
+    assert.match(sent.body.content, /Your code is \d{6}/);
+    const codeH = /Your code is (\d{6})/.exec(sent.body.content)[1];
+    r = await fetch(`http://127.0.0.1:${PORT4}/api/register`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Forwarded-For': '203.0.113.1' }, body: JSON.stringify({ email: 'h@example.com', code: codeH, auth_hash: 'a'.repeat(44), kdf: { salt: 's' }, wrapped_data_key: 'w', recovery_hash: 'r'.repeat(44) }) });
+    assert.equal(r.status, 200, 'the code from a Microsoft 365 email makes the account');
+    assert.equal(microsoft.filter(m => m.url.includes('/token')).length, 1, 'the sign-in is kept');
+    await ask('i@example.com', 2);
+    assert.equal(microsoft.filter(m => m.url.includes('/token')).length, 1, 'and used again');
+    fake.refuse = true;
+    assert.equal((await ask('j@example.com', 3)).status, 502, "if Microsoft refuses, it says so");
+  } finally {
+    viaMs.kill();
+    fake.close();
+    fs.rmSync(dir4, { recursive: true, force: true });
   }
 
   console.log('all server checks passed');
