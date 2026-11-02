@@ -1,5 +1,7 @@
 # Open Flashcards
 
+**Use it here: <https://hazymat.github.io/open-flashcards/>**
+
 A simple, open-source flashcards app that runs entirely in your browser. No account, no tracking, no adverts, nothing to install. Works for any language.
 
 - Create, edit, duplicate and delete sets; paste a whole list at once (term, Tab, definition)
