@@ -1,6 +1,6 @@
 // App shell cache. Bump VERSION with every release, to the newest version in whatsnew.js: a changed sw.js is what tells browsers there is an update (tools/publish.py checks it).
-const VERSION = '1.3.11';
-const CACHE = `open-flashcards-${VERSION}`;
+const VERSION = '1.3.12';
+const CACHE = `quizaroo-${VERSION}`;
 
 const SHELL = [
   './',
@@ -54,8 +54,8 @@ self.addEventListener('install', event => {
 
 self.addEventListener('activate', event => {
   event.waitUntil((async () => {
-    // Only our own caches: other apps on this address, such as Sift, keep theirs here too.
-    for (const key of await caches.keys()) { if (key.startsWith('open-flashcards-') && key !== CACHE) await caches.delete(key); }
+    // Only our own caches.
+    for (const key of await caches.keys()) { if (key.startsWith('quizaroo-') && key !== CACHE) await caches.delete(key); }
     await self.clients.claim();
   })());
 });

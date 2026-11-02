@@ -1,6 +1,6 @@
-# Open Flashcards
+# Quizaroo
 
-**Use it here: <https://hazymat.github.io/open-flashcards/>**
+**Use it here: <https://quizaroo.github.io/>**
 
 A simple, open-source flashcards app that runs in your browser. No tracking, no adverts, nothing to install, and no account unless you want your devices to sync. Works for any language.
 
