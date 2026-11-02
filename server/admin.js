@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// flashcards-admin: look after a Open Flashcards server from its own shell.
+// flashcards-admin: look after a Quizaroo server from its own shell.
 //
 //   flashcards-admin users                    list accounts (email, devices, stored size)
 //   flashcards-admin devices [email]          list devices and when each was last seen

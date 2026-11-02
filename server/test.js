@@ -481,7 +481,7 @@ try {
     r = await call3('/api/signup/code', { email: 'A@Example.com' });
     assert.equal(r.status, 200);
     assert.equal(mails.at(-1).to, 'a@example.com');
-    assert.match(mails.at(-1).text, /Subject: Your Open Flashcards code/);
+    assert.match(mails.at(-1).text, /Subject: Your Quizaroo code/);
     const codeA = codeIn(mails.at(-1));
     assert.ok(codeA);
     assert.equal((await call3('/api/signup/code', { email: 'a@example.com' })).status, 429, 'wait a minute between codes');
