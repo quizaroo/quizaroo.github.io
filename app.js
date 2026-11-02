@@ -253,32 +253,60 @@ function view_edit(card_set, is_new) {
 function shuffled(source_items) { const result_items = source_items.slice(); for (let swap_index = result_items.length - 1; swap_index > 0; swap_index--) { const random_index = Math.floor(Math.random() * (swap_index + 1)), held_item = result_items[swap_index]; result_items[swap_index] = result_items[random_index]; result_items[random_index] = held_item; } return result_items; }
 function start_session(card_set, card_indexes, mode_key) { study_session = {set_id: card_set.id, mode: mode_key, queue: card_indexes.slice(), position: 0, known: [], learning: []}; }
 
+// Flashcards keeps score unless switched off, or opened on a word from View all vocab. Without score, nothing is recorded, Back and Next go round for ever, and there is no end of round.
+function start_flashcards(card_set, start_card, return_hash) {
+  const studyable_list = studyable_indexes(card_set), is_browsing = start_card !== undefined || app_state.keep_score === false, card_order = start_card !== undefined || !app_state.shuffle ? studyable_list : is_browsing ? shuffled(studyable_list) : weakest_first(card_set, studyable_list);
+  start_session(card_set, card_order, 'cards');
+  study_session.browsing = is_browsing; study_session.return_hash = return_hash; study_session.position = Math.max(0, card_order.indexOf(start_card));
+}
 function view_study(card_set) {
   clear_mode_timers();
   if (study_session.position >= study_session.queue.length) return view_study_summary(card_set);
   const current_index = study_session.queue[study_session.position], front_key = front_side(card_set, current_index), back_key = front_key === 'term' ? 'definition' : 'term', current_card = card_set.cards[current_index];
   const learn_hint_el = el('div', {class: 'swipe-hint learn'}, 'STILL LEARNING'), know_hint_el = el('div', {class: 'swipe-hint know'}, 'KNOW');
   const inner_el = el('div', {class: 'flashcard-inner'}, el('div', {class: 'face front'}, current_card[front_key]), el('div', {class: 'face back'}, current_card[back_key]));
-  const card_el = el('div', {class: 'flashcard'}, learn_hint_el, know_hint_el, inner_el);
+  const is_browsing = !!study_session.browsing, done_hash = study_session.return_hash || '#/set/' + card_set.id;
+  const card_el = el('div', {class: 'flashcard'}, is_browsing ? null : learn_hint_el, is_browsing ? null : know_hint_el, inner_el);
+  function move_card(step_by) { study_session.position = (study_session.position + step_by + study_session.queue.length) % study_session.queue.length; view_study(card_set); }
+  function toggle_shuffle() {
+    app_state.shuffle = !app_state.shuffle; save_state();
+    if (!is_browsing) { start_flashcards(card_set, undefined, study_session.return_hash); return view_study(card_set); }
+    const other_cards = studyable_indexes(card_set).filter(card_index => card_index !== current_index);
+    study_session.queue = app_state.shuffle ? [current_index].concat(shuffled(other_cards)) : studyable_indexes(card_set);
+    study_session.position = study_session.queue.indexOf(current_index); view_study(card_set);
+  }
+  function toggle_keep_score(keep_score) {
+    app_state.keep_score = keep_score; save_state();
+    if (keep_score) start_flashcards(card_set, undefined, study_session.return_hash); else study_session.browsing = true;
+    view_study(card_set);
+  }
   function answer(is_known) { record_answer(card_set, current_index, is_known); (is_known ? study_session.known : study_session.learning).push(study_session.queue[study_session.position]); study_session.position++; view_study(card_set); }
-  // Tap flips; horizontal swipe answers (right = know, left = still learning).
+  // Tap flips. A horizontal swipe answers (right = know, left = still learning), or without score turns to the next or last card.
   let drag_start = null;
-  card_el.addEventListener('pointerdown', pointer_event => { drag_start = {x: pointer_event.clientX, y: pointer_event.clientY}; card_el.setPointerCapture(pointer_event.pointerId); inner_el.style.transition = 'none'; });
-  card_el.addEventListener('pointermove', pointer_event => { if (!drag_start) return; const drag_x = pointer_event.clientX - drag_start.x; inner_el.style.transform = 'translateX(' + drag_x + 'px) rotate(' + drag_x / 25 + 'deg)' + (card_el.classList.contains('flipped') ? ' rotateY(180deg)' : ''); know_hint_el.style.opacity = Math.max(0, Math.min(1, drag_x / 100)); learn_hint_el.style.opacity = Math.max(0, Math.min(1, -drag_x / 100)); });
-  card_el.addEventListener('pointerup', pointer_event => {
-    if (!drag_start) return; const drag_x = pointer_event.clientX - drag_start.x, drag_y = pointer_event.clientY - drag_start.y; drag_start = null;
-    inner_el.style.transition = ''; inner_el.style.transform = ''; know_hint_el.style.opacity = 0; learn_hint_el.style.opacity = 0;
-    if (Math.abs(drag_x) > 90) answer(drag_x > 0); else if (Math.hypot(drag_x, drag_y) < 10) card_el.classList.toggle('flipped');
-  });
-  card_el.addEventListener('pointercancel', () => { drag_start = null; inner_el.style.transition = ''; inner_el.style.transform = ''; });
+  function drag_begin(start_x, start_y) { drag_start = {x: start_x, y: start_y}; inner_el.style.transition = 'none'; }
+  function drag_move(now_x) { if (!drag_start) return; const drag_x = now_x - drag_start.x; inner_el.style.transform = 'translateX(' + drag_x + 'px) rotate(' + drag_x / 25 + 'deg)' + (card_el.classList.contains('flipped') ? ' rotateY(180deg)' : ''); know_hint_el.style.opacity = Math.max(0, Math.min(1, drag_x / 100)); learn_hint_el.style.opacity = Math.max(0, Math.min(1, -drag_x / 100)); }
+  function drag_reset() { drag_start = null; inner_el.style.transition = ''; inner_el.style.transform = ''; know_hint_el.style.opacity = 0; learn_hint_el.style.opacity = 0; }
+  function drag_end(end_x, end_y) {
+    if (!drag_start) return; const drag_x = end_x - drag_start.x, drag_y = end_y - drag_start.y; drag_reset();
+    if (Math.abs(drag_x) > 90) { if (is_browsing) move_card(drag_x > 0 ? -1 : 1); else answer(drag_x > 0); } else if (Math.hypot(drag_x, drag_y) < 10) card_el.classList.toggle('flipped');
+  }
+  // A finger has its own events: a touch browser can take a pointer's gesture over as a scroll and cancel it mid-swipe, and stopping the touch's move is what prevents that.
+  card_el.addEventListener('pointerdown', pointer_event => { if (pointer_event.pointerType === 'touch') return; card_el.setPointerCapture(pointer_event.pointerId); drag_begin(pointer_event.clientX, pointer_event.clientY); });
+  card_el.addEventListener('pointermove', pointer_event => { if (pointer_event.pointerType !== 'touch') drag_move(pointer_event.clientX); });
+  card_el.addEventListener('pointerup', pointer_event => { if (pointer_event.pointerType !== 'touch') drag_end(pointer_event.clientX, pointer_event.clientY); });
+  card_el.addEventListener('pointercancel', pointer_event => { if (pointer_event.pointerType !== 'touch') drag_reset(); });
+  card_el.addEventListener('touchstart', touch_event => { if (touch_event.touches.length === 1) drag_begin(touch_event.touches[0].clientX, touch_event.touches[0].clientY); else drag_reset(); }, {passive: true});
+  card_el.addEventListener('touchmove', touch_event => { if (touch_event.cancelable) touch_event.preventDefault(); if (touch_event.touches.length === 1) drag_move(touch_event.touches[0].clientX); }, {passive: false});
+  card_el.addEventListener('touchend', touch_event => { if (touch_event.cancelable) touch_event.preventDefault(); const lifted_touch = touch_event.changedTouches[0]; drag_end(lifted_touch.clientX, lifted_touch.clientY); }, {passive: false});
+  card_el.addEventListener('touchcancel', drag_reset);
   const done_count = study_session.position, total_count = study_session.queue.length;
-  render(find_mode(study_session.mode).label, [el('a', {class: 'button', href: '#/set/' + card_set.id}, 'Done')], [el('div', {class: 'study-wrap', style: tint_style(card_set)},
-    el('div', {class: 'counts'}, el('span', {class: 'muted'}, 'Card ' + (done_count + 1) + ' of ' + total_count), el('span', {class: 'button-row tight-row'}, study_session.mode === 'cards' ? el('button', {class: 'shuffle-button', onclick: () => { app_state.shuffle = !app_state.shuffle; save_state(); study_session = null; view_mode(card_set, 'cards'); }}, app_state.shuffle ? 'Shuffle on' : 'Shuffle off') : null, direction_switch(card_set))),
-    el('div', {class: 'progress'}, el('div', {style: 'width:' + (100 * done_count / total_count) + '%'})),
-    el('div', {class: 'counts'}, el('span', {class: 'learn'}, study_session.learning.length + ' learning'), el('span', {class: 'know'}, study_session.known.length + ' known')),
+  render(find_mode(study_session.mode).label, [el('a', {class: 'button', href: done_hash}, 'Done')], [el('div', {class: 'study-wrap', style: tint_style(card_set)},
+    el('div', {class: 'counts'}, el('span', {class: 'muted'}, 'Card ' + (done_count + 1) + ' of ' + total_count), el('span', {class: 'button-row tight-row'}, study_session.mode === 'cards' ? el('label', {class: 'toggle-line keep-score'}, el('input', {type: 'checkbox', checked: !is_browsing, onchange: change_event => toggle_keep_score(change_event.target.checked)}), 'Keep score') : null, study_session.mode === 'cards' ? el('button', {class: 'shuffle-button', onclick: toggle_shuffle}, app_state.shuffle ? 'Shuffle on' : 'Shuffle off') : null, direction_switch(card_set))),
+    el('div', {class: 'progress'}, el('div', {style: 'width:' + (100 * (done_count + (is_browsing ? 1 : 0)) / total_count) + '%'})),
+    is_browsing ? null : el('div', {class: 'counts'}, el('span', {class: 'learn'}, study_session.learning.length + ' learning'), el('span', {class: 'know'}, study_session.known.length + ' known')),
     card_el,
-    el('div', {class: 'study-buttons'}, el('button', {class: 'learn-button', onclick: () => answer(false)}, '← Still learning'), el('button', {onclick: () => card_el.classList.toggle('flipped')}, 'Flip'), el('button', {class: 'know-button', onclick: () => answer(true)}, 'Know →')),
-    el('div', {class: 'muted'}, 'Tap to flip · swipe right if you know it, left if not · keys: space, ← →'))]);
+    is_browsing ? el('div', {class: 'study-buttons'}, el('button', {onclick: () => move_card(-1)}, '← Back'), el('button', {onclick: () => card_el.classList.toggle('flipped')}, 'Flip'), el('button', {onclick: () => move_card(1)}, 'Next →')) : el('div', {class: 'study-buttons'}, el('button', {class: 'learn-button', onclick: () => answer(false)}, '← Still learning'), el('button', {onclick: () => card_el.classList.toggle('flipped')}, 'Flip'), el('button', {class: 'know-button', onclick: () => answer(true)}, 'Know →')),
+    el('div', {class: 'muted'}, is_browsing ? 'Tap to flip · swipe or press ← → to move · nothing is recorded' : 'Tap to flip · swipe right if you know it, left if not · keys: space, ← →'))]);
 }
 
 function view_study_summary(card_set) {
@@ -327,7 +355,7 @@ function route() {
   if (['new', 'edit', 'play'].includes(route_name) && !is_home) document.body.dataset.focus = ''; else delete document.body.dataset.focus;
   if (route_name === 'set' && route_set) view_set(route_set);
   else if (route_name === 'edit' && route_set) view_edit(route_set, false);
-  else if (route_name === 'play' && route_set) view_mode(route_set, route_parts[2]);
+  else if (route_name === 'play' && route_set) view_mode(route_set, route_parts[2], route_parts[3]);
   else if (route_name === 'new') view_edit({id: new_id(), title: '', cards: []}, true);
   else if (route_name === 'library') view_library();
   else if (route_name === 'settings') view_settings();
