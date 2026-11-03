@@ -101,7 +101,7 @@ function other_answers(card_set, card_index, back_key, wanted_count) { const see
 
 // ---- Shared screen pieces ----
 let mode_timers = [];
-function clear_mode_timers() { mode_timers.forEach(clearTimeout); mode_timers = []; document.querySelectorAll('.right-ring').forEach(ring_el => ring_el.remove()); if (window.speechSynthesis) speechSynthesis.cancel(); }
+function clear_mode_timers() { mode_timers.forEach(clearTimeout); mode_timers = []; document.querySelectorAll('.right-wave').forEach(wave_el => wave_el.remove()); if (window.speechSynthesis) speechSynthesis.cancel(); }
 function later(run_later, delay_ms) { mode_timers.push(setTimeout(run_later, delay_ms)); }
 function mode_frame(card_set, mode_item, top_nodes, body_nodes) {
   clear_mode_timers();
@@ -121,18 +121,17 @@ function words_rect(answer_el) {
   if (answer_el.matches('input')) { const field_style = getComputedStyle(answer_el), measure_context = document.createElement('canvas').getContext('2d'); measure_context.font = field_style.font; const text_width = Math.min(measure_context.measureText(answer_el.value).width, box_rect.width - 20), line_height = parseFloat(field_style.fontSize) * 1.3; return {left: box_rect.left + parseFloat(field_style.paddingLeft) + parseFloat(field_style.borderLeftWidth), top: box_rect.top + (box_rect.height - line_height) / 2, width: text_width, height: line_height}; }
   const word_range = document.createRange(); word_range.selectNode(answer_el.lastChild || answer_el); return word_range.getBoundingClientRect();
 }
-// A right answer: a circle draws itself round what you gave, with a little flash and a ping, then the next word comes up.
+// A right answer: its letters hop in a wave, as a ticked task does in Sift, a small tick pops up after them, and there's a ping. Then the next word comes up. A field's letters can't move, so a copy lies over them.
 function celebrate_right(answer_el, run_next) {
   play_sound('right');
-  const answer_rect = words_rect(answer_el), ring_width = answer_rect.width + 30, ring_height = answer_rect.height + 18, at_x = fraction_x => (fraction_x * ring_width).toFixed(1), at_y = fraction_y => (fraction_y * ring_height).toFixed(1);
-  const ring_el = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  ring_el.setAttribute('class', 'right-ring'); ring_el.setAttribute('aria-hidden', 'true'); ring_el.setAttribute('viewBox', '0 0 ' + ring_width + ' ' + ring_height);
-  const wrap_el = answer_el.closest('.mode-wrap'), wrap_rect = wrap_el.getBoundingClientRect();
-  Object.assign(ring_el.style, {left: answer_rect.left - wrap_rect.left - 15 + 'px', top: answer_rect.top - wrap_rect.top - 9 + 'px', width: ring_width + 'px', height: ring_height + 'px'});
-  ring_el.innerHTML = '<path pathLength="1" d="M' + at_x(0.1) + ' ' + at_y(0.26) + 'C' + at_x(0.3) + ' ' + at_y(0.02) + ' ' + at_x(0.8) + ' ' + at_y(0) + ' ' + at_x(0.95) + ' ' + at_y(0.3) + 'C' + at_x(1.02) + ' ' + at_y(0.68) + ' ' + at_x(0.72) + ' ' + at_y(0.98) + ' ' + at_x(0.42) + ' ' + at_y(0.96) + 'C' + at_x(0.08) + ' ' + at_y(0.96) + ' ' + at_x(-0.03) + ' ' + at_y(0.56) + ' ' + at_x(0.14) + ' ' + at_y(0.18) + '"/>';
-  wrap_el.appendChild(ring_el);
+  const answer_style = getComputedStyle(answer_el), words_text = answer_el.matches('input') ? answer_el.value : answer_el.lastChild.textContent, wrap_el = answer_el.closest('.mode-wrap'), wrap_rect = wrap_el.getBoundingClientRect(), answer_rect = words_rect(answer_el), letters = Array.from(words_text), letter_gap = Math.min(28, 240 / Math.max(letters.length, 1));
+  const wave_el = el('div', {class: 'right-wave', 'aria-hidden': 'true', style: 'left:' + (answer_rect.left - wrap_rect.left) + 'px;top:' + (answer_rect.top - wrap_rect.top) + 'px;height:' + answer_rect.height + 'px;line-height:' + answer_rect.height + 'px;font:' + answer_style.font + ';line-height:' + answer_rect.height + 'px;color:' + (answer_el.matches('input') ? '#2fb36b' : answer_style.color)},
+    ...letters.map((letter_text, letter_index) => el('span', {class: 'wave-letter', style: 'animation-delay:' + Math.round(letter_index * letter_gap) + 'ms'}, letter_text === ' ' ? '\u00a0' : letter_text)));
+  const tick_el = el('span', {class: 'wave-tick', style: 'animation-delay:' + Math.round(letters.length * letter_gap) + 'ms'});
+  tick_el.innerHTML = '<svg viewBox="0 0 24 24"><path d="M4 13l5.5 5.5L20 7"/></svg>';
+  wave_el.appendChild(tick_el); wrap_el.appendChild(wave_el);
   answer_el.classList.add('right-flash');
-  later(run_next, 620);
+  later(run_next, Math.round(letters.length * letter_gap) + 420);
 }
 // Short sounds made in the browser, so there are no files to load. Off with Sound under the eye button.
 const SOUND_KEY = 'open-flashcards:sound';

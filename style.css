@@ -309,15 +309,18 @@ body.is-carrying .select-bar { opacity: 0; pointer-events: none; }
 .hero-active { margin: 0 0 12px; font-size: 15px; }
 .hero-active b { font-weight: 600; font-variant-numeric: tabular-nums; }
 
-/* ---- A right answer: a circle round it and a little flash ---- */
+/* ---- A right answer: its letters hop in a wave ---- */
 .prompt-card { position: relative; }
 .mode-wrap { position: relative; }
-.right-ring { position: absolute; z-index: 4; overflow: visible; pointer-events: none; }
-.right-ring path { fill: none; stroke: #2fb36b; stroke-width: 3; stroke-linecap: round; stroke-dasharray: 1; stroke-dashoffset: 1; animation: ring-draw .3s ease-out forwards; }
-@keyframes ring-draw { to { stroke-dashoffset: 0; } }
-.right-flash { opacity: 1 !important; animation: right-flash .55s ease-out; }
-@keyframes right-flash { 0% { box-shadow: 0 0 0 0 rgb(47 179 107 / 0); } 35% { box-shadow: 0 0 0 5px rgb(47 179 107 / .35), 0 0 26px 6px rgb(47 179 107 / .55); } 100% { box-shadow: 0 0 0 0 rgb(47 179 107 / 0); } }
-@media (prefers-reduced-motion: reduce) { .right-ring path { animation: none; stroke-dashoffset: 0; } .right-flash { animation: none; } }
+.right-wave { position: absolute; z-index: 4; display: flex; align-items: center; white-space: nowrap; pointer-events: none; }
+.wave-letter { display: inline-block; animation: letter-hop .52s cubic-bezier(.3, .7, .4, 1) both; }
+@keyframes letter-hop { 0% { transform: none; } 22% { transform: translateY(-9px) scale(1.12); } 46% { transform: translateY(2px) scale(.97); } 70% { transform: translateY(-1px); } 100% { transform: none; } }
+.wave-tick { display: block; flex: none; width: 1.05em; height: 1.05em; margin-left: .35em; animation: tick-pop .34s cubic-bezier(.3, 1.6, .5, 1) both; }
+.wave-tick svg { display: block; width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 3.4; stroke-linecap: round; stroke-linejoin: round; }
+@keyframes tick-pop { from { opacity: 0; transform: scale(.2); } to { opacity: 1; transform: scale(1); } }
+.right-flash { opacity: 1 !important; color: transparent !important; -webkit-text-fill-color: transparent; }
+.right-flash .choice-number { color: var(--on-tint); -webkit-text-fill-color: var(--on-tint); }
+@media (prefers-reduced-motion: reduce) { .wave-letter { animation: none; } .wave-tick { animation: none; } }
 
 /* ---- Rewards ---- */
 .trophy-shelf { margin: 0 0 20px; }
