@@ -83,7 +83,7 @@ function sync_section() {
   // Runs a button's work; what goes wrong shows beside it.
   function button_work(button_el, message_el, run_work) {
     return async () => {
-      try { await run_work(text => { message_el.textContent = text; }); } catch (work_err) { button_el.disabled = false; message_el.textContent = work_err instanceof TypeError ? "Can't reach the server from here (see above)" : work_err.message; }
+      try { await run_work(text => { message_el.textContent = text; }); } catch (work_err) { console.error(work_err); button_el.disabled = false; message_el.textContent = work_err instanceof TypeError && /fetch|network|load failed|too long/i.test(work_err.message) ? "Can't reach the server from here (see above)" : work_err.message; }
     };
   }
   function facts_nodes(sync_status) {

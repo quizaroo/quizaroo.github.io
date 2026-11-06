@@ -127,15 +127,15 @@ const sync_engine = (() => {
   }
   // Cards have no ids in the app, so each is matched to its record: same term and definition, then same term, then same definition. Anything left is a new card, with an id from its term.
   function card_ids_for(saved_set, old_cards) {
-    const unmatched = (old_cards || []).slice(), card_ids = saved_set.cards.map(() => null);
+    const set_cards = saved_set.cards || [], unmatched = (old_cards || []).slice(), card_ids = set_cards.map(() => null);
     const passes = [(card_item, card_record) => card_key(card_item) === card_key(card_record) && clean_text(card_item.definition) === clean_text(card_record.definition), (card_item, card_record) => card_key(card_item) === card_key(card_record), (card_item, card_record) => clean_text(card_item.definition) === clean_text(card_record.definition)];
-    passes.forEach(same_card => saved_set.cards.forEach((card_item, card_index) => {
+    passes.forEach(same_card => set_cards.forEach((card_item, card_index) => {
       if (card_ids[card_index]) return;
       const found_index = unmatched.findIndex(card_record => same_card(card_item, card_record));
       if (found_index >= 0) card_ids[card_index] = unmatched.splice(found_index, 1)[0].id;
     }));
     const taken_ids = new Set(card_ids.filter(Boolean).concat(unmatched.map(card_record => card_record.id)));
-    saved_set.cards.forEach((card_item, card_index) => {
+    set_cards.forEach((card_item, card_index) => {
       if (card_ids[card_index]) return;
       const base_id = saved_set.id + '~' + short_hash(card_key(card_item));
       let new_card_id = base_id;
@@ -150,13 +150,13 @@ const sync_engine = (() => {
     const settings_fields = {};
     SYNCED_SETTINGS.forEach(setting_name => { if (saved_state[setting_name] !== undefined && saved_state[setting_name] !== null) settings_fields[setting_name] = saved_state[setting_name]; });
     wanted.set(record_key_of('settings', 'main'), settings_fields);
-    saved_state.sets.forEach(saved_set => {
+    saved_state.sets.filter(saved_set => saved_set && saved_set.id).forEach(saved_set => {
       const set_fields = {};
       Object.keys(saved_set).forEach(field_name => { if (!['id', 'cards', 'progress', 'trophies'].includes(field_name) && saved_set[field_name] !== null) set_fields[field_name] = saved_set[field_name]; });
       const card_ids = card_ids_for(saved_set, cards_by_set.get(saved_set.id));
       set_fields.card_order = card_ids;
       wanted.set(record_key_of('sets', saved_set.id), set_fields);
-      saved_set.cards.forEach((card_item, card_index) => wanted.set(record_key_of('cards', card_ids[card_index]), Object.assign({}, card_item, {set_id: saved_set.id})));
+      (saved_set.cards || []).forEach((card_item, card_index) => wanted.set(record_key_of('cards', card_ids[card_index]), Object.assign({}, card_item, {set_id: saved_set.id})));
       Object.keys(saved_set.progress || {}).forEach(progress_key => wanted.set(record_key_of('progress', saved_set.id + '~' + short_hash(progress_key)), Object.assign({}, saved_set.progress[progress_key], {set_id: saved_set.id, key: progress_key})));
       (saved_set.trophies || []).forEach(trophy_item => wanted.set(record_key_of('trophies', saved_set.id + '~' + trophy_item.at + '~' + trophy_item.image), Object.assign({}, trophy_item, {set_id: saved_set.id})));
     });
@@ -219,8 +219,9 @@ const sync_engine = (() => {
     app_state.sets.forEach(old_set => {
       const next_set = next_by_id.get(old_set.id);
       if (!next_set) return;
-      Object.keys(old_set).forEach(field_name => { delete old_set[field_name]; });
-      Object.assign(old_set, next_set); next_by_id.delete(old_set.id); kept_sets.push(old_set);
+      // Given the same object (keeping some of the sets already here), there is nothing to copy: emptying it first would wipe the set.
+      if (next_set !== old_set) { Object.keys(old_set).forEach(field_name => { delete old_set[field_name]; }); Object.assign(old_set, next_set); }
+      next_by_id.delete(next_set.id); kept_sets.push(old_set);
     });
     app_state.sets.splice(0, app_state.sets.length, ...kept_sets, ...next_by_id.values());
   }

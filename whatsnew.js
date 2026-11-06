@@ -8,6 +8,7 @@
 // No `at`: no Show me. PUBLISHED holds when each version went live (UTC), filled in by tools/publish.py.
 const FIRST_SET = ['.set-row .row-title'];
 const WHATS_NEW = {
+  '1.4.11': [{text: 'Sync: signing in on a device that already had its own sets failed, and emptied those sets on that device. Fixed. A sign-in error now also says what went wrong, not "Can\'t reach the server".'}],
   '1.4.10': [{text: 'A right answer now makes its letters hop in a wave, with a small tick at the end, in place of the green circle.'}],
   '1.4.09': [{text: 'Each set: a tile that needs more cards now says what to add, in place of "complete cards".'}],
   '1.4.08': [{text: 'The circle round a right answer now stays on the answer when the phone keyboard is open. Fixed.'}],
@@ -122,6 +123,7 @@ const WHATS_NEW = {
   '1.0.00': [{text: 'Open Flashcards goes live: make sets, flip and swipe through them, and import or export them as JSON.'}]
 };
 const PUBLISHED = {
+  '1.4.11': '2026-11-06T23:58:02Z',
   '1.4.10': '2026-11-03T21:48:07Z',
   '1.4.09': '2026-11-03T21:22:50Z',
   '1.4.08': '2026-11-02T23:50:14Z',

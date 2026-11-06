@@ -5,7 +5,7 @@ const TINTS = [['rose', '#ff9aa2'], ['coral', '#ffab91'], ['peach', '#ffc285'], 
 let app_state = load_state(), study_session = null, editor_has_changes = null, skip_next_route = false, last_list_hash = '#/';
 
 function load_state() {
-  try { const stored_state = JSON.parse(localStorage.getItem(STORAGE_KEY)); if (stored_state && Array.isArray(stored_state.sets)) return stored_state; } catch (storage_err) {}
+  try { const stored_state = JSON.parse(localStorage.getItem(STORAGE_KEY)); if (stored_state && Array.isArray(stored_state.sets)) { stored_state.sets = stored_state.sets.filter(card_set => card_set && card_set.id && Array.isArray(card_set.cards)); return stored_state; } } catch (storage_err) {}
   return {sets: [], shuffle: true, demo_version: DEMO_VERSION, seen_version: APP_VERSION};
 }
 function save_state() { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(app_state)); } catch (storage_err) { alert('Could not save: browser storage is full or blocked.'); } sync_engine.note_change(); }
