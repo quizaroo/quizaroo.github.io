@@ -59,7 +59,7 @@ function date_chips(card_set) {
 // ---- Import / export ----
 function normalise_set(raw_set) {
   if (!raw_set || !Array.isArray(raw_set.cards)) return null;
-  return {id: String(raw_set.id || new_id()), title: String(raw_set.title || 'Untitled set'), cards: raw_set.cards.filter(raw_card => raw_card && (raw_card.term || raw_card.definition)).map(raw_card => ({term: String(raw_card.term || ''), definition: String(raw_card.definition || '')})), front: raw_set.front === 'definition' || raw_set.front === 'mixed' ? raw_set.front : undefined, description: raw_set.description ? String(raw_set.description) : undefined, created: /^\d{4}-\d{2}-\d{2}$/.test(raw_set.created) ? raw_set.created : undefined, colour: TINTS.some(tint_item => tint_item[0] === raw_set.colour) ? raw_set.colour : undefined, last_studied: Number(raw_set.last_studied) || undefined, last_opened: Number(raw_set.last_opened) || undefined, trophies: Array.isArray(raw_set.trophies) ? raw_set.trophies.filter(trophy_item => trophy_item && /^[a-z-]+$/.test(trophy_item.image) && typeof trophy_item.line === 'string').map(trophy_item => ({image: trophy_item.image, line: trophy_item.line, goal: trophy_item.goal ? String(trophy_item.goal) : undefined, mode: String(trophy_item.mode || ''), right: Number(trophy_item.right) || 0, total: Number(trophy_item.total) || 0, at: Number(trophy_item.at) || Date.now()})) : undefined, progress: raw_set.progress && typeof raw_set.progress === 'object' ? raw_set.progress : undefined, best_speed: Number(raw_set.best_speed) || undefined, learn_stages: raw_set.learn_stages && typeof raw_set.learn_stages === 'object' ? raw_set.learn_stages : undefined, active_ms: Number(raw_set.active_ms) || undefined, card_ratings: raw_set.card_ratings && typeof raw_set.card_ratings === 'object' ? raw_set.card_ratings : undefined, tricky: raw_set.tricky && typeof raw_set.tricky === 'object' ? raw_set.tricky : undefined};
+  return {id: String(raw_set.id || new_id()), title: String(raw_set.title || 'Untitled set'), cards: raw_set.cards.filter(raw_card => raw_card && (raw_card.term || raw_card.definition)).map(raw_card => ({term: String(raw_card.term || ''), definition: String(raw_card.definition || '')})), front: raw_set.front === 'definition' || raw_set.front === 'mixed' ? raw_set.front : undefined, description: raw_set.description ? String(raw_set.description) : undefined, created: /^\d{4}-\d{2}-\d{2}$/.test(raw_set.created) ? raw_set.created : undefined, colour: TINTS.some(tint_item => tint_item[0] === raw_set.colour) ? raw_set.colour : undefined, last_studied: Number(raw_set.last_studied) || undefined, last_opened: Number(raw_set.last_opened) || undefined, trophies: Array.isArray(raw_set.trophies) ? raw_set.trophies.filter(trophy_item => trophy_item && /^[a-z-]+$/.test(trophy_item.image) && typeof trophy_item.line === 'string').map(trophy_item => ({image: trophy_item.image, line: trophy_item.line, goal: trophy_item.goal ? String(trophy_item.goal) : undefined, mode: String(trophy_item.mode || ''), right: Number(trophy_item.right) || 0, total: Number(trophy_item.total) || 0, at: Number(trophy_item.at) || Date.now()})) : undefined, progress: raw_set.progress && typeof raw_set.progress === 'object' ? raw_set.progress : undefined, best_speed: Number(raw_set.best_speed) || undefined, learn_stages: raw_set.learn_stages && typeof raw_set.learn_stages === 'object' ? raw_set.learn_stages : undefined, active_ms: Number(raw_set.active_ms) || undefined, card_ratings: raw_set.card_ratings && typeof raw_set.card_ratings === 'object' ? raw_set.card_ratings : undefined, tricky: raw_set.tricky && typeof raw_set.tricky === 'object' ? raw_set.tricky : undefined, daily_stats: raw_set.daily_stats && typeof raw_set.daily_stats === 'object' ? raw_set.daily_stats : undefined};
 }
 // Accepts {format, sets:[...]}, a bare array of sets, or a single set object. Sets with an existing id go through compare_sets; nothing is saved until any conflicts are resolved.
 function import_json(json_text) {
@@ -310,7 +310,7 @@ function start_flashcards(card_set, start_card, return_hash) {
   study_session.browsing = is_browsing; study_session.return_hash = return_hash; study_session.position = Math.max(0, card_order.indexOf(start_card));
 }
 function view_study(card_set) {
-  clear_mode_timers();
+  clear_mode_timers(); start_answer_clock();
   if (study_session.position >= study_session.queue.length) return view_study_summary(card_set);
   const current_index = study_session.queue[study_session.position], front_key = front_side(card_set, current_index), back_key = front_key === 'term' ? 'definition' : 'term', current_card = card_set.cards[current_index];
   const learn_hint_el = el('div', {class: 'swipe-hint learn'}, 'STILL LEARNING'), know_hint_el = el('div', {class: 'swipe-hint know'}, 'KNOW');
@@ -454,6 +454,7 @@ function refresh_view() {
   if (route_parts[0] === 'settings') return;
   if (route_parts[0] === 'set') { const route_set = find_set(decodeURIComponent(route_parts[1] || '')); if (!route_set) { location.hash = '#/library'; return; } view_set(route_set); }
   else if (route_parts[0] === 'library') view_library();
+  else if (route_parts[0] === 'stats') view_stats();
   else view_home();
   window.scrollTo(0, scroll_top);
 }
@@ -461,12 +462,12 @@ function refresh_view() {
 // ---- Routing: #/ , #/library, #/settings, #/new, #/set/<id>, #/edit/<id>, #/play/<id>/<mode> ----
 function route() {
   const route_parts = location.hash.replace(/^#\/?/, '').split('/'), route_name = route_parts[0], route_set = find_set(decodeURIComponent(route_parts[1] || ''));
-  const is_home = !['library', 'settings', 'new', 'set', 'edit', 'play'].includes(route_name) || (['set', 'edit', 'play'].includes(route_name) && !route_set);
+  const is_home = !['library', 'stats', 'settings', 'new', 'set', 'edit', 'play'].includes(route_name) || (['set', 'edit', 'play'].includes(route_name) && !route_set);
   editor_has_changes = null; close_view_menu(); end_selection_bar();
   study_session = null; clear_mode_timers();
   if (['set', 'edit', 'play'].includes(route_name) && route_set) { route_set.last_opened = Date.now(); save_state(); }
   if (is_home) last_list_hash = '#/'; else if (route_name === 'library') last_list_hash = '#/library';
-  document.querySelectorAll('.nav-item').forEach(nav_el => nav_el.classList.toggle('active', nav_el.dataset.nav === (is_home ? 'home' : route_name === 'settings' ? 'settings' : 'library')));
+  document.querySelectorAll('.nav-item').forEach(nav_el => nav_el.classList.toggle('active', nav_el.dataset.nav === (is_home ? 'home' : ['settings', 'stats'].includes(route_name) ? route_name : 'library')));
   if (['new', 'edit', 'play'].includes(route_name) && !is_home) document.body.dataset.focus = ''; else delete document.body.dataset.focus;
   if (route_name === 'set' && route_set) view_set(route_set);
   else if (route_name === 'edit' && route_set) view_edit(route_set, false);
@@ -474,6 +475,7 @@ function route() {
   else if (route_name === 'new') view_edit({id: new_id(), title: '', cards: []}, true);
   else if (route_name === 'library') view_library();
   else if (route_name === 'settings') view_settings();
+  else if (route_name === 'stats') view_stats();
   else view_home();
 }
 // Leaving the editor by any route (sidebar, back button) asks first if something would be lost.

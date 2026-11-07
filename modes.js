@@ -31,8 +31,21 @@ function record_answer(card_set, card_index, is_right) {
   if (is_right && tricky_item) new_box = Math.min(new_box, 2);
   card_set.progress = card_set.progress || {};
   card_set.progress[key_text] = {box: new_box, due: is_right ? now_ms + BOX_DAYS[new_box] * DAY_MS : now_ms, right: old_record.right + (is_right ? 1 : 0), wrong: old_record.wrong + (is_right ? 0 : 1), last: now_ms};
-  note_confidence(card_set, key_text, is_right);
+  note_confidence(card_set, key_text, is_right); note_daily_answer(card_set, is_right, now_ms);
   card_set.last_studied = now_ms; save_state();
+}
+// ---- Answer history for Stats: each set keeps one row a day in daily_stats, [right, wrong, ms spent on timed answers, timed answers]. The clock runs from a question showing to it being answered; over 2 minutes counts as away and isn't timed.
+let answer_clock = {started: 0, stopped: 0};
+function start_answer_clock() { answer_clock = {started: Date.now(), stopped: 0}; }
+function stop_answer_clock() { if (!answer_clock.stopped) answer_clock.stopped = Date.now(); }
+function day_key(time_ms) { const day_date = new Date(time_ms); return day_date.getFullYear() + '-' + String(day_date.getMonth() + 1).padStart(2, '0') + '-' + String(day_date.getDate()).padStart(2, '0'); }
+function note_daily_answer(card_set, is_right, now_ms) {
+  const taken_ms = answer_clock.started ? (answer_clock.stopped || now_ms) - answer_clock.started : 0, today_key = day_key(now_ms);
+  card_set.daily_stats = card_set.daily_stats || {};
+  const day_row = card_set.daily_stats[today_key] = (card_set.daily_stats[today_key] || [0, 0, 0, 0]).slice(); // a new row each time, so a saved copy for Back stays as it was
+  day_row[is_right ? 0 : 1]++;
+  if (taken_ms > 0 && taken_ms <= 120000) { day_row[2] += taken_ms; day_row[3]++; }
+  answer_clock.started = 0;
 }
 // ---- Ratings and Tricky words. Each card can carry how well you say you know it (always, sometimes, never), from Learn from scratch or from Flashcards. A card rated always that you then get wrong is a Tricky word: you think you know it and don't. It comes back sooner until you get it right twice running. All of this can be switched off (smart_learn), and the data stays.
 function smart_learning_on() { return app_state.smart_learn !== false; }
@@ -47,9 +60,10 @@ function note_confidence(card_set, key_text, is_right) {
 }
 function tricky_indexes(card_set) { return smart_learning_on() ? studyable_indexes(card_set).filter(card_index => (card_set.tricky || {})[card_key(card_set.cards[card_index])]) : []; }
 // What a card's answers changed, so Back and Previous can put it back.
-function card_memory(card_set, key_text) { const tricky_item = (card_set.tricky || {})[key_text]; return {record: (card_set.progress || {})[key_text], rating: (card_set.card_ratings || {})[key_text], tricky: tricky_item ? Object.assign({}, tricky_item) : undefined}; }
+function card_memory(card_set, key_text) { const tricky_item = (card_set.tricky || {})[key_text], today_key = day_key(Date.now()); return {day: today_key, day_row: (card_set.daily_stats || {})[today_key], record: (card_set.progress || {})[key_text], rating: (card_set.card_ratings || {})[key_text], tricky: tricky_item ? Object.assign({}, tricky_item) : undefined}; }
 function restore_card_memory(card_set, key_text, memory_item) {
   [['progress', memory_item.record], ['card_ratings', memory_item.rating], ['tricky', memory_item.tricky]].forEach(field_pair => { const saved_value = field_pair[1]; if (saved_value !== undefined) { card_set[field_pair[0]] = card_set[field_pair[0]] || {}; card_set[field_pair[0]][key_text] = saved_value; } else if (card_set[field_pair[0]]) delete card_set[field_pair[0]][key_text]; });
+  if (memory_item.day && card_set.daily_stats) { if (memory_item.day_row) card_set.daily_stats[memory_item.day] = memory_item.day_row; else delete card_set.daily_stats[memory_item.day]; }
 }
 function card_status(card_set, card_index) { const record_item = card_record(card_set, card_index); return !record_item ? 'new' : record_item.box >= 5 ? 'mastered' : record_item.box >= 3 ? 'familiar' : 'learning'; }
 function is_due(card_set, card_index) { const record_item = card_record(card_set, card_index); return !!record_item && record_item.due <= Date.now(); }
@@ -104,7 +118,7 @@ let mode_timers = [];
 function clear_mode_timers() { mode_timers.forEach(clearTimeout); mode_timers = []; document.querySelectorAll('.right-wave').forEach(wave_el => wave_el.remove()); if (window.speechSynthesis) speechSynthesis.cancel(); }
 function later(run_later, delay_ms) { mode_timers.push(setTimeout(run_later, delay_ms)); }
 function mode_frame(card_set, mode_item, top_nodes, body_nodes) {
-  clear_mode_timers();
+  clear_mode_timers(); start_answer_clock();
   render(set_trail(card_set, mode_item.label), [el('a', {class: 'button', href: '#/set/' + card_set.id}, 'Done')], [el('div', {class: 'study-wrap mode-wrap', style: tint_style(card_set)},
     el('div', {class: 'counts'}, el('span', {class: 'muted mode-status'}, ...top_nodes), mode_item.fixed_direction ? null : direction_switch(card_set)),
     ...body_nodes,
@@ -123,7 +137,7 @@ function words_rect(answer_el) {
 }
 // A right answer: its letters hop in a wave, as a ticked task does in Sift, a small tick pops up after them, and there's a ping. Then the next word comes up. A field's letters can't move, so a copy lies over them.
 function celebrate_right(answer_el, run_next) {
-  play_sound('right');
+  stop_answer_clock(); play_sound('right');
   const answer_style = getComputedStyle(answer_el), words_text = answer_el.matches('input') ? answer_el.value : answer_el.lastChild.textContent, wrap_el = answer_el.closest('.mode-wrap'), wrap_rect = wrap_el.getBoundingClientRect(), answer_rect = words_rect(answer_el), letters = Array.from(words_text), letter_gap = Math.min(28, 240 / Math.max(letters.length, 1));
   const wave_el = el('div', {class: 'right-wave', 'aria-hidden': 'true', style: 'left:' + (answer_rect.left - wrap_rect.left) + 'px;top:' + (answer_rect.top - wrap_rect.top) + 'px;height:' + answer_rect.height + 'px;line-height:' + answer_rect.height + 'px;font:' + answer_style.font + ';line-height:' + answer_rect.height + 'px;color:' + (answer_el.matches('input') ? '#2fb36b' : answer_style.color)},
     ...letters.map((letter_text, letter_index) => el('span', {class: 'wave-letter', style: 'animation-delay:' + Math.round(letter_index * letter_gap) + 'ms'}, letter_text === ' ' ? '\u00a0' : letter_text)));
@@ -152,7 +166,7 @@ function play_sound(sound_name) {
     else play_tone(0, 196, 'sine', 0.14, 0.13);
   } catch (sound_err) {}
 }
-function answer_panel(is_right, panel_text, extra_nodes) { return el('div', {class: 'answer-panel ' + (is_right ? 'is-right' : 'is-wrong'), role: 'status'}, el('strong', {}, is_right ? 'Right' : 'Not quite'), panel_text ? el('div', {}, panel_text) : null, ...(extra_nodes || [])); }
+function answer_panel(is_right, panel_text, extra_nodes) { stop_answer_clock(); return el('div', {class: 'answer-panel ' + (is_right ? 'is-right' : 'is-wrong'), role: 'status'}, el('strong', {}, is_right ? 'Right' : 'Not quite'), panel_text ? el('div', {}, panel_text) : null, ...(extra_nodes || [])); }
 function next_button(run_next) { return el('button', {class: 'primary', 'data-key': 'Enter', onclick: run_next}, 'Next'); }
 function start_mode_session(card_set, mode_key, card_indexes) { study_session = {set_id: card_set.id, mode: mode_key, queue: card_indexes, position: 0, known: [], learning: [], right: 0, wrong: 0, missed: []}; }
 
@@ -181,7 +195,7 @@ function ask_choice(card_set, mode_item, card_index, finish, ask_options) {
   const sides = card_sides(card_set, card_index), option_texts = shuffled([sides.answer].concat(other_answers(card_set, card_index, sides.back_key, 3))), result_el = el('div', {class: 'answer-slot'}), is_quick = ask_options && ask_options.quick;
   const option_buttons = option_texts.map((option_text, option_index) => el('button', {class: 'choice-button', 'data-key': String(option_index + 1), onclick: () => {
     option_buttons.forEach(button_el => { button_el.disabled = true; if (button_el.textContent.slice(2) === option_text && option_text !== sides.answer) button_el.classList.add('is-wrong'); if (button_el.dataset.answer === 'yes') button_el.classList.add('is-right'); });
-    const is_right = option_text === sides.answer;
+    const is_right = option_text === sides.answer; stop_answer_clock();
     if (is_quick) { if (!(ask_options && ask_options.silent)) play_sound(is_right ? 'right' : 'wrong'); later(() => finish(is_right), is_right ? 150 : 700); return; }
     if (is_right) { celebrate_right(option_buttons[option_index], () => finish(true)); return; }
     play_sound('wrong'); const next_el = next_button(() => finish(false)); result_el.replaceChildren(answer_panel(false, null, [next_el])); next_el.focus();

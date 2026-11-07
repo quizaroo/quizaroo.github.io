@@ -12,6 +12,7 @@ A simple, open-source flashcards app that runs in your browser. No tracking, no 
 - Sets can have a description, a created date and a colour, and the app records when you last studied them
 - Learning modes: view all vocab, learn from scratch, revise, flashcards, type the answer, multiple choice, true or false, unscramble, listen and type, test, spin the wheel, match pairs, memory and speed round
 - Flashcards can keep score or just let you browse back and forth, and tapping a word in View all vocab opens it as a flashcard
+- Stats shows your day streak, a calendar of the days you studied, weekly answers, accuracy and seconds per question, and accuracy for each set
 - The app remembers how well you know each card and brings the hard ones back sooner, with a longer gap each time you get one right
 - Switch between term first, definition first or mixed inside any mode, and swap all sides of a set
 - Import and export single sets or everything as JSON
@@ -47,7 +48,7 @@ Prefer to run your own? The server is open source: see [server/README.md](server
 }
 ```
 
-Import also accepts a bare array of sets, or a single set object. If a set's `id` already exists and its cards differ, the app asks whether to merge, replace, keep both or skip. Identical sets are skipped. Optional fields on a set: `"description"`, `"created"` (`YYYY-MM-DD`), `"colour"` (`rose`, `coral`, `peach`, `butter`, `lime`, `mint`, `teal`, `sky`, `periwinkle`, `lavender`, `orchid` or `sand`), `"last_studied"` and `"last_opened"` (milliseconds since 1970), `"front"` (`definition` or `mixed`) for which side shows first, plus `"progress"`, `"learn_stages"`, `"card_ratings"`, `"tricky"`, `"active_ms"`, `"trophies"` and `"best_speed"`, which the app writes to record how well you know each card.
+Import also accepts a bare array of sets, or a single set object. If a set's `id` already exists and its cards differ, the app asks whether to merge, replace, keep both or skip. Identical sets are skipped. Optional fields on a set: `"description"`, `"created"` (`YYYY-MM-DD`), `"colour"` (`rose`, `coral`, `peach`, `butter`, `lime`, `mint`, `teal`, `sky`, `periwinkle`, `lavender`, `orchid` or `sand`), `"last_studied"` and `"last_opened"` (milliseconds since 1970), `"front"` (`definition` or `mixed`) for which side shows first, plus `"progress"`, `"learn_stages"`, `"card_ratings"`, `"tricky"`, `"active_ms"`, `"trophies"`, `"best_speed"` and `"daily_stats"` (one row a day, `"YYYY-MM-DD": [right, wrong, ms spent on timed answers, timed answers]`), which the app writes to record how well you know each card and feed the Stats page.
 
 ## Publishing a version
 
