@@ -403,6 +403,33 @@ document.addEventListener('keydown', key_event => {
   else if (key_event.key === 'ArrowLeft') study_buttons[0].click(); else if (key_event.key === 'ArrowRight') study_buttons[2].click();
 });
 
+// Copy diagnostics: a plain-text report to paste into a bug report. No email, password, token or set contents.
+const recent_errors = [];
+function note_error(error_text) { recent_errors.push(new Date().toISOString().slice(11, 19) + ' ' + String(error_text).slice(0, 300)); if (recent_errors.length > 5) recent_errors.shift(); }
+addEventListener('error', error_event => note_error(error_event.message + (error_event.filename ? ' (' + error_event.filename.split('/').pop() + ':' + error_event.lineno + ')' : '')));
+addEventListener('unhandledrejection', rejection_event => note_error(rejection_event.reason && rejection_event.reason.message || rejection_event.reason));
+async function diagnostics_text() {
+  const sync_status = sync_engine.status, account_now = sync_engine.signed_in(), card_total = app_state.sets.reduce((card_count, card_set) => card_count + card_set.cards.length, 0);
+  const storage_estimate = navigator.storage && navigator.storage.estimate ? await navigator.storage.estimate().catch(() => null) : null, is_persisted = navigator.storage && navigator.storage.persisted ? await navigator.storage.persisted().catch(() => null) : null;
+  return ['Quizaroo v' + APP_VERSION + ' diagnostics, ' + new Date().toISOString(),
+    'Browser: ' + navigator.userAgent,
+    'Running as: ' + (matchMedia('(display-mode: standalone)').matches || navigator.standalone ? 'installed app' : 'browser tab') + ', ' + (navigator.onLine ? 'online' : 'offline') + ', offline copy ' + ('serviceWorker' in navigator && navigator.serviceWorker.controller ? 'ready' : 'not ready'),
+    'Screen: ' + innerWidth + 'x' + innerHeight + ' @' + devicePixelRatio + 'x, view ' + document.documentElement.dataset.theme + '/' + document.documentElement.dataset.style,
+    'Storage: ' + app_state.sets.length + ' sets, ' + card_total + ' cards' + (storage_estimate ? ', ' + (storage_estimate.usage / 1048576).toFixed(1) + ' MB used' : '') + (is_persisted === null ? '' : is_persisted ? ', kept' : ', may be cleared by the browser'),
+    'Sync: ' + (!account_now ? 'not signed in' : sync_status.state + (account_now.server === sync_engine.DEFAULT_SERVER ? ' (usual server)' : ' (own server)') + ', ' + sync_status.pending + ' waiting to send, connection ' + (sync_status.link || 'unknown') + ', last synced ' + (sync_status.last || 'never') + ', last reached ' + (sync_status.reached || 'never') + (sync_status.files === 'error' ? ', files: ' + sync_status.file_error : '')),
+    'Sync error: ' + (sync_status.error || 'none'),
+    'Recent errors: ' + (recent_errors.length ? '\n  ' + recent_errors.join('\n  ') : 'none')].join('\n');
+}
+// Clipboard can be refused (an old browser, or no permission): then the report shows in a box to copy by hand.
+async function copy_diagnostics() {
+  const report_text = await diagnostics_text();
+  try { await navigator.clipboard.writeText(report_text); toast('Diagnostics copied. Paste them into your message.', {ms: 3000}); }
+  catch (copy_err) {
+    const box_el = el('textarea', {class: 'sync-input', rows: 10, readonly: 'readonly', style: 'width:100%;font:12px monospace'}), dialog_el = el('dialog', {class: 'whatsnew-sheet'}, el('p', {}, "Couldn't copy. Select all and copy this:"), box_el, el('div', {class: 'button-row'}, el('button', {onclick: () => dialog_el.close()}, 'Close')));
+    box_el.value = report_text; dialog_el.addEventListener('close', () => dialog_el.remove()); document.body.appendChild(dialog_el); dialog_el.showModal(); box_el.select();
+  }
+}
+
 function view_settings() {
   const check_button = el('button', {onclick: async () => {
     check_button.disabled = true; check_button.textContent = 'Checking…';
@@ -414,6 +441,7 @@ function view_settings() {
   render([menu_crumb('settings', '#/settings')], [], [install_section(), sync_section(), settings_panel('updates', 'Updates', el('span', {class: 'settings-panel-status'}, 'Version ' + APP_VERSION), {class: 'settings-panel updates-section'},
     el('div', {class: 'ruled'},
       el('div', {class: 'detail-row'}, el('div', {class: 'line-margin'}, 'Version'), el('div', {class: 'settings-line'}, el('span', {}, 'Quizaroo v' + APP_VERSION), check_button, el('button', {onclick: () => show_whats_new(app_state.whatsnew_last || APP_VERSION)}, "What's new"))),
+      el('div', {class: 'detail-row'}, el('div', {class: 'line-margin'}, 'Help'), el('div', {class: 'settings-line'}, el('button', {id: 'copy-diagnostics', onclick: copy_diagnostics}, 'Copy diagnostics'), el('span', {class: 'muted'}, 'Version, browser and sync status, to paste into a bug report. No email, password or sets.'))),
       el('div', {class: 'detail-row'}, el('div', {class: 'line-margin'}, 'After'), el('label', {class: 'settings-line'}, el('input', {type: 'checkbox', checked: app_state.show_update_info !== false, onchange: change_event => { app_state.show_update_info = change_event.target.checked; save_state(); toast(change_event.target.checked ? "What's new shows after each update." : "What's new won't show after updates."); }}), 'Show update info', el('span', {class: 'muted'}, 'After an update, a list of what changed, each with Show me.')))))]);
 }
 
