@@ -8,6 +8,7 @@
 // No `at`: no Show me. PUBLISHED holds when each version went live (UTC), filled in by tools/publish.py.
 const FIRST_SET = ['.set-row .row-title'];
 const WHATS_NEW = {
+  '1.5.01': [{text: 'Opening the app takes you back to where you left off, even part way through a round, in place of Home. With sync on, it picks up where you left off on your other device.'}],
   '1.5.00': [
     {text: 'Stats, in the menu: your day streak, a calendar of the days you studied, answers, right answers and seconds per question each week, and accuracy for each set, weakest first.', go: '#/stats', at: '.stats-tiles', more: 'Daily counts and timing start with this version. Accuracy by set also includes your earlier answers.'}
   ],
@@ -127,6 +128,7 @@ const WHATS_NEW = {
   '1.0.00': [{text: 'Open Flashcards goes live: make sets, flip and swipe through them, and import or export them as JSON.'}]
 };
 const PUBLISHED = {
+  '1.5.01': '2026-11-10T16:20:04Z',
   '1.5.00': '2026-11-07T02:01:51Z',
   '1.4.12': '2026-11-07T01:55:43Z',
   '1.4.11': '2026-11-06T23:58:02Z',

@@ -406,6 +406,7 @@ function view_mode_summary(card_set, mode_item) {
 }
 const QUESTION_ASKERS = {type: ask_type, choice: ask_choice, truefalse: ask_true_false, scramble: ask_scramble, listen: ask_listen};
 function view_mode(card_set, mode_key, start_card_text) {
+  if (mode_key === 'tricky' && study_session && study_session.tricky_round && study_session.set_id === card_set.id) return view_study(card_set);
   if (mode_key === 'tricky') { const tricky_list = tricky_indexes(card_set); if (!tricky_list.length) { location.hash = '#/set/' + card_set.id; return; } start_session(card_set, tricky_list, 'cards'); study_session.tricky_round = true; return view_study(card_set); }
   const mode_item = find_mode(mode_key) || find_mode('cards');
   if (studyable_indexes(card_set).length < mode_item.min_cards) { location.hash = '#/set/' + card_set.id; return; }
