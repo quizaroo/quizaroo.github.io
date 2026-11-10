@@ -464,7 +464,7 @@ function route() {
   const route_parts = location.hash.replace(/^#\/?/, '').split('/'), route_name = route_parts[0], route_set = find_set(decodeURIComponent(route_parts[1] || ''));
   const is_home = !['library', 'stats', 'settings', 'new', 'set', 'edit', 'play'].includes(route_name) || (['set', 'edit', 'play'].includes(route_name) && !route_set);
   editor_has_changes = null; close_view_menu(); end_selection_bar();
-  study_session = null; clear_mode_timers();
+  study_session = resumed_session(route_set); clear_mode_timers();
   if (['set', 'edit', 'play'].includes(route_name) && route_set) { route_set.last_opened = Date.now(); save_state(); }
   if (is_home) last_list_hash = '#/'; else if (route_name === 'library') last_list_hash = '#/library';
   document.querySelectorAll('.nav-item').forEach(nav_el => nav_el.classList.toggle('active', nav_el.dataset.nav === (is_home ? 'home' : ['settings', 'stats'].includes(route_name) ? route_name : 'library')));
@@ -485,6 +485,61 @@ window.addEventListener('hashchange', hash_event => {
   route();
 });
 window.addEventListener('beforeunload', unload_event => { if (editor_has_changes && editor_has_changes()) unload_event.preventDefault(); });
+// ---- Where you left off: the page (and a round in progress) is kept in app_state.resume_point, and sync sends it as this device's place. Opening the app goes back there. Another device's newer place is followed at start-up, or once this one has been left alone for a minute. ----
+const DEVICE_KEY = 'open-flashcards:device', RESUME_IDLE_MS = 60000, RESUMABLE_MODES = ['cards', 'revise', 'tricky', 'learn', 'wheel', 'test', 'type', 'choice', 'truefalse', 'scramble', 'listen'];
+const this_device = (() => { try { let device_text = localStorage.getItem(DEVICE_KEY); if (!device_text) { device_text = new_id(); localStorage.setItem(DEVICE_KEY, device_text); } return device_text; } catch (storage_err) { return 'here'; } })();
+// The place only moves once someone has used this device, so a place followed from another device isn't claimed back by this one.
+let place_is_mine = false, my_last_place = '', last_followed = '', pending_resume = null, last_interaction = 0, follow_since = Date.now();
+function session_snapshot() {
+  const mode_match = location.hash.match(/^#\/play\/[^/]+\/([^/]+)/);
+  if (!study_session || !mode_match || !RESUMABLE_MODES.includes(mode_match[1])) return null;
+  const snapshot = JSON.parse(JSON.stringify(study_session, (field_name, field_value) => field_value instanceof Node ? '' : field_value)); // a reward already shown stays '' so it isn't won twice
+  ['answer_history', 'history'].forEach(list_name => { if (snapshot[list_name]) snapshot[list_name] = snapshot[list_name].slice(-10); });
+  return snapshot;
+}
+function remember_place() {
+  const hash_text = location.hash || '#/';
+  if (!place_is_mine || hash_text.startsWith('#/new')) return false;
+  const place_json = JSON.stringify({hash: hash_text, session: session_snapshot()});
+  if (place_json === my_last_place) return false;
+  my_last_place = place_json; app_state.resume_point = Object.assign(JSON.parse(place_json), {device: this_device, at: Date.now()});
+  return true;
+}
+// A saved round only comes back on the same set, and only if its cards are still there.
+function resumed_session(route_set) {
+  const resume_item = pending_resume; pending_resume = null;
+  if (!resume_item || !resume_item.session || resume_item.hash !== location.hash || !route_set || resume_item.session.set_id !== route_set.id) return null;
+  const session_copy = JSON.parse(JSON.stringify(resume_item.session)), used_indexes = [].concat(Array.isArray(session_copy.queue) ? session_copy.queue : [], (session_copy.steps || []).map(step_item => step_item.card_index), session_copy.wheel_cards || []);
+  return used_indexes.every(card_index => route_set.cards[card_index]) ? session_copy : null;
+}
+function go_to_place(resume_item) {
+  place_is_mine = false; my_last_place = ''; last_followed = JSON.stringify(resume_item); pending_resume = resume_item;
+  if (location.hash !== resume_item.hash) history.replaceState(null, '', resume_item.hash);
+  route();
+}
+function open_where_left_off() {
+  const resume_item = app_state.resume_point;
+  if (resume_item && resume_item.hash && (!location.hash || location.hash === '#' || location.hash === resume_item.hash)) go_to_place(resume_item); else route();
+}
+function follow_other_device() {
+  const resume_item = sync_engine.newest_place(this_device);
+  if (!resume_item || resume_item.at <= ((app_state.resume_point || {}).at || 0) || JSON.stringify(resume_item) === last_followed) return false;
+  if (last_interaction > follow_since && Date.now() - last_interaction < RESUME_IDLE_MS) return false;
+  if ((editor_has_changes && editor_has_changes()) || selection_keys || document.body.classList.contains('is-carrying')) return false;
+  go_to_place(resume_item); return true;
+}
+function note_place() { if (remember_place()) save_state(); }
+function start_resume_tracking() {
+  ['pointerdown', 'keydown', 'touchstart'].forEach(event_name => addEventListener(event_name, () => { last_interaction = Date.now(); place_is_mine = true; }, {passive: true, capture: true}));
+  function on_return() { if (Date.now() - last_interaction < RESUME_IDLE_MS) return; follow_since = Date.now(); follow_other_device(); }
+  // Going into the background: save the place and send it, so the next device picks it up.
+  function on_leave() { note_place(); if (sync_engine.status.pending) sync_engine.sync_now(); }
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') on_return(); else on_leave(); });
+  addEventListener('focus', on_return); addEventListener('pagehide', on_leave);
+  setInterval(note_place, 1000);
+  let last_sync_seen = null;
+  sync_engine.on_status(sync_status => { if (sync_status.state !== 'ok' || sync_status.last === last_sync_seen) return; last_sync_seen = sync_status.last; follow_other_device(); });
+}
 // ---- View menu ----
 function save_view_choice(storage_key, chosen_value) { try { localStorage.setItem(storage_key, chosen_value); } catch (storage_err) {} apply_theme(); }
 let menu_button_el = null;
@@ -509,7 +564,8 @@ function open_view_menu() {
     el('h3', {}, 'Sound'), choice_row(SOUND_KEY, sound_is_on() ? 'on' : 'off', [{value: 'on', label: 'On'}, {value: 'off', label: 'Off'}]));
 }
 view_button_el.addEventListener('click', open_view_menu);
-route();
+open_where_left_off();
+start_resume_tracking();
 sync_engine.init();
 sync_engine.watch_other_tabs();
 sync_pill();

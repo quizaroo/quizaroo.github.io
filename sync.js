@@ -150,6 +150,9 @@ const sync_engine = (() => {
     const settings_fields = {};
     SYNCED_SETTINGS.forEach(setting_name => { if (saved_state[setting_name] !== undefined && saved_state[setting_name] !== null) settings_fields[setting_name] = saved_state[setting_name]; });
     wanted.set(record_key_of('settings', 'main'), settings_fields);
+    // Where this device left off, in a record of its own: only this device writes it, so it never waits on a conflict.
+    const own_place = saved_state.resume_point;
+    if (own_place && own_place.device) wanted.set(record_key_of('settings', 'place~' + own_place.device), {hash: own_place.hash, session: own_place.session, at: own_place.at});
     saved_state.sets.filter(saved_set => saved_set && saved_set.id).forEach(saved_set => {
       const set_fields = {};
       Object.keys(saved_set).forEach(field_name => { if (!['id', 'cards', 'progress', 'trophies'].includes(field_name) && saved_set[field_name] !== null) set_fields[field_name] = saved_set[field_name]; });
@@ -339,7 +342,8 @@ const sync_engine = (() => {
   }
   async function pull_and_merge() {
     const pull_result = await pull_all();
-    if (view_is_busy()) return 0; // nothing changes under a page being worked on: fetched again once it's left
+    // Nothing changes under a page being worked on: fetched again once it's left. Where other devices left off still comes in, as it changes nothing on the page.
+    if (view_is_busy()) { const place_keys = pull_result.pulled.filter(pulled_row => pulled_row.collection === 'settings' && String(pulled_row.record.id).startsWith('place~') && apply_remote(pulled_row.collection, pulled_row.record, pulled_row.seq)).map(pulled_row => record_key_of('settings', pulled_row.record.id)); await persist_records(place_keys, false); return 0; }
     const merge_result = merge_in(pull_result.pulled);
     await persist_records(merge_result.captured_keys, true);
     await persist_records(merge_result.merged_keys, false);
@@ -555,6 +559,14 @@ const sync_engine = (() => {
     return {words: [hash_bytes[0], hash_bytes[1], hash_bytes[2]].map(byte_value => CODE_WORDS[byte_value]).join(' '), records: code_parts.length};
   }
 
+  // The newest place another device left off at, or null.
+  function newest_place(own_device) {
+    if (!account) return null;
+    let newest = null;
+    records.forEach((record_item, record_key) => { if (collection_of(record_key) !== 'settings' || !String(record_item.id).startsWith('place~') || record_item.id === 'place~' + own_device || record_item.deleted_at || !record_item.hash) return; if (!newest || (record_item.at || 0) > newest.at) newest = {hash: record_item.hash, session: record_item.session || null, at: record_item.at || 0, device: record_item.id.slice(6)}; });
+    return newest;
+  }
+
   // ---- Starting up ----
   // `ready` settles once the saved sign-in has been read, so Settings doesn't show Sign in to a device that is signed in.
   async function init() {
@@ -590,5 +602,5 @@ const sync_engine = (() => {
       catch_up();
     });
   }
-  return {DEFAULT_SERVER, admin_url, ready, init, watch_other_tabs, on_status, get status() { return status; }, sync_now, note_change, check_link, server_info, request_signup_code, register, recover, change_password, sign_in, sign_out, start, signed_in, devices, data_code, add_file, remove_file, files_on, get_file};
+  return {DEFAULT_SERVER, admin_url, ready, init, watch_other_tabs, on_status, newest_place, get status() { return status; }, sync_now, note_change, check_link, server_info, request_signup_code, register, recover, change_password, sign_in, sign_out, start, signed_in, devices, data_code, add_file, remove_file, files_on, get_file};
 })();
