@@ -449,7 +449,6 @@ function view_settings() {
 function view_is_busy() { return /^#\/(new|edit|play)(\/|$)/.test(location.hash) || !!selection_keys || document.body.classList.contains('is-carrying') || !!view_el.querySelector('.conflict-list'); }
 // Sync brought changes: draw the page again where it was, without counting as opening anything (route() would, and that would count as a change on every device in turn).
 function refresh_view() {
-  if (follow_other_device()) return;
   if (view_is_busy()) return;
   const route_parts = location.hash.replace(/^#\/?/, '').split('/'), scroll_top = window.scrollY;
   if (route_parts[0] === 'settings') return;
@@ -486,7 +485,7 @@ window.addEventListener('hashchange', hash_event => {
   route();
 });
 window.addEventListener('beforeunload', unload_event => { if (editor_has_changes && editor_has_changes()) unload_event.preventDefault(); });
-// ---- Where you left off: the page (and a round in progress) is kept in app_state.resume_point, which syncs with the settings. Opening the app goes back there. Another device's newer place is followed once this one has been left alone for a minute. ----
+// ---- Where you left off: the page (and a round in progress) is kept in app_state.resume_point, and sync sends it as this device's place. Opening the app goes back there. Another device's newer place is followed at start-up, or once this one has been left alone for a minute. ----
 const DEVICE_KEY = 'open-flashcards:device', RESUME_IDLE_MS = 60000, RESUMABLE_MODES = ['cards', 'revise', 'tricky', 'learn', 'wheel', 'test', 'type', 'choice', 'truefalse', 'scramble', 'listen'];
 const this_device = (() => { try { let device_text = localStorage.getItem(DEVICE_KEY); if (!device_text) { device_text = new_id(); localStorage.setItem(DEVICE_KEY, device_text); } return device_text; } catch (storage_err) { return 'here'; } })();
 // The place only moves once someone has used this device, so a place followed from another device isn't claimed back by this one.
@@ -495,7 +494,7 @@ function session_snapshot() {
   const mode_match = location.hash.match(/^#\/play\/[^/]+\/([^/]+)/);
   if (!study_session || !mode_match || !RESUMABLE_MODES.includes(mode_match[1])) return null;
   const snapshot = JSON.parse(JSON.stringify(study_session, (field_name, field_value) => field_value instanceof Node ? '' : field_value)); // a reward already shown stays '' so it isn't won twice
-  ['answer_history', 'history'].forEach(list_name => { if (snapshot[list_name]) snapshot[list_name] = snapshot[list_name].slice(-20); });
+  ['answer_history', 'history'].forEach(list_name => { if (snapshot[list_name]) snapshot[list_name] = snapshot[list_name].slice(-10); });
   return snapshot;
 }
 function remember_place() {
@@ -503,7 +502,7 @@ function remember_place() {
   if (!place_is_mine || hash_text.startsWith('#/new')) return false;
   const place_json = JSON.stringify({hash: hash_text, session: session_snapshot()});
   if (place_json === my_last_place) return false;
-  my_last_place = place_json; app_state.resume_point = Object.assign(JSON.parse(place_json), {device: this_device});
+  my_last_place = place_json; app_state.resume_point = Object.assign(JSON.parse(place_json), {device: this_device, at: Date.now()});
   return true;
 }
 // A saved round only comes back on the same set, and only if its cards are still there.
@@ -523,8 +522,8 @@ function open_where_left_off() {
   if (resume_item && resume_item.hash && (!location.hash || location.hash === '#' || location.hash === resume_item.hash)) go_to_place(resume_item); else route();
 }
 function follow_other_device() {
-  const resume_item = app_state.resume_point;
-  if (!resume_item || !resume_item.hash || resume_item.device === this_device || JSON.stringify(resume_item) === last_followed) return false;
+  const resume_item = sync_engine.newest_place(this_device);
+  if (!resume_item || resume_item.at <= ((app_state.resume_point || {}).at || 0) || JSON.stringify(resume_item) === last_followed) return false;
   if (last_interaction > follow_since && Date.now() - last_interaction < RESUME_IDLE_MS) return false;
   if ((editor_has_changes && editor_has_changes()) || selection_keys || document.body.classList.contains('is-carrying')) return false;
   go_to_place(resume_item); return true;
@@ -538,6 +537,8 @@ function start_resume_tracking() {
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') on_return(); else on_leave(); });
   addEventListener('focus', on_return); addEventListener('pagehide', on_leave);
   setInterval(note_place, 1000);
+  let last_sync_seen = null;
+  sync_engine.on_status(sync_status => { if (sync_status.state !== 'ok' || sync_status.last === last_sync_seen) return; last_sync_seen = sync_status.last; follow_other_device(); });
 }
 // ---- View menu ----
 function save_view_choice(storage_key, chosen_value) { try { localStorage.setItem(storage_key, chosen_value); } catch (storage_err) {} apply_theme(); }
