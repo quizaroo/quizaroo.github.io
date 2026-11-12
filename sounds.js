@@ -131,14 +131,22 @@ document.addEventListener('keydown', key_event => {
   if (!location.hash.startsWith('#/play/') || !key_event.target.matches || !key_event.target.matches('input[type=text], input:not([type]), textarea') || key_event.ctrlKey || key_event.metaKey) return;
   if (key_event.key.length === 1 || key_event.key === 'Backspace') play_sound('type');
 }, true);
-// Settings › Sound: when, which set, how loud. Picking a set plays a few of its sounds.
+// Settings › Sound: when, which set, how loud, and a button for each sound to hear it in the chosen set.
+const SOUND_SAMPLES = [['right', 'Right'], ['wrong', 'Wrong'], ['flip', 'Flip'], ['turn', 'Page turn'], ['back', 'Back'], ['tap', 'Tap'], ['type', 'Typing'], ['tile', 'Tile'], ['tick', 'Wheel'], ['finish', 'Reward']];
+function play_sample(sound_name) {
+  if (sound_name === 'tick') { for (let tick_index = 0; tick_index < 8; tick_index++) play_sound('tick', tick_index * (0.06 + tick_index * 0.02), sound_set_name()); return; }
+  if (sound_name === 'type') { for (let key_index = 0; key_index < 5; key_index++) play_sound('type', key_index * 0.11, sound_set_name()); return; }
+  play_sound(sound_name, 0, sound_set_name());
+}
 function sound_section() {
-  const save_sound = (storage_key, chosen_value) => { try { localStorage.setItem(storage_key, chosen_value); } catch (storage_err) {} status_el.textContent = sound_status(); };
   const sound_status = () => sound_level() === 'off' ? 'Off' : SOUND_SETS[sound_set_name()].label + (sound_level() === 'all' ? ', everything' : ', right and wrong');
   const status_el = el('span', {class: 'settings-panel-status'}, sound_status());
-  function pick_row(storage_key, current_value, choices, after_pick) { const buttons = choices.map(choice_item => el('button', {'aria-pressed': String(choice_item.value === current_value), onclick: () => { save_sound(storage_key, choice_item.value); buttons.forEach((button_el, button_index) => button_el.setAttribute('aria-pressed', String(choices[button_index].value === choice_item.value))); if (after_pick) after_pick(choice_item.value); }}, choice_item.label)); return el('div', {class: 'direction-switch sound-sets', role: 'group'}, ...buttons); }
-  return settings_panel('sound', 'Sound', status_el, {class: 'settings-panel sound-section'},
-    el('div', {class: 'detail-row'}, el('div', {class: 'line-margin'}, 'Play'), el('div', {class: 'settings-line'}, pick_row(SOUND_KEY, sound_level(), [{value: 'off', label: 'Off'}, {value: 'on', label: 'Right and wrong'}, {value: 'all', label: 'Everything'}], level_now => { if (level_now === 'all') play_sound('turn'); else if (level_now === 'on') play_sound('right'); }))),
-    el('div', {class: 'detail-row'}, el('div', {class: 'line-margin'}, 'Set'), el('div', {class: 'settings-line'}, pick_row(SOUND_SET_KEY, sound_set_name(), Object.keys(SOUND_SETS).map(set_name => ({value: set_name, label: SOUND_SETS[set_name].label})), preview_sound_set))),
-    el('div', {class: 'detail-row'}, el('div', {class: 'line-margin'}, 'Volume'), el('label', {class: 'settings-line'}, el('input', {type: 'range', min: 0, max: 100, step: 5, value: Math.round(sound_volume() * 100), 'aria-label': 'Volume', class: 'sound-volume', onchange: change_event => { save_sound(SOUND_VOLUME_KEY, change_event.target.value); play_sound('right', 0, sound_set_name()); }}))));
+  const save_sound = (storage_key, chosen_value) => { try { localStorage.setItem(storage_key, chosen_value); } catch (storage_err) {} status_el.textContent = sound_status(); };
+  function pick_buttons(storage_key, current_value, choices, after_pick) { const buttons = choices.map(choice_item => el('button', {'aria-pressed': String(choice_item.value === current_value), onclick: () => { save_sound(storage_key, choice_item.value); buttons.forEach((button_el, button_index) => button_el.setAttribute('aria-pressed', String(choices[button_index].value === choice_item.value))); after_pick(choice_item.value); }}, ...choice_item.nodes)); return buttons; }
+  const play_icon = () => el('span', {class: 'sound-play', 'aria-hidden': 'true'});
+  return settings_panel('sound', 'Sound', status_el, {class: 'settings-panel sound-section'}, el('div', {class: 'sound-body sound-sets'},
+    el('h4', {}, 'Play'), el('div', {class: 'sound-levels', role: 'group', 'aria-label': 'Play'}, ...pick_buttons(SOUND_KEY, sound_level(), [['off', 'Off'], ['on', 'Answers'], ['all', 'Everything']].map(([level_value, level_label]) => ({value: level_value, nodes: [level_label]})), level_now => { if (level_now !== 'off') play_sound(level_now === 'all' ? 'turn' : 'right', 0, sound_set_name()); })),
+    el('h4', {}, 'Sound set'), el('div', {class: 'sound-set-tiles', role: 'group', 'aria-label': 'Sound set'}, ...pick_buttons(SOUND_SET_KEY, sound_set_name(), Object.keys(SOUND_SETS).map(set_name => ({value: set_name, nodes: [play_icon(), SOUND_SETS[set_name].label]})), preview_sound_set)),
+    el('h4', {}, 'Volume'), el('input', {type: 'range', min: 0, max: 100, step: 5, value: Math.round(sound_volume() * 100), 'aria-label': 'Volume', class: 'sound-volume', onchange: change_event => { save_sound(SOUND_VOLUME_KEY, change_event.target.value); play_sound('right', 0, sound_set_name()); }}),
+    el('h4', {}, 'Hear each sound'), el('div', {class: 'sound-samples'}, ...SOUND_SAMPLES.map(([sound_name, sample_label]) => el('button', {onclick: () => play_sample(sound_name)}, play_icon(), sample_label)))));
 }
