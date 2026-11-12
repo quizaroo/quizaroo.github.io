@@ -301,7 +301,7 @@ function take_back_answer(card_set) {
   restore_card_memory(card_set, last_answer.key_text, last_answer.memory); if (study_session.flip_log) study_session.flip_log.pop();
   if (last_answer.last_studied) card_set.last_studied = last_answer.last_studied; else delete card_set.last_studied;
 }
-function previous_card_button(card_set) { return el('button', Object.assign({'data-key': 'Backspace', title: 'Go back and change your answer (Backspace)', onclick: () => { if (study_session.round_reward) { card_set.trophies.length -= study_session.round_trophy_count; study_session.round_reward = null; } take_back_answer(card_set); save_state(); view_study(card_set); }}, study_session.answer_history.length ? {} : {disabled: 'disabled'}), '← Previous card'); }
+function previous_card_button(card_set) { return el('button', Object.assign({'data-key': 'Backspace', title: 'Go back and change your answer (Backspace)', onclick: () => { play_sound('back'); if (study_session.round_reward) { card_set.trophies.length -= study_session.round_trophy_count; study_session.round_reward = null; } take_back_answer(card_set); save_state(); view_study(card_set); }}, study_session.answer_history.length ? {} : {disabled: 'disabled'}), '← Previous card'); }
 
 // Flashcards keeps score unless switched off, or opened on a word from View all vocab. Without score, nothing is recorded, Back and Next go round for ever, and there is no end of round.
 function start_flashcards(card_set, start_card, return_hash) {
@@ -317,8 +317,8 @@ function view_study(card_set) {
   const inner_el = el('div', {class: 'flashcard-inner'}, el('div', {class: 'face front'}, current_card[front_key]), el('div', {class: 'face back'}, current_card[back_key]));
   const is_browsing = !!study_session.browsing, done_hash = study_session.return_hash || '#/set/' + card_set.id;
   const card_el = el('div', {class: 'flashcard'}, is_browsing ? null : learn_hint_el, is_browsing ? null : know_hint_el, inner_el);
-  let has_flipped = false; new MutationObserver(() => { if (card_el.classList.contains('flipped')) has_flipped = true; }).observe(card_el, {attributes: true, attributeFilter: ['class']});
-  function move_card(step_by) { study_session.position = (study_session.position + step_by + study_session.queue.length) % study_session.queue.length; view_study(card_set); }
+  let has_flipped = false; new MutationObserver(class_changes => { const is_flipped = card_el.classList.contains('flipped'); if (is_flipped) has_flipped = true; if (class_changes.some(class_change => /\bflipped\b/.test(class_change.oldValue || '') !== is_flipped)) play_sound('flip'); }).observe(card_el, {attributes: true, attributeFilter: ['class'], attributeOldValue: true});
+  function move_card(step_by) { play_sound(step_by < 0 ? 'back' : 'turn'); study_session.position = (study_session.position + step_by + study_session.queue.length) % study_session.queue.length; view_study(card_set); }
   function toggle_shuffle() {
     app_state.shuffle = !app_state.shuffle; save_state();
     if (!is_browsing) { start_flashcards(card_set, undefined, study_session.return_hash); return view_study(card_set); }
@@ -331,7 +331,7 @@ function view_study(card_set) {
     if (keep_score) start_flashcards(card_set, undefined, study_session.return_hash); else study_session.browsing = true;
     view_study(card_set);
   }
-  function answer(is_known) { const key_text = card_key(current_card); study_session.answer_history.push({position: study_session.position, was_known: is_known, key_text, memory: card_memory(card_set, key_text), last_studied: card_set.last_studied}); record_answer(card_set, current_index, is_known); if (study_session.mode === 'cards' && smart_learning_on()) { set_rating(card_set, key_text, is_known ? (has_flipped ? 'sometimes' : 'always') : 'never'); study_session.flip_log = study_session.flip_log || []; study_session.flip_log.push({key_text, is_known, has_flipped}); save_state(); } (is_known ? study_session.known : study_session.learning).push(study_session.queue[study_session.position]); study_session.position++; view_study(card_set); }
+  function answer(is_known) { play_sound('turn'); const key_text = card_key(current_card); study_session.answer_history.push({position: study_session.position, was_known: is_known, key_text, memory: card_memory(card_set, key_text), last_studied: card_set.last_studied}); record_answer(card_set, current_index, is_known); if (study_session.mode === 'cards' && smart_learning_on()) { set_rating(card_set, key_text, is_known ? (has_flipped ? 'sometimes' : 'always') : 'never'); study_session.flip_log = study_session.flip_log || []; study_session.flip_log.push({key_text, is_known, has_flipped}); save_state(); } (is_known ? study_session.known : study_session.learning).push(study_session.queue[study_session.position]); study_session.position++; view_study(card_set); }
   // Tap flips. A horizontal swipe answers (right = know, left = still learning), or without score turns to the next or last card.
   let drag_start = null;
   function drag_begin(start_x, start_y) { drag_start = {x: start_x, y: start_y}; inner_el.style.transition = 'none'; }
@@ -357,7 +357,7 @@ function view_study(card_set) {
     is_browsing ? null : el('div', {class: 'counts'}, el('span', {class: 'learn'}, study_session.learning.length + ' learning'), el('span', {class: 'know'}, study_session.known.length + ' known')),
     card_el,
     is_browsing ? el('div', {class: 'study-buttons'}, el('button', {onclick: () => move_card(-1)}, '← Back'), el('button', {onclick: () => card_el.classList.toggle('flipped')}, 'Flip'), el('button', {onclick: () => move_card(1)}, 'Next →')) : el('div', {class: 'study-buttons'}, el('button', {class: 'learn-button', onclick: () => answer(false)}, '← Still learning'), el('button', {onclick: () => card_el.classList.toggle('flipped')}, 'Flip'), el('button', {class: 'know-button', onclick: () => answer(true)}, 'Know →')),
-    is_browsing ? null : el('div', {class: 'study-nav'}, previous_card_button(card_set), el('button', Object.assign({title: 'Start this round again and take back its answers', onclick: () => { while (study_session.answer_history.length) take_back_answer(card_set); save_state(); view_study(card_set); }}, study_session.answer_history.length ? {} : {disabled: 'disabled'}), 'Start again')),
+    is_browsing ? null : el('div', {class: 'study-nav'}, previous_card_button(card_set), el('button', Object.assign({title: 'Start this round again and take back its answers', onclick: () => { play_sound('back'); while (study_session.answer_history.length) take_back_answer(card_set); save_state(); view_study(card_set); }}, study_session.answer_history.length ? {} : {disabled: 'disabled'}), 'Start again')),
     el('div', {class: 'muted'}, is_browsing ? 'Tap to flip · swipe or press ← → to move · nothing is recorded' : 'Tap to flip · swipe right if you know it, left if not · keys: space, ← →, Backspace for the previous card'))]);
 }
 
@@ -438,7 +438,7 @@ function view_settings() {
     check_button.disabled = false; check_button.textContent = 'Check for updates';
     toast(check_result === 'offline' ? 'Could not reach the server. Try again when you are online.' : 'You have the latest version.', {ms: 3000});
   }}, 'Check for updates');
-  render([menu_crumb('settings', '#/settings')], [], [install_section(), sync_section(), settings_panel('updates', 'Updates', el('span', {class: 'settings-panel-status'}, 'Version ' + APP_VERSION), {class: 'settings-panel updates-section'},
+  render([menu_crumb('settings', '#/settings')], [], [install_section(), sync_section(), sound_section(), settings_panel('updates', 'Updates', el('span', {class: 'settings-panel-status'}, 'Version ' + APP_VERSION), {class: 'settings-panel updates-section'},
     el('div', {class: 'ruled'},
       el('div', {class: 'detail-row'}, el('div', {class: 'line-margin'}, 'Version'), el('div', {class: 'settings-line'}, el('span', {}, 'Quizaroo v' + APP_VERSION), check_button, el('button', {onclick: () => show_whats_new(app_state.whatsnew_last || APP_VERSION)}, "What's new"))),
       el('div', {class: 'detail-row'}, el('div', {class: 'line-margin'}, 'Help'), el('div', {class: 'settings-line'}, el('button', {id: 'copy-diagnostics', onclick: copy_diagnostics}, 'Copy diagnostics'), el('span', {class: 'muted'}, 'Version, browser and sync status, to paste into a bug report. No email, password or sets.'))),
@@ -582,7 +582,7 @@ function open_view_menu() {
   toggle_top_menu(view_button_el, 'View settings',
     el('h3', {}, 'Style'), choice_row(STYLE_KEY, root_data.style, [{value: 'plain', label: 'Plain', sample: el('span', {class: 'view-sample plain'}, el('i'), el('i'))}, {value: 'lined', label: 'Lined', sample: el('span', {class: 'view-sample lined'})}]),
     el('h3', {}, 'View mode'), choice_row(THEME_KEY, root_data.theme, [{value: 'light', label: '☀ Dawn'}, {value: 'glass', label: '☾ Dusk'}]),
-    el('h3', {}, 'Sound'), choice_row(SOUND_KEY, sound_is_on() ? 'on' : 'off', [{value: 'on', label: 'On'}, {value: 'off', label: 'Off'}]));
+    el('h3', {}, 'Sound'), choice_row(SOUND_KEY, sound_level(), SOUND_LEVELS), el('a', {class: 'view-more', href: '#/settings', onclick: click_event => { click_event.preventDefault(); close_view_menu(); go_to_settings_panel('sound', '.sound-section'); }}, 'Sound sets and volume'));
 }
 view_button_el.addEventListener('click', open_view_menu);
 open_where_left_off();

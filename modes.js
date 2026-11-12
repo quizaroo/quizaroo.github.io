@@ -147,25 +147,6 @@ function celebrate_right(answer_el, run_next) {
   answer_el.classList.add('right-flash');
   later(run_next, Math.round(letters.length * letter_gap) + 420);
 }
-// Short sounds made in the browser, so there are no files to load. Off with Sound under the eye button.
-const SOUND_KEY = 'open-flashcards:sound';
-let sound_context = null;
-function sound_is_on() { try { return localStorage.getItem(SOUND_KEY) !== 'off'; } catch (storage_err) { return true; } }
-function play_tone(start_after, frequency, wave_type, peak_gain, last_for) {
-  const oscillator = sound_context.createOscillator(), gain_node = sound_context.createGain(), start_at = sound_context.currentTime + start_after;
-  oscillator.type = wave_type; oscillator.frequency.value = frequency;
-  gain_node.gain.setValueAtTime(0.0001, start_at); gain_node.gain.exponentialRampToValueAtTime(peak_gain, start_at + 0.008); gain_node.gain.exponentialRampToValueAtTime(0.0001, start_at + last_for);
-  oscillator.connect(gain_node); gain_node.connect(sound_context.destination); oscillator.start(start_at); oscillator.stop(start_at + last_for + 0.02);
-}
-function play_sound(sound_name) {
-  if (!sound_is_on() || !(window.AudioContext || window.webkitAudioContext)) return;
-  try {
-    sound_context = sound_context || new (window.AudioContext || window.webkitAudioContext)();
-    if (sound_context.state === 'suspended') sound_context.resume();
-    if (sound_name === 'right') { play_tone(0, 1318.5, 'sine', 0.16, 0.5); play_tone(0, 2637, 'sine', 0.04, 0.25); }
-    else play_tone(0, 196, 'sine', 0.14, 0.13);
-  } catch (sound_err) {}
-}
 function answer_panel(is_right, panel_text, extra_nodes) { stop_answer_clock(); return el('div', {class: 'answer-panel ' + (is_right ? 'is-right' : 'is-wrong'), role: 'status'}, el('strong', {}, is_right ? 'Right' : 'Not quite'), panel_text ? el('div', {}, panel_text) : null, ...(extra_nodes || [])); }
 function next_button(run_next) { return el('button', {class: 'primary', 'data-key': 'Enter', onclick: run_next}, 'Next'); }
 function start_mode_session(card_set, mode_key, card_indexes) { study_session = {set_id: card_set.id, mode: mode_key, queue: card_indexes, position: 0, known: [], learning: [], right: 0, wrong: 0, missed: []}; }
@@ -338,7 +319,9 @@ function view_wheel(card_set, mode_item) {
   const spin_button = el('button', {class: 'primary spin-button', 'data-key': 'Enter', onclick: () => {
     spin_button.disabled = true;
     const picked_slice = Math.floor(Math.random() * wheel_cards.length), slice_offset = (Math.random() * 0.7 + 0.15) * slice_angle, landing_angle = 360 - (picked_slice * slice_angle + slice_offset);
+    const from_angle = study_session.spin_angle;
     study_session.spin_angle = study_session.spin_angle - (study_session.spin_angle % 360) + 360 * 5 + landing_angle;
+    wheel_ticks(study_session.spin_angle - from_angle, slice_angle);
     wheel_svg.style.transform = 'rotate(' + study_session.spin_angle + 'deg)';
     later(() => { study_session.landed = {card_index: wheel_cards[picked_slice], picked_slice}; view_wheel(card_set, mode_item); }, 3300);
   }}, 'Spin');
@@ -367,12 +350,12 @@ function view_memory(card_set, mode_item) {
   const turns_el = el('span', {}, '0 turns');
   const all_tiles = shuffled(round_cards.flatMap(card_index => ['term', 'definition'].map(side_key => { const tile_el = el('button', {class: 'memory-tile', 'aria-label': 'Hidden card', onclick: () => {
     if (is_waiting || tile_el.classList.contains('is-up')) return;
-    tile_el.classList.add('is-up'); tile_el.textContent = card_set.cards[card_index][side_key]; turned_tiles.push({tile_el, card_index});
+    play_sound('tile'); tile_el.classList.add('is-up'); tile_el.textContent = card_set.cards[card_index][side_key]; turned_tiles.push({tile_el, card_index});
     if (turned_tiles.length < 2) return;
     turn_count++; turns_el.textContent = turn_count + ' turns';
     const first_turned = turned_tiles[0], second_turned = turned_tiles[1]; turned_tiles = [];
     if (first_turned.card_index === second_turned.card_index) { play_sound('right'); first_turned.tile_el.classList.add('is-matched'); second_turned.tile_el.classList.add('is-matched'); left_count--; if (!left_count) { card_set.last_studied = Date.now(); save_state(); const reward_el = award_round(card_set, mode_item, round_cards.length, Math.max(turn_count, round_cards.length)); grid_el.after(reward_el, el('div', {class: 'answer-panel is-right', role: 'status'}, el('strong', {}, 'All found in ' + turn_count + ' turns'), el('button', {class: 'primary', onclick: () => view_memory(card_set, mode_item)}, 'Play again'))); } return; }
-    is_waiting = true; later(() => { [first_turned, second_turned].forEach(turned_item => { turned_item.tile_el.classList.remove('is-up'); turned_item.tile_el.textContent = ''; }); is_waiting = false; }, 1100);
+    is_waiting = true; later(() => { play_sound('flip'); [first_turned, second_turned].forEach(turned_item => { turned_item.tile_el.classList.remove('is-up'); turned_item.tile_el.textContent = ''; }); is_waiting = false; }, 1100);
   }}); return tile_el; })));
   const grid_el = el('div', {class: 'memory-grid'}, ...all_tiles);
   mode_frame(card_set, mode_item, [turns_el], [grid_el]);
@@ -443,7 +426,7 @@ function award_round(card_set, mode_item, right_count, total_count) {
   reached_goals.forEach(goal_item => card_set.trophies.push({image: goal_item.image, line: goal_item.line, goal: goal_item.key, mode: mode_item.label, at: now_ms}));
   save_state();
   const reward_el = el('div', {class: 'reward-card', role: 'status'}, reward_image(picked_reward[0], 'reward-image'), el('div', {}, el('strong', {}, line_text), el('div', {class: 'muted'}, right_count + ' of ' + total_count + ' right. Added to your trophy shelf.')), ...reached_goals.map(goal_item => el('div', {class: 'reward-goal'}, reward_image(goal_item.image, 'reward-image'), el('strong', {}, goal_item.line))));
-  study_session.round_reward = reward_el; study_session.round_trophy_count = 1 + reached_goals.length; later(() => spawn_confetti(reward_el), 60);
+  study_session.round_reward = reward_el; study_session.round_trophy_count = 1 + reached_goals.length; later(() => spawn_confetti(reward_el), 60); play_sound('finish', 0.25);
   return reward_el;
 }
 function spawn_confetti(anchor_el) {
