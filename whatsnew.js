@@ -8,6 +8,7 @@
 // No `at`: no Show me. PUBLISHED holds when each version went live (UTC), filled in by tools/publish.py.
 const FIRST_SET = ['.set-row .row-title'];
 const WHATS_NEW = {
+  '1.5.09': [{text: 'Typing answers: a right answer is marked as soon as you type its last letter. Turn this off in Settings › Typing.', go: '#/settings', at: '.typing-section'}, {text: 'On a phone the keyboard stays up from one question to the next, the Term first / Definition first / Mixed switch no longer disappears, and the question card has one tint line and tighter spacing.'}],
   '1.5.08': [{text: 'Settings › Sound is tidier, with a button for each sound so you can hear it in the set you picked.', go: '#/settings', at: '.sound-samples'}],
   '1.5.07': [{text: 'Sound sets, in Settings: Chimes, Paper, Wood or Arcade. Choose Everything to hear cards flip and turn like paper, buttons, typing, the wheel ticking and rewards, not just right and wrong.', go: '#/settings', at: '.sound-section'},
     {text: 'Sounds now work straight away when you come back to the app, not only after a few taps. Fixed.'}],
@@ -134,6 +135,7 @@ const WHATS_NEW = {
   '1.0.00': [{text: 'Open Flashcards goes live: make sets, flip and swipe through them, and import or export them as JSON.'}]
 };
 const PUBLISHED = {
+  '1.5.09': '2026-11-12T04:30:54Z',
   '1.5.08': '2026-11-12T04:29:59Z',
   '1.5.07': '2026-11-12T04:20:15Z',
   '1.5.06': '2026-11-12T04:19:06Z',
