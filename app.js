@@ -375,19 +375,27 @@ function view_study_summary(card_set) {
     el('div', {class: 'counts'}, el('span', {class: 'learn'}, learning_indexes.length + ' still learning'), el('span', {class: 'know'}, study_session.known.length + ' known')),
     el('div', {class: 'next-tiles'}, ...next_tiles), el('div', {class: 'button-row center-row'}, previous_card_button(card_set)))]);
 }
-// What to do after a round, with one tile recommended from how it went: mostly wrong needs Learn from scratch, some wrong needs those cards again, all right moves on.
+// What to do after a round, with one tile recommended from how it went: mostly wrong needs Learn from scratch, some wrong needs those cards again, all right moves on to being tested (Test alternates multiple choice and typing), with Multiple choice and Type the answer beside it.
 function round_next_tiles(card_set, learning_indexes, known_count, session_mode) {
-  const due_count = due_indexes(card_set).length, learn_now = learn_counts(card_set), total_count = studyable_indexes(card_set).length, is_learn_unfinished = learn_now.learned < learn_now.cards, can_revise = session_mode !== 'revise' && due_count > 0;
-  const recommended_name = learning_indexes.length ? (known_count < learning_indexes.length ? 'learn' : 'more') : can_revise ? 'revise' : is_learn_unfinished ? 'learn' : 'all';
+  const due_count = due_indexes(card_set).length, learn_now = learn_counts(card_set), total_count = studyable_indexes(card_set).length, is_learn_unfinished = learn_now.learned < learn_now.cards, can_revise = session_mode !== 'revise' && due_count > 0, all_known = !learning_indexes.length;
+  const recommended_name = all_known ? 'test' : known_count < learning_indexes.length ? 'learn' : 'more';
   function next_tile(tile_name, heading_text, note_text, tile_action) {
     const tile_nodes = [recommended_name === tile_name ? el('span', {class: 'recommended-tag'}, 'Recommended') : null, el('strong', {}, heading_text), el('span', {class: 'next-note'}, note_text)];
     const class_text = 'next-tile' + (recommended_name === tile_name ? ' is-recommended' : '');
     return typeof tile_action === 'string' ? el('a', {class: class_text, href: tile_action}, ...tile_nodes) : el('button', {class: class_text, onclick: tile_action}, ...tile_nodes);
   }
+  const revise_tile = session_mode === 'revise' ? null : next_tile('revise', 'Move on to Revise', due_count ? due_count + (due_count === 1 ? ' card is' : ' cards are') + ' ready to come back.' : 'Nothing is ready yet. It will tell you when the next card is.', play_hash(card_set, 'revise'));
+  if (all_known) return [
+    next_tile('test', 'Test yourself', (total_count < 10 ? total_count : 10) + ' questions, multiple choice and typing in turn, with a score.', play_hash(card_set, 'test')),
+    total_count >= 2 ? next_tile('choice', 'Multiple choice', 'Pick each answer from four.', play_hash(card_set, 'choice')) : null,
+    next_tile('type', 'Type the answer', 'Spell each answer yourself, the toughest check.', play_hash(card_set, 'type')),
+    can_revise ? revise_tile : null,
+    next_tile('all', 'Go through all cards', 'Another round of all ' + total_count + ' cards.', () => { study_session = null; view_mode(card_set, 'cards'); })
+  ].filter(Boolean);
   return [
-    learning_indexes.length ? next_tile('more', 'Study more', "Let's go through the " + (learning_indexes.length === 1 ? 'one' : learning_indexes.length) + " you're still learning.", () => { start_session(card_set, learning_indexes, session_mode); view_study(card_set); }) : null,
+    next_tile('more', 'Study more', "Let's go through the " + (learning_indexes.length === 1 ? 'one' : learning_indexes.length) + " you're still learning.", () => { start_session(card_set, learning_indexes, session_mode); view_study(card_set); }),
     next_tile('all', 'Go through all cards', 'Another round of all ' + total_count + ' cards.', () => { study_session = null; view_mode(card_set, 'cards'); }),
-    session_mode === 'revise' ? null : next_tile('revise', 'Move on to Revise', due_count ? due_count + (due_count === 1 ? ' card is' : ' cards are') + ' ready to come back.' : 'Nothing is ready yet. It will tell you when the next card is.', play_hash(card_set, 'revise')),
+    revise_tile,
     next_tile('learn', 'Move on to Learn from scratch', is_learn_unfinished ? (smart_learning_on() ? 'Words you know get one quick check, and the rest get the full route. ' : 'Showing cards, multiple choice and typing. ') + learn_now.learned + ' of ' + learn_now.cards + ' cards learned so far.' : 'You have finished it for this set. Start it again from there.', play_hash(card_set, 'learn'))
   ].filter(Boolean);
 }
