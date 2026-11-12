@@ -568,3 +568,8 @@ body.keyboard-up .mode-wrap > .muted:last-child, body.keyboard-up .mode-wrap > .
   .accuracy-row { grid-template-columns: minmax(0, 1fr) auto; row-gap: 4px; }
   .accuracy-title { grid-column: 1 / -1; }
 }
+/* Sound: three levels in the eye menu, a link to the rest in Settings */
+.view-choices:has(> :nth-child(3)) { grid-template-columns: repeat(3, 1fr); }
+.view-more { display: block; margin-top: 10px; font-size: 13px; color: var(--muted); }
+.sound-sets { flex-wrap: wrap; }
+.sound-volume { width: min(260px, 100%); accent-color: var(--accent); }
