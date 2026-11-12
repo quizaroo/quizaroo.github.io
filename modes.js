@@ -169,7 +169,7 @@ function is_hint_letter(char_text) { return /[\p{L}\p{N}]/u.test(char_text); }
 function ask_type(card_set, mode_item, card_index, finish, ask_options) {
   const sides = (ask_options && ask_options.sides) || card_sides(card_set, card_index), input_el = el('input', {type: 'text', class: 'answer-input', placeholder: 'Type the answer', autocomplete: 'off', autocorrect: 'off', autocapitalize: 'off', spellcheck: 'false', enterkeyhint: 'done', 'aria-label': 'Your answer'}), result_el = el('div', {class: 'answer-slot'});
   const target_chars = Array.from(hint_target(sides.answer)), letter_slots = target_chars.map((char_text, char_index) => is_hint_letter(char_text) ? char_index : -1).filter(char_index => char_index >= 0), hint_step = 1 / (letter_slots.length + 1), revealed_slots = new Set();
-  let tried_close = false, is_answered = false, hint_count = 0;
+  let tried_close = false, is_answered = false, hint_count = 0, answered_text = '', next_action = null;
   const slots_el = el('div', {class: 'hint-letters', 'aria-hidden': 'true'}), worth_el = el('div', {class: 'muted hint-worth'});
   function answer_credit() { return Math.max(0, 1 - hint_count * hint_step); }
   function typed_letters() { return Array.from(input_el.value).filter(is_hint_letter); }
@@ -205,19 +205,30 @@ function ask_type(card_set, mode_item, card_index, finish, ask_options) {
   // Right but mostly hinted counts as not known; the round's score still gets its share.
   function finish_typed(is_right) { const credit = is_right ? answer_credit() : 0, counts_right = is_right && credit >= 0.5; if (hint_count && is_right) study_session.hint_offset = (study_session.hint_offset || 0) + credit - (counts_right ? 1 : 0); finish(counts_right); }
   function show_result(is_right) {
-    is_answered = true; input_el.readOnly = true; form_button.hidden = true; hint_button.hidden = true;
+    is_answered = true; form_button.hidden = true; hint_button.hidden = true;
     if (hint_count) { input_el.value = composed_chars().join(''); form_el.classList.remove('is-hinted'); }
+    answered_text = input_el.value;
     if (is_right && answer_credit() >= 0.5) { celebrate_right(input_el, () => finish_typed(true)); return; }
-    if (is_right) { stop_answer_clock(); const next_el = next_button(() => finish_typed(true)); result_el.replaceChildren(el('div', {class: 'answer-panel is-close', role: 'status'}, el('strong', {}, 'Filled in with hints'), el('div', {}, 'Worth ' + Math.round(100 * answer_credit()) + '%'), next_el)); next_el.focus(); return; }
-    play_sound('wrong'); const next_el = next_button(() => finish_typed(false)); result_el.replaceChildren(answer_panel(false, 'The answer is: ' + sides.answer, [el('div', {class: 'button-row'}, next_el, el('button', {onclick: () => finish_typed(true)}, 'I was right'))])); next_el.focus();
+    if (is_right) { stop_answer_clock(); next_action = () => finish_typed(true); result_el.replaceChildren(el('div', {class: 'answer-panel is-close', role: 'status'}, el('strong', {}, 'Filled in with hints'), el('div', {}, 'Worth ' + Math.round(100 * answer_credit()) + '%'), next_button(next_action))); return; }
+    play_sound('wrong'); next_action = () => finish_typed(false); result_el.replaceChildren(answer_panel(false, 'The answer is: ' + sides.answer, [el('div', {class: 'button-row'}, next_button(next_action), el('button', {onclick: () => finish_typed(true)}, 'I was right'))]));
   }
   const form_button = el('button', {class: 'primary', type: 'submit'}, 'Check'), hint_button = el('button', {type: 'button', class: 'hint-button', onpointerdown: press_event => press_event.preventDefault(), onclick: take_hint}, 'Hint');
   if (!letter_slots.length) hint_button.hidden = true;
-  input_el.addEventListener('input', () => { if (hint_count) draw_slots(); });
-  const form_el = el('form', {class: 'answer-form', onsubmit: submit_event => { submit_event.preventDefault(); if (is_answered) return; const verdict = check_answer(hint_count ? composed_chars().join('') : input_el.value, sides.answer); if (verdict === 'close' && !tried_close) { tried_close = true; result_el.replaceChildren(el('div', {class: 'answer-panel is-close', role: 'status'}, 'So close. Check the spelling and try again.')); input_el.focus({preventScroll: true}); return; } show_result(verdict !== 'wrong'); }},
+  // Once answered the field stays focused (so the phone keyboard stays up) but ignores typing; Enter goes on. With Mark right on the last letter, a right answer is checked as soon as it's typed.
+  input_el.addEventListener('input', () => { if (is_answered) { input_el.value = answered_text; return; } if (hint_count) draw_slots(); if (app_state.auto_check !== false && check_answer(hint_count ? composed_chars().join('') : input_el.value, sides.answer) === 'right') show_result(true); });
+  const form_el = el('form', {class: 'answer-form', onsubmit: submit_event => { submit_event.preventDefault(); if (is_answered) { if (next_action) next_action(); return; } const verdict = check_answer(hint_count ? composed_chars().join('') : input_el.value, sides.answer); if (verdict === 'close' && !tried_close) { tried_close = true; result_el.replaceChildren(el('div', {class: 'answer-panel is-close', role: 'status'}, 'So close. Check the spelling and try again.')); input_el.focus({preventScroll: true}); return; } show_result(verdict !== 'wrong'); }},
     el('div', {class: 'type-line', onclick: () => input_el.focus({preventScroll: true})}, input_el, slots_el), el('div', {class: 'type-buttons'}, hint_button, form_button), worth_el);
+  // Buttons here don't take focus from the field, so tapping them leaves the keyboard up.
+  [form_el, result_el].forEach(holder_el => ['pointerdown', 'mousedown'].forEach(event_name => holder_el.addEventListener(event_name, press_event => { if (press_event.target.closest('button')) press_event.preventDefault(); })));
+  hold_keyboard();
   mode_frame(card_set, mode_item, [(ask_options && ask_options.status) || position_label()], [session_progress(), (ask_options && ask_options.prompt_node) || prompt_card(sides.prompt), form_el, result_el, ask_options && ask_options.footer]);
   input_el.focus({preventScroll: true}); keep_question_in_view();
+}
+// iPhones only open the keyboard for a tap, so while the old question's field is swapped for the new one, focus waits in a field outside the page.
+function hold_keyboard() {
+  if (!document.activeElement || !document.activeElement.matches('.answer-input')) return;
+  let keeper_el = document.getElementById('keyboard-keeper'); if (!keeper_el) { keeper_el = el('input', {type: 'text', id: 'keyboard-keeper', tabindex: '-1', autocomplete: 'off', autocorrect: 'off', autocapitalize: 'off', spellcheck: 'false', 'aria-hidden': 'true'}); document.body.appendChild(keeper_el); }
+  keeper_el.focus({preventScroll: true});
 }
 // On a phone the keyboard covers half the screen: keep the question and the typing in the part that's left.
 let tallest_viewport = 0;

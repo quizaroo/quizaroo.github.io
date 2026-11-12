@@ -446,11 +446,19 @@ function view_settings() {
     check_button.disabled = false; check_button.textContent = 'Check for updates';
     toast(check_result === 'offline' ? 'Could not reach the server. Try again when you are online.' : 'You have the latest version.', {ms: 3000});
   }}, 'Check for updates');
-  render([menu_crumb('settings', '#/settings')], [], [install_section(), sync_section(), sound_section(), settings_panel('updates', 'Updates', el('span', {class: 'settings-panel-status'}, 'Version ' + APP_VERSION), {class: 'settings-panel updates-section'},
+  render([menu_crumb('settings', '#/settings')], [], [install_section(), sync_section(), sound_section(), typing_section(), settings_panel('updates', 'Updates', el('span', {class: 'settings-panel-status'}, 'Version ' + APP_VERSION), {class: 'settings-panel updates-section'},
     el('div', {class: 'ruled'},
       el('div', {class: 'detail-row'}, el('div', {class: 'line-margin'}, 'Version'), el('div', {class: 'settings-line'}, el('span', {}, 'Quizaroo v' + APP_VERSION), check_button, el('button', {onclick: () => show_whats_new(app_state.whatsnew_last || APP_VERSION)}, "What's new"))),
       el('div', {class: 'detail-row'}, el('div', {class: 'line-margin'}, 'Help'), el('div', {class: 'settings-line'}, el('button', {id: 'copy-diagnostics', onclick: copy_diagnostics}, 'Copy diagnostics'), el('span', {class: 'muted'}, 'Version, browser and sync status, to paste into a bug report. No email, password or sets.'))),
       el('div', {class: 'detail-row'}, el('div', {class: 'line-margin'}, 'After'), el('label', {class: 'settings-line'}, el('input', {type: 'checkbox', checked: app_state.show_update_info !== false, onchange: change_event => { app_state.show_update_info = change_event.target.checked; save_state(); toast(change_event.target.checked ? "What's new shows after each update." : "What's new won't show after updates."); }}), 'Show update info', el('span', {class: 'muted'}, 'After an update, a list of what changed, each with Show me.')))))]);
+}
+
+function typing_section() {
+  const choice_list = [[true, 'On the last letter'], [false, 'When I press Check']], status_el = el('span', {class: 'settings-panel-status'});
+  const choice_buttons = choice_list.map(([auto_value, choice_label]) => el('button', {onclick: () => { app_state.auto_check = auto_value; save_state(); show_choice(); }}, choice_label));
+  function show_choice() { const auto_on = app_state.auto_check !== false; choice_buttons.forEach((button_el, button_index) => button_el.setAttribute('aria-pressed', String(choice_list[button_index][0] === auto_on))); status_el.textContent = auto_on ? 'Marked on the last letter' : 'Marked on Check'; }
+  show_choice();
+  return settings_panel('typing', 'Typing', status_el, {class: 'settings-panel typing-section'}, el('div', {class: 'sound-body'}, el('h4', {}, 'Mark a right answer'), el('div', {class: 'sound-levels two-levels', role: 'group', 'aria-label': 'Mark a right answer'}, ...choice_buttons)));
 }
 
 // Pages holding on to a set while someone works on it: sync leaves what's on them alone until they're left.
