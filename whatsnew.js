@@ -134,6 +134,7 @@ const WHATS_NEW = {
   '1.0.00': [{text: 'Open Flashcards goes live: make sets, flip and swipe through them, and import or export them as JSON.'}]
 };
 const PUBLISHED = {
+  '1.5.08': '2026-11-12T04:29:59Z',
   '1.5.07': '2026-11-12T04:20:15Z',
   '1.5.06': '2026-11-12T04:19:06Z',
   '1.5.04': '2026-11-12T04:09:43Z',
