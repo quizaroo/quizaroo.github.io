@@ -8,6 +8,7 @@
 // No `at`: no Show me. PUBLISHED holds when each version went live (UTC), filled in by tools/publish.py.
 const FIRST_SET = ['.set-row .row-title'];
 const WHATS_NEW = {
+  '1.5.06': [{text: 'Typing answers: what you type is big and centred, with no box, and the phone keyboard no longer autocorrects it or pushes the question out of sight.'}, {text: 'Hint, beside Check: the first press shows the answer as underlines that your typing fills, then each press fills in a letter. Each hint lowers what the question is worth, down to nothing when every letter is shown.'}],
   '1.5.04': [{text: 'Flashcards and Revise: know every card in a round and the end now recommends Test yourself, with Multiple choice and Type the answer beside it, in place of Learn from scratch.'}],
   '1.5.02': [{text: 'Leave a round part way, with Done or anything else, and going back into that mode on that set carries on where you left off. Start over, on the note that shows, begins a new round. Works in every mode except Match pairs, Memory and Speed round.'}],
   '1.5.01': [{text: 'Opening the app takes you back to where you left off, even part way through a round, in place of Home. With sync on, it picks up where you left off on your other device.'}],
@@ -130,6 +131,7 @@ const WHATS_NEW = {
   '1.0.00': [{text: 'Open Flashcards goes live: make sets, flip and swipe through them, and import or export them as JSON.'}]
 };
 const PUBLISHED = {
+  '1.5.06': '2026-11-12T04:19:06Z',
   '1.5.04': '2026-11-12T04:09:43Z',
   '1.5.02': '2026-11-12T03:57:01Z',
   '1.5.01': '2026-11-10T16:20:04Z',
