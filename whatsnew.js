@@ -8,7 +8,8 @@
 // No `at`: no Show me. PUBLISHED holds when each version went live (UTC), filled in by tools/publish.py.
 const FIRST_SET = ['.set-row .row-title'];
 const WHATS_NEW = {
-  '1.5.05': [{text: 'Sound sets, in Settings: Chimes, Paper, Wood or Arcade. Choose Everything to hear cards flip and turn like paper, buttons, typing, the wheel ticking and rewards, not just right and wrong.', go: '#/settings', at: '.sound-section'}],
+  '1.5.05': [{text: 'Sound sets, in Settings: Chimes, Paper, Wood or Arcade. Choose Everything to hear cards flip and turn like paper, buttons, typing, the wheel ticking and rewards, not just right and wrong.', go: '#/settings', at: '.sound-section'},
+    {text: 'Sounds now work straight away when you come back to the app, not only after a few taps. Fixed.'}],
   '1.5.04': [{text: 'Flashcards and Revise: know every card in a round and the end now recommends Test yourself, with Multiple choice and Type the answer beside it, in place of Learn from scratch.'}],
   '1.5.02': [{text: 'Leave a round part way, with Done or anything else, and going back into that mode on that set carries on where you left off. Start over, on the note that shows, begins a new round. Works in every mode except Match pairs, Memory and Speed round.'}],
   '1.5.01': [{text: 'Opening the app takes you back to where you left off, even part way through a round, in place of Home. With sync on, it picks up where you left off on your other device.'}],

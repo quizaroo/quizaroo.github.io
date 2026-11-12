@@ -79,12 +79,24 @@ const SOUND_SETS = {
 };
 function sound_ready() {
   if (!(window.AudioContext || window.webkitAudioContext)) return false;
+  if (sound_context && sound_context.state === 'closed') forget_sound_context();
   sound_context = sound_context || new (window.AudioContext || window.webkitAudioContext)();
-  if (sound_context.state === 'suspended') sound_context.resume();
+  if (sound_context.state !== 'running') Promise.resolve(sound_context.resume()).catch(forget_sound_context);
   if (!sound_out) { sound_out = sound_context.createGain(); sound_out.connect(sound_context.destination); }
   sound_out.gain.value = sound_volume() * 1.25;
   return true;
 }
+function forget_sound_context() { try { if (sound_context && sound_context.state !== 'closed') sound_context.close(); } catch (close_err) {} sound_context = null; sound_out = null; noise_buffer = null; }
+// Leaving the app suspends (iPhone: interrupts) sound, and only a touch may restart it. So every touch, and coming back, wakes it, and one that won't wake is replaced.
+function wake_sound() {
+  if (!sound_context || sound_context.state === 'running') return;
+  if (sound_context.state === 'closed') return forget_sound_context();
+  const was_context = sound_context;
+  Promise.resolve(sound_context.resume()).then(() => { if (was_context.state !== 'running' && was_context === sound_context) forget_sound_context(); }, () => { if (was_context === sound_context) forget_sound_context(); });
+}
+['pointerdown', 'touchend', 'keydown'].forEach(event_name => document.addEventListener(event_name, wake_sound, {capture: true, passive: true}));
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') wake_sound(); });
+addEventListener('pageshow', wake_sound);
 // Right and wrong play unless sound is off; everything else only with Everything. preview_set plays a set whatever the level, to try it out.
 function play_sound(sound_name, start_after, preview_set) {
   const level_now = sound_level();
