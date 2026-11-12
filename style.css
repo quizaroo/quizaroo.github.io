@@ -376,9 +376,26 @@ body.is-carrying .select-bar { opacity: 0; pointer-events: none; }
 .pair-label { padding-right: 8px; text-align: right; font-size: 12px; color: var(--muted); }
 @media (max-width: 560px) { .pair-card { --sheet-margin: 76px; } }
 .speak-button { line-height: 1.3; }
-.answer-form { display: flex; gap: 8px; width: 100%; }
-.answer-input { flex: 1; min-width: 0; padding: 11px 14px; font-size: 18px; color: var(--text); background: var(--sheet); border: 1px solid var(--active-border); border-radius: 14px; outline: none; }
-.answer-input:focus { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
+.answer-form { display: grid; justify-items: center; gap: 12px; width: 100%; }
+.type-line { position: relative; display: grid; width: 100%; min-height: 64px; place-items: center; cursor: text; }
+.answer-input { width: 100%; min-width: 0; padding: 6px 0; font-size: 38px; font-weight: 500; line-height: 1.25; text-align: center; color: var(--text); caret-color: var(--accent); background: none; border: 0; border-radius: 0; outline: none; }
+.answer-input::placeholder { color: var(--text); opacity: .28; font-weight: 400; }
+.hint-letters { display: none; }
+.is-hinted .answer-input { position: absolute; inset: 0; opacity: 0; color: transparent; caret-color: transparent; }
+.is-hinted .hint-letters { display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-end; gap: 10px 0; font-size: 38px; font-weight: 500; line-height: 1.25; pointer-events: none; }
+.hint-word { display: inline-flex; gap: .14em; white-space: nowrap; }
+.hint-gap { width: .6em; }
+.hint-slot { display: inline-block; min-width: .62em; text-align: center; border-bottom: 3px solid color-mix(in srgb, var(--text) 45%, transparent); }
+.hint-slot.is-revealed { color: var(--accent); border-bottom-color: var(--accent); }
+.type-line:focus-within .hint-slot.is-next { border-bottom-color: var(--accent); animation: slot-blink 1s steps(1) infinite; }
+@keyframes slot-blink { 50% { border-bottom-color: transparent; } }
+.type-buttons { display: flex; gap: 8px; }
+.hint-worth:empty { display: none; }
+@media (max-width: 560px) { .answer-input, .is-hinted .hint-letters { font-size: 30px; } }
+/* Phone keyboard up: a shorter question card so the question and the typing both fit above it. */
+body.keyboard-up .mode-wrap { gap: 8px; }
+body.keyboard-up .mode-wrap .prompt-card { min-height: 0; padding-top: 14px; padding-bottom: 14px; }
+body.keyboard-up .mode-wrap > .muted:last-child, body.keyboard-up .mode-wrap > .counts > :not(.mode-status) { display: none; }
 .answer-slot { width: 100%; min-height: 8px; }
 .answer-panel { display: grid; justify-items: start; gap: 6px; width: 100%; padding: 12px 16px; border-radius: 14px; color: var(--on-tint); overflow-wrap: anywhere; }
 .answer-panel .button-row { margin: 2px 0 0; }

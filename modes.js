@@ -132,7 +132,7 @@ function pair_card(front_key, front_text, back_text) { const back_key = front_ke
 // Where the words themselves sit: a typed answer is measured, as a field can't say, and otherwise it's the element's last piece of text (so not a choice's number).
 function words_rect(answer_el) {
   const box_rect = answer_el.getBoundingClientRect();
-  if (answer_el.matches('input')) { const field_style = getComputedStyle(answer_el), measure_context = document.createElement('canvas').getContext('2d'); measure_context.font = field_style.font; const text_width = Math.min(measure_context.measureText(answer_el.value).width, box_rect.width - 20), line_height = parseFloat(field_style.fontSize) * 1.3; return {left: box_rect.left + parseFloat(field_style.paddingLeft) + parseFloat(field_style.borderLeftWidth), top: box_rect.top + (box_rect.height - line_height) / 2, width: text_width, height: line_height}; }
+  if (answer_el.matches('input')) { const field_style = getComputedStyle(answer_el), measure_context = document.createElement('canvas').getContext('2d'); measure_context.font = field_style.font; const text_width = Math.min(measure_context.measureText(answer_el.value).width, box_rect.width - 20), line_height = parseFloat(field_style.fontSize) * 1.3; return {left: field_style.textAlign === 'center' ? box_rect.left + (box_rect.width - text_width) / 2 : box_rect.left + parseFloat(field_style.paddingLeft) + parseFloat(field_style.borderLeftWidth), top: box_rect.top + (box_rect.height - line_height) / 2, width: text_width, height: line_height}; }
   const word_range = document.createRange(); word_range.selectNode(answer_el.lastChild || answer_el); return word_range.getBoundingClientRect();
 }
 // A right answer: its letters hop in a wave, as a ticked task does in Sift, a small tick pops up after them, and there's a ping. Then the next word comes up. A field's letters can't move, so a copy lies over them.
@@ -163,15 +163,73 @@ function run_questions(card_set, mode_item, ask_question) {
 }
 function position_label() { return 'Question ' + (study_session.position + 1) + ' of ' + study_session.queue.length; }
 
+// Typed answers are big and centred, with no box. Hint first lays the answer out as underlines that typing fills, then each press fills in a random letter. Each hint costs 1 / (letters + 1) of the question, so filling every letter leaves nothing; below half it counts as not known.
+function hint_target(answer_text) { return answer_text.split(/[\/,;]/)[0].replace(/\([^)]*\)/g, ' ').replace(/́/g, '').replace(/\s+/g, ' ').trim(); }
+function is_hint_letter(char_text) { return /[\p{L}\p{N}]/u.test(char_text); }
 function ask_type(card_set, mode_item, card_index, finish, ask_options) {
-  const sides = (ask_options && ask_options.sides) || card_sides(card_set, card_index), input_el = el('input', {type: 'text', class: 'answer-input', placeholder: 'Type the answer', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false', 'aria-label': 'Your answer'}), result_el = el('div', {class: 'answer-slot'});
-  let tried_close = false, is_answered = false;
-  function show_result(is_right, extra_nodes) { is_answered = true; input_el.readOnly = true; form_button.hidden = true; if (is_right) { celebrate_right(input_el, () => finish(true)); return; } play_sound('wrong'); const next_el = next_button(() => finish(false)); result_el.replaceChildren(answer_panel(false, 'The answer is: ' + sides.answer, [el('div', {class: 'button-row'}, next_el, el('button', {onclick: () => finish(true)}, 'I was right'))])); next_el.focus(); }
-  const form_button = el('button', {class: 'primary', type: 'submit'}, 'Check');
-  const form_el = el('form', {class: 'answer-form', onsubmit: submit_event => { submit_event.preventDefault(); if (is_answered) return; const verdict = check_answer(input_el.value, sides.answer); if (verdict === 'close' && !tried_close) { tried_close = true; result_el.replaceChildren(el('div', {class: 'answer-panel is-close', role: 'status'}, 'So close. Check the spelling and try again.')); input_el.focus(); return; } show_result(verdict !== 'wrong'); }}, input_el, form_button);
+  const sides = (ask_options && ask_options.sides) || card_sides(card_set, card_index), input_el = el('input', {type: 'text', class: 'answer-input', placeholder: 'Type the answer', autocomplete: 'off', autocorrect: 'off', autocapitalize: 'off', spellcheck: 'false', enterkeyhint: 'done', 'aria-label': 'Your answer'}), result_el = el('div', {class: 'answer-slot'});
+  const target_chars = Array.from(hint_target(sides.answer)), letter_slots = target_chars.map((char_text, char_index) => is_hint_letter(char_text) ? char_index : -1).filter(char_index => char_index >= 0), hint_step = 1 / (letter_slots.length + 1), revealed_slots = new Set();
+  let tried_close = false, is_answered = false, hint_count = 0;
+  const slots_el = el('div', {class: 'hint-letters', 'aria-hidden': 'true'}), worth_el = el('div', {class: 'muted hint-worth'});
+  function answer_credit() { return Math.max(0, 1 - hint_count * hint_step); }
+  function typed_letters() { return Array.from(input_el.value).filter(is_hint_letter); }
+  // Revealed letters stay put; typed letters fill the other underlines in order.
+  function composed_chars() { const typed_list = typed_letters(); let typed_at = 0; return target_chars.map((char_text, char_index) => !is_hint_letter(char_text) ? char_text : revealed_slots.has(char_index) ? char_text : typed_list[typed_at++] || ''); }
+  function draw_slots() {
+    const free_count = letter_slots.length - revealed_slots.size, typed_list = typed_letters().slice(0, free_count); input_el.value = typed_list.join('');
+    const shown_chars = composed_chars(); let caret_placed = false;
+    const word_groups = []; let word_el = null;
+    target_chars.forEach((char_text, char_index) => {
+      if (char_text === ' ') { word_el = null; word_groups.push(el('span', {class: 'hint-gap'})); return; }
+      if (!word_el) { word_el = el('span', {class: 'hint-word'}); word_groups.push(word_el); }
+      if (!is_hint_letter(char_text)) { word_el.appendChild(el('span', {class: 'hint-mark'}, char_text)); return; }
+      const is_caret = !shown_chars[char_index] && !caret_placed; if (is_caret) caret_placed = true;
+      word_el.appendChild(el('span', {class: 'hint-slot' + (revealed_slots.has(char_index) ? ' is-revealed' : '') + (is_caret ? ' is-next' : '')}, shown_chars[char_index] || ' '));
+    });
+    slots_el.replaceChildren(...word_groups);
+  }
+  function take_hint() {
+    if (is_answered) return;
+    if (!hint_count) { hint_count = 1; form_el.classList.add('is-hinted'); }
+    else {
+      const shown_chars = composed_chars(), open_slots = letter_slots.filter(char_index => !revealed_slots.has(char_index)), wrong_slots = open_slots.filter(char_index => without_accents(shown_chars[char_index].toLowerCase()) !== without_accents(target_chars[char_index].toLowerCase())), pick_from = wrong_slots.length ? wrong_slots : open_slots;
+      if (!pick_from.length) return;
+      const picked_slot = pick_from[Math.floor(Math.random() * pick_from.length)], typed_list = typed_letters(), typed_position = letter_slots.filter(char_index => char_index < picked_slot && !revealed_slots.has(char_index)).length;
+      if (typed_position < typed_list.length) { typed_list.splice(typed_position, 1); input_el.value = typed_list.join(''); }
+      revealed_slots.add(picked_slot); hint_count++;
+    }
+    draw_slots(); hint_button.disabled = revealed_slots.size >= letter_slots.length;
+    worth_el.textContent = 'Worth ' + Math.round(100 * answer_credit()) + '%';
+    input_el.focus({preventScroll: true});
+  }
+  // Right but mostly hinted counts as not known; the round's score still gets its share.
+  function finish_typed(is_right) { const credit = is_right ? answer_credit() : 0, counts_right = is_right && credit >= 0.5; if (hint_count && is_right) study_session.hint_offset = (study_session.hint_offset || 0) + credit - (counts_right ? 1 : 0); finish(counts_right); }
+  function show_result(is_right) {
+    is_answered = true; input_el.readOnly = true; form_button.hidden = true; hint_button.hidden = true;
+    if (hint_count) { input_el.value = composed_chars().join(''); form_el.classList.remove('is-hinted'); }
+    if (is_right && answer_credit() >= 0.5) { celebrate_right(input_el, () => finish_typed(true)); return; }
+    if (is_right) { stop_answer_clock(); const next_el = next_button(() => finish_typed(true)); result_el.replaceChildren(el('div', {class: 'answer-panel is-close', role: 'status'}, el('strong', {}, 'Filled in with hints'), el('div', {}, 'Worth ' + Math.round(100 * answer_credit()) + '%'), next_el)); next_el.focus(); return; }
+    play_sound('wrong'); const next_el = next_button(() => finish_typed(false)); result_el.replaceChildren(answer_panel(false, 'The answer is: ' + sides.answer, [el('div', {class: 'button-row'}, next_el, el('button', {onclick: () => finish_typed(true)}, 'I was right'))])); next_el.focus();
+  }
+  const form_button = el('button', {class: 'primary', type: 'submit'}, 'Check'), hint_button = el('button', {type: 'button', class: 'hint-button', onpointerdown: press_event => press_event.preventDefault(), onclick: take_hint}, 'Hint');
+  if (!letter_slots.length) hint_button.hidden = true;
+  input_el.addEventListener('input', () => { if (hint_count) draw_slots(); });
+  const form_el = el('form', {class: 'answer-form', onsubmit: submit_event => { submit_event.preventDefault(); if (is_answered) return; const verdict = check_answer(hint_count ? composed_chars().join('') : input_el.value, sides.answer); if (verdict === 'close' && !tried_close) { tried_close = true; result_el.replaceChildren(el('div', {class: 'answer-panel is-close', role: 'status'}, 'So close. Check the spelling and try again.')); input_el.focus({preventScroll: true}); return; } show_result(verdict !== 'wrong'); }},
+    el('div', {class: 'type-line', onclick: () => input_el.focus({preventScroll: true})}, input_el, slots_el), el('div', {class: 'type-buttons'}, hint_button, form_button), worth_el);
   mode_frame(card_set, mode_item, [(ask_options && ask_options.status) || position_label()], [session_progress(), (ask_options && ask_options.prompt_node) || prompt_card(sides.prompt), form_el, result_el, ask_options && ask_options.footer]);
-  input_el.focus();
+  input_el.focus({preventScroll: true}); keep_question_in_view();
 }
+// On a phone the keyboard covers half the screen: keep the question and the typing in the part that's left.
+let tallest_viewport = 0;
+function keep_question_in_view() {
+  const wrap_el = document.querySelector('.mode-wrap'), topbar_el = document.getElementById('topbar'); if (!wrap_el || !document.querySelector('.answer-form')) return;
+  const viewport_height = window.visualViewport ? visualViewport.height : innerHeight; tallest_viewport = Math.max(tallest_viewport, viewport_height, innerHeight);
+  const keyboard_up = viewport_height < tallest_viewport * 0.8 && matchMedia('(pointer: coarse)').matches;
+  document.body.classList.toggle('keyboard-up', keyboard_up);
+  if (keyboard_up) window.scrollTo(0, Math.max(0, wrap_el.getBoundingClientRect().top + scrollY - topbar_el.offsetHeight - 6));
+}
+addEventListener('orientationchange', () => { tallest_viewport = 0; });
+if (window.visualViewport) visualViewport.addEventListener('resize', () => { if (document.activeElement && document.activeElement.matches('.answer-input')) keep_question_in_view(); else document.body.classList.remove('keyboard-up'); });
 function ask_choice(card_set, mode_item, card_index, finish, ask_options) {
   const sides = card_sides(card_set, card_index), option_texts = shuffled([sides.answer].concat(other_answers(card_set, card_index, sides.back_key, 3))), result_el = el('div', {class: 'answer-slot'}), is_quick = ask_options && ask_options.quick;
   const option_buttons = option_texts.map((option_text, option_index) => el('button', {class: 'choice-button', 'data-key': String(option_index + 1), onclick: () => {
@@ -244,8 +302,8 @@ function view_learn(card_set, mode_item) {
   if (!study_session.steps.length) { const reward_el = award_round(card_set, mode_item, study_session.right, study_session.right + study_session.wrong), counts = learn_counts(card_set); mode_frame(card_set, mode_item, [status_nodes()], [el('div', {class: 'empty'}, el('h2', {class: 'summary-title'}, 'Batch finished'), reward_el, el('div', {class: 'button-row center-row'}, counts.learned < counts.cards ? el('button', {class: 'primary', onclick: () => { start_mode_session(card_set, 'learn', []); view_learn(card_set, mode_item); }}, 'Next cards') : null, el('a', {class: 'button', href: '#/set/' + card_set.id}, 'Back to set')))]); return; }
   const current_step = study_session.steps[0], current_key = card_key(card_set.cards[current_step.card_index]);
   // Back undoes the last step, including what it did to the card's progress. Forward moves on without marking the card either way.
-  function remember_step() { study_session.history.push({steps: study_session.steps.map(step_item => Object.assign({}, step_item)), right: study_session.right, wrong: study_session.wrong, card_key_text: current_key, memory: card_memory(card_set, current_key), stage: (card_set.learn_stages || {})[current_key]}); }
-  function go_back() { const last_step = study_session.history.pop(); if (!last_step) return; Object.assign(study_session, {steps: last_step.steps, right: last_step.right, wrong: last_step.wrong}); restore_card_memory(card_set, last_step.card_key_text, last_step.memory); card_set.learn_stages = card_set.learn_stages || {}; if (last_step.stage) card_set.learn_stages[last_step.card_key_text] = last_step.stage; else delete card_set.learn_stages[last_step.card_key_text]; save_state(); view_learn(card_set, mode_item); }
+  function remember_step() { study_session.history.push({steps: study_session.steps.map(step_item => Object.assign({}, step_item)), right: study_session.right, wrong: study_session.wrong, hint_offset: study_session.hint_offset || 0, card_key_text: current_key, memory: card_memory(card_set, current_key), stage: (card_set.learn_stages || {})[current_key]}); }
+  function go_back() { const last_step = study_session.history.pop(); if (!last_step) return; Object.assign(study_session, {steps: last_step.steps, right: last_step.right, wrong: last_step.wrong, hint_offset: last_step.hint_offset || 0}); restore_card_memory(card_set, last_step.card_key_text, last_step.memory); card_set.learn_stages = card_set.learn_stages || {}; if (last_step.stage) card_set.learn_stages[last_step.card_key_text] = last_step.stage; else delete card_set.learn_stages[last_step.card_key_text]; save_state(); view_learn(card_set, mode_item); }
   function put_back_later() { study_session.steps.splice(Math.min(2, study_session.steps.length), 0, current_step); }
   function finish_step(is_right) {
     const rating_before = card_rating(card_set, current_step.card_index), route_stages = learn_route(card_set, current_step.card_index, stage_list);
@@ -311,7 +369,7 @@ function view_wheel(card_set, mode_item) {
     const landed_card = study_session.landed.card_index, landed_slice = study_session.landed.picked_slice;
     return ask_type(card_set, mode_item, landed_card, is_right => {
       record_answer(card_set, landed_card, is_right); if (is_right) { study_session.right++; study_session.spin_right = (study_session.spin_right || 0) + 1; } else study_session.wrong++; study_session.turn++; study_session.landed = null; study_session.round_reward = null;
-      if (study_session.turn % 5 === 0) { study_session.spin_reward = award_round(card_set, mode_item, study_session.spin_right || 0, 5); study_session.spin_right = 0; } else study_session.spin_reward = '';
+      if (study_session.turn % 5 === 0) { study_session.spin_reward = award_round(card_set, mode_item, study_session.spin_right || 0, 5); study_session.spin_right = 0; study_session.hint_offset = 0; } else study_session.spin_reward = '';
       const replacement_cards = weakest_first(card_set, studyable_indexes(card_set).filter(other_index => !wheel_cards.includes(other_index))); if (is_right && replacement_cards.length) wheel_cards[landed_slice] = replacement_cards[0];
       view_wheel(card_set, mode_item);
     }, {status: 'Landed on this word'});
@@ -381,7 +439,7 @@ function view_test(card_set, mode_item) {
   if (can_choose) ask_choice(card_set, mode_item, card_index, finish, {quick: true, silent: true, status: status_text}); else ask_type(card_set, mode_item, card_index, finish, {status: status_text});
 }
 function view_mode_summary(card_set, mode_item) {
-  const missed_cards = Array.from(new Set(study_session.missed)), total_count = study_session.right + study_session.wrong, score_percent = total_count ? Math.round(100 * study_session.right / total_count) : 0;
+  const missed_cards = Array.from(new Set(study_session.missed)), total_count = study_session.right + study_session.wrong, score_percent = round_percent(study_session.right, total_count);
   const reward_el = award_round(card_set, mode_item, study_session.right, total_count);
   mode_frame(card_set, Object.assign({}, mode_item, {how: null}), ['Finished'], [el('div', {class: 'empty summary'}, el('h2', {class: 'summary-title'}, score_percent + '%'), reward_el, el('div', {class: 'counts summary-counts'}, el('span', {class: 'know'}, study_session.right + ' right'), el('span', {class: 'learn'}, study_session.wrong + ' wrong')),
     missed_cards.length ? el('div', {class: 'ruled missed-list'}, ...missed_cards.map(card_index => el('div', {class: 'card-row'}, el('div', {class: 'line-margin line-number'}), el('div', {}, card_set.cards[card_index].term), el('div', {class: 'card-definition'}, card_set.cards[card_index].definition)))) : null,
@@ -416,10 +474,12 @@ const SET_GOALS = [
 function reward_image(image_name, image_class) { return el('img', {class: image_class, src: 'assets/rewards/' + image_name + '.svg', alt: '', width: 48, height: 48}); }
 function pick_reward(reward_tier) { const recent_images = (app_state.recent_rewards || []).slice(-3), fresh_rewards = reward_tier.rewards.filter(reward_item => !recent_images.includes(reward_item[0])), usable_rewards = fresh_rewards.length ? fresh_rewards : reward_tier.rewards, picked_reward = usable_rewards[Math.floor(Math.random() * usable_rewards.length)]; app_state.recent_rewards = recent_images.concat(picked_reward[0]); return picked_reward; }
 // Adds the round's reward to the shelf and returns the card to show. A round only earns one, however many times its screen is drawn.
+// Typed answers helped by hints add their share (study_session.hint_offset), so the score drops in a straight line with each hint.
+function round_percent(right_count, total_count) { return total_count ? Math.max(0, Math.min(100, Math.round(100 * (right_count + (study_session.hint_offset || 0)) / total_count))) : 0; }
 function award_round(card_set, mode_item, right_count, total_count) {
   if (study_session.round_reward !== undefined && study_session.round_reward !== null) return study_session.round_reward;
   if (total_count < Math.min(3, studyable_indexes(card_set).length)) return '';
-  const score_percent = Math.round(100 * right_count / total_count), reward_tier = REWARD_TIERS.find(tier_item => score_percent >= tier_item.from_percent), picked_reward = pick_reward(reward_tier), line_text = reward_tier.lead + ' ' + picked_reward[1], now_ms = Date.now();
+  const score_percent = round_percent(right_count, total_count), reward_tier = REWARD_TIERS.find(tier_item => score_percent >= tier_item.from_percent), picked_reward = pick_reward(reward_tier), line_text = reward_tier.lead + ' ' + picked_reward[1], now_ms = Date.now();
   card_set.trophies = card_set.trophies || [];
   card_set.trophies.push({image: picked_reward[0], line: line_text, mode: mode_item.label, right: right_count, total: total_count, at: now_ms});
   const reached_goals = SET_GOALS.filter(goal_item => goal_item.is_met(progress_counts(card_set)) && !card_set.trophies.some(trophy_item => trophy_item.goal === goal_item.key));
