@@ -464,7 +464,7 @@ function route() {
   const route_parts = location.hash.replace(/^#\/?/, '').split('/'), route_name = route_parts[0], route_set = find_set(decodeURIComponent(route_parts[1] || ''));
   const is_home = !['library', 'stats', 'settings', 'new', 'set', 'edit', 'play'].includes(route_name) || (['set', 'edit', 'play'].includes(route_name) && !route_set);
   editor_has_changes = null; close_view_menu(); end_selection_bar();
-  study_session = resumed_session(route_set); clear_mode_timers();
+  park_round(); study_session = resumed_session(route_set) || parked_round(route_set, route_parts); playing_hash = route_name === 'play' && route_set ? location.hash : null; clear_mode_timers();
   if (['set', 'edit', 'play'].includes(route_name) && route_set) { route_set.last_opened = Date.now(); save_state(); }
   if (is_home) last_list_hash = '#/'; else if (route_name === 'library') last_list_hash = '#/library';
   document.querySelectorAll('.nav-item').forEach(nav_el => nav_el.classList.toggle('active', nav_el.dataset.nav === (is_home ? 'home' : ['settings', 'stats'].includes(route_name) ? route_name : 'library')));
@@ -490,8 +490,8 @@ const DEVICE_KEY = 'open-flashcards:device', RESUME_IDLE_MS = 60000, RESUMABLE_M
 const this_device = (() => { try { let device_text = localStorage.getItem(DEVICE_KEY); if (!device_text) { device_text = new_id(); localStorage.setItem(DEVICE_KEY, device_text); } return device_text; } catch (storage_err) { return 'here'; } })();
 // The place only moves once someone has used this device, so a place followed from another device isn't claimed back by this one.
 let place_is_mine = false, my_last_place = '', last_followed = '', pending_resume = null, last_interaction = 0, follow_since = Date.now();
-function session_snapshot() {
-  const mode_match = location.hash.match(/^#\/play\/[^/]+\/([^/]+)/);
+function session_snapshot(hash_text) {
+  const mode_match = (hash_text || location.hash).match(/^#\/play\/[^/]+\/([^/]+)/);
   if (!study_session || !mode_match || !RESUMABLE_MODES.includes(mode_match[1])) return null;
   const snapshot = JSON.parse(JSON.stringify(study_session, (field_name, field_value) => field_value instanceof Node ? '' : field_value)); // a reward already shown stays '' so it isn't won twice
   ['answer_history', 'history'].forEach(list_name => { if (snapshot[list_name]) snapshot[list_name] = snapshot[list_name].slice(-10); });
@@ -509,8 +509,29 @@ function remember_place() {
 function resumed_session(route_set) {
   const resume_item = pending_resume; pending_resume = null;
   if (!resume_item || !resume_item.session || resume_item.hash !== location.hash || !route_set || resume_item.session.set_id !== route_set.id) return null;
-  const session_copy = JSON.parse(JSON.stringify(resume_item.session)), used_indexes = [].concat(Array.isArray(session_copy.queue) ? session_copy.queue : [], (session_copy.steps || []).map(step_item => step_item.card_index), session_copy.wheel_cards || []);
+  return usable_session(route_set, resume_item.session);
+}
+function usable_session(route_set, saved_session) {
+  const session_copy = JSON.parse(JSON.stringify(saved_session)), used_indexes = [].concat(Array.isArray(session_copy.queue) ? session_copy.queue : [], (session_copy.steps || []).map(step_item => step_item.card_index), session_copy.wheel_cards || []);
   return used_indexes.every(card_index => route_set.cards[card_index]) ? session_copy : null;
+}
+// Leaving a round part way (Done, the menu, another set): it is kept for that set and mode, and going back in picks it up. Kept on this device only, the newest 30.
+let playing_hash = null;
+function park_round() {
+  if (!study_session || !playing_hash) return;
+  const parked_key = playing_hash.replace(/^#\/play\//, '').split('/').slice(0, 2).join('/'), snapshot = session_snapshot(playing_hash), parked_rounds = app_state.parked_rounds = app_state.parked_rounds || {};
+  const is_finished = !snapshot || (snapshot.round_reward !== undefined && snapshot.round_reward !== null) || (Array.isArray(snapshot.queue) && snapshot.position >= snapshot.queue.length) || (Array.isArray(snapshot.steps) && !snapshot.steps.length);
+  if (is_finished) delete parked_rounds[parked_key]; else parked_rounds[parked_key] = Object.assign(snapshot, {parked_at: Date.now()});
+  Object.keys(parked_rounds).sort((key_a, key_b) => parked_rounds[key_b].parked_at - parked_rounds[key_a].parked_at).slice(30).forEach(old_key => delete parked_rounds[old_key]);
+  save_state();
+}
+function parked_round(route_set, route_parts) {
+  const parked_rounds = app_state.parked_rounds || {}, parked_key = route_set && route_parts[0] === 'play' && route_parts[3] === undefined ? route_set.id + '/' + route_parts[2] : null, saved_session = parked_key && parked_rounds[parked_key];
+  if (!saved_session) return null;
+  delete parked_rounds[parked_key];
+  const session_copy = saved_session.set_id === route_set.id ? usable_session(route_set, saved_session) : null;
+  if (session_copy) setTimeout(() => toast('Carrying on where you left off', {action: 'Start over', ms: 5000, on_action: () => { study_session = null; route(); }}), 0);
+  return session_copy;
 }
 function go_to_place(resume_item) {
   place_is_mine = false; my_last_place = ''; last_followed = JSON.stringify(resume_item); pending_resume = resume_item;

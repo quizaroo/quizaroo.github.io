@@ -13,6 +13,7 @@ A simple, open-source flashcards app that runs in your browser. No tracking, no 
 - Learning modes: view all vocab, learn from scratch, revise, flashcards, type the answer, multiple choice, true or false, unscramble, listen and type, test, spin the wheel, match pairs, memory and speed round
 - Flashcards can keep score or just let you browse back and forth, and tapping a word in View all vocab opens it as a flashcard
 - Opening the app takes you back to where you left off, even part way through a round; with sync on, your other devices pick up there too
+- Leave a round part way and going back into that mode on that set carries on from the same card
 - Stats shows your day streak, a calendar of the days you studied, weekly answers, accuracy and seconds per question, and accuracy for each set
 - The app remembers how well you know each card and brings the hard ones back sooner, with a longer gap each time you get one right
 - Switch between term first, definition first or mixed inside any mode, and swap all sides of a set
