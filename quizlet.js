@@ -26,7 +26,10 @@ function parse_quizlet(html_text, plain_text) {
   if (!plain_text) return null;
   const text_lines = plain_text.split(/\r?\n/).map(text_line => text_line.trim()), heading_index = text_lines.findIndex(text_line => /^Terms in this set\s*\(\d+\)/i.test(text_line));
   if (heading_index < 0) return null;
-  const expected_count = quizlet_term_count(text_lines[heading_index]), card_lines = text_lines.slice(heading_index + 1).filter(Boolean), text_cards = [];
+  const expected_count = quizlet_term_count(text_lines[heading_index]), text_cards = [];
+  // The list ends at Quizlet's hint line; a sort label ("Original", "Alphabetical") can sit just under the heading, so an odd line count drops that first line.
+  let card_lines = text_lines.slice(heading_index + 1); const end_index = card_lines.findIndex(text_line => /^(You can also click|Review with an activity)/i.test(text_line)); if (end_index >= 0) card_lines = card_lines.slice(0, end_index);
+  card_lines = card_lines.filter(Boolean); if (/^(Original|Alphabetical|Sort\b.*)$/i.test(card_lines[0] || '') && (end_index < 0 || card_lines.length % 2)) card_lines = card_lines.slice(1);
   for (let line_index = 0; line_index + 1 < card_lines.length && text_cards.length < expected_count; line_index += 2) text_cards.push({term: card_lines[line_index], definition: card_lines[line_index + 1]});
   return text_cards.length ? {title: text_lines.find(Boolean) || '', cards: text_cards, expected: expected_count, number: quizlet_set_number(plain_text)} : null;
 }
