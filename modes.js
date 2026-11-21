@@ -118,7 +118,7 @@ let mode_timers = [];
 function clear_mode_timers() { mode_timers.forEach(clearTimeout); mode_timers = []; document.querySelectorAll('.right-wave').forEach(wave_el => wave_el.remove()); if (window.speechSynthesis) speechSynthesis.cancel(); }
 function later(run_later, delay_ms) { mode_timers.push(setTimeout(run_later, delay_ms)); }
 function mode_frame(card_set, mode_item, top_nodes, body_nodes) {
-  clear_mode_timers(); start_answer_clock();
+  clear_mode_timers(); start_answer_clock(); if (!document.activeElement || !document.activeElement.matches('.answer-input, #keyboard-keeper')) document.body.classList.remove('keyboard-up');
   render(set_trail(card_set, mode_item.label), [el('a', {class: 'button', href: '#/set/' + card_set.id}, 'Done')], [el('div', {class: 'study-wrap mode-wrap', style: tint_style(card_set)},
     el('div', {class: 'counts'}, el('span', {class: 'muted mode-status'}, ...top_nodes), mode_item.fixed_direction ? null : direction_switch(card_set)),
     ...body_nodes,
@@ -217,7 +217,7 @@ function ask_type(card_set, mode_item, card_index, finish, ask_options) {
   // Once answered the field stays focused (so the phone keyboard stays up) but ignores typing; Enter goes on. With Mark right on the last letter, a right answer is checked as soon as it's typed.
   input_el.addEventListener('input', () => { if (is_answered) { input_el.value = answered_text; return; } if (hint_count) draw_slots(); if (app_state.auto_check !== false && check_answer(hint_count ? composed_chars().join('') : input_el.value, sides.answer) === 'right') show_result(true); });
   const form_el = el('form', {class: 'answer-form', onsubmit: submit_event => { submit_event.preventDefault(); if (is_answered) { if (next_action) next_action(); return; } const verdict = check_answer(hint_count ? composed_chars().join('') : input_el.value, sides.answer); if (verdict === 'close' && !tried_close) { tried_close = true; result_el.replaceChildren(el('div', {class: 'answer-panel is-close', role: 'status'}, 'So close. Check the spelling and try again.')); input_el.focus({preventScroll: true}); return; } show_result(verdict !== 'wrong'); }},
-    el('div', {class: 'type-line', onclick: () => input_el.focus({preventScroll: true})}, input_el, slots_el), el('div', {class: 'type-buttons'}, hint_button, form_button), worth_el);
+    el('div', {class: 'type-line', onclick: () => input_el.focus({preventScroll: true})}, input_el, slots_el), el('div', {class: 'type-buttons'}, hint_button, form_button), worth_el, answer_keyboard(card_set, sides.back_key, input_el));
   // Buttons here don't take focus from the field, so tapping them leaves the keyboard up.
   [form_el, result_el].forEach(holder_el => ['pointerdown', 'mousedown'].forEach(event_name => holder_el.addEventListener(event_name, press_event => { if (press_event.target.closest('button')) press_event.preventDefault(); })));
   hold_keyboard();
@@ -228,14 +228,14 @@ function ask_type(card_set, mode_item, card_index, finish, ask_options) {
 function hold_keyboard() {
   if (!document.activeElement || !document.activeElement.matches('.answer-input')) return;
   let keeper_el = document.getElementById('keyboard-keeper'); if (!keeper_el) { keeper_el = el('input', {type: 'text', id: 'keyboard-keeper', tabindex: '-1', autocomplete: 'off', autocorrect: 'off', autocapitalize: 'off', spellcheck: 'false', 'aria-hidden': 'true'}); document.body.appendChild(keeper_el); }
-  keeper_el.focus({preventScroll: true});
+  keeper_el.inputMode = document.activeElement.inputMode || 'text'; keeper_el.focus({preventScroll: true});
 }
 // On a phone the keyboard covers half the screen: keep the question and the typing in the part that's left.
 let tallest_viewport = 0;
 function keep_question_in_view() {
-  const wrap_el = document.querySelector('.mode-wrap'), topbar_el = document.getElementById('topbar'); if (!wrap_el || !document.querySelector('.answer-form')) return;
+  const wrap_el = document.querySelector('.mode-wrap'), topbar_el = document.getElementById('topbar'); if (!wrap_el || !document.querySelector('.answer-form')) { document.body.classList.remove('keyboard-up'); return; }
   const viewport_height = window.visualViewport ? visualViewport.height : innerHeight; tallest_viewport = Math.max(tallest_viewport, viewport_height, innerHeight);
-  const keyboard_up = viewport_height < tallest_viewport * 0.8 && matchMedia('(pointer: coarse)').matches;
+  const keyboard_up = matchMedia('(pointer: coarse)').matches && (viewport_height < tallest_viewport * 0.8 || !!document.querySelector('.answer-keyboard.is-whole:not(.is-folded)'));
   document.body.classList.toggle('keyboard-up', keyboard_up);
   if (keyboard_up) window.scrollTo(0, Math.max(0, wrap_el.getBoundingClientRect().top + scrollY - topbar_el.offsetHeight - 6));
 }
@@ -267,7 +267,7 @@ function ask_scramble(card_set, mode_item, card_index, finish) {
   draw_built();
   mode_frame(card_set, mode_item, [position_label()], [session_progress(), prompt_card(sides.prompt), built_el, tiles_el, el('div', {class: 'button-row'}, el('button', {onclick: () => { const last_tile = built_tiles.pop(); if (last_tile && !result_el.hasChildNodes()) { last_tile.disabled = false; draw_built(); } }}, '⌫ Undo'), el('button', {onclick: () => { if (!result_el.hasChildNodes()) finish(false); }}, 'Skip')), result_el]);
 }
-function speech_language(card_set) { const all_terms = card_set.cards.map(card_item => card_item.term).join(' '); return /[Ѐ-ӿ]/.test(all_terms) ? 'uk-UA' : /[éèêàçùôî]|\b(le|la|les|l')\s?/i.test(all_terms) ? 'fr-FR' : ''; }
+function speech_language(card_set) { const term_language = set_languages(card_set).term; return term_language ? LANGUAGES[term_language].speech : ''; }
 function speak_text(card_set, spoken_text) { if (!window.speechSynthesis) return; speechSynthesis.cancel(); const utterance = new SpeechSynthesisUtterance(spoken_text), language_code = speech_language(card_set), matching_voice = speechSynthesis.getVoices().find(voice_item => voice_item.lang.replace('_', '-').toLowerCase().startsWith(language_code.slice(0, 2).toLowerCase())); if (language_code) utterance.lang = language_code; if (matching_voice) utterance.voice = matching_voice; speechSynthesis.speak(utterance); }
 function ask_listen(card_set, mode_item, card_index, finish) {
   const card_item = card_set.cards[card_index], language_code = speech_language(card_set), voices_list = window.speechSynthesis ? speechSynthesis.getVoices() : [], has_voice = voices_list.some(voice_item => voice_item.lang.replace('_', '-').toLowerCase().startsWith(language_code.slice(0, 2).toLowerCase()));
