@@ -8,6 +8,7 @@
 // No `at`: no Show me. PUBLISHED holds when each version went live (UTC), filled in by tools/publish.py.
 const FIRST_SET = ['.set-row .row-title'];
 const WHATS_NEW = {
+  '1.5.13': [{text: 'Paste from Quizlet now picks up the set\'s name, not the banner at the top of Quizlet\'s page. Fixed.'}],
   '1.5.12': [{text: 'Paste a Quizlet set: copy the set page, paste in Import. On Quizlet, select all and copy the set\'s page, then choose Paste from Quizlet in Your Library\'s ⋯ menu. Quizaroo only reads what you paste.', go: '#/library', at: '#more-button'}],
   '1.5.11': [{text: 'Scan photo on a laptop or desktop now opens the camera, with Take photo, and Choose a file beside it.', go: '#/new', at: '.scan-button'}],
   '1.5.10': [{text: 'Scan photo, in a set\'s editor: take or pick a photo of a vocab list and it finds each word and its translation, boxed on the photo for you to check and fix, then adds them as cards. Works with Ukrainian and English, and a few other languages. The photo stays on your device.', go: '#/new', at: '.scan-button'}],
