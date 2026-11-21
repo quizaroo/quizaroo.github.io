@@ -1,5 +1,5 @@
 // App shell cache. Bump VERSION with every release, to the newest version in whatsnew.js: a changed sw.js is what tells browsers there is an update (tools/publish.py checks it).
-const VERSION = '1.5.09';
+const VERSION = '1.5.10';
 const CACHE = `quizaroo-${VERSION}`;
 
 const SHELL = [
@@ -12,6 +12,7 @@ const SHELL = [
   'sounds.js',
   'modes.js',
   'stats.js',
+  'scan.js',
   'sync-crypto.js',
   'sync.js',
   'sync-panel.js',

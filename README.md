@@ -5,7 +5,7 @@
 A simple, open-source flashcards app that runs in your browser. No tracking, no adverts, nothing to install, and no account unless you want your devices to sync. Works for any language.
 
 - Home shows what you studied and opened recently; Your Library lists every set
-- Create, edit, duplicate and delete sets. Tab moves from term to definition to the next term, and new rows appear as you type. You can also paste a whole list at once (term, Tab, definition)
+- Create, edit, duplicate and delete sets. Tab moves from term to definition to the next term, and new rows appear as you type. You can also paste a whole list at once (term, Tab, definition), or scan a photo of a vocab list: the words are read on your device and shown boxed on the photo to check before they become cards
 - The eye button chooses a view mode, Dawn or Dusk, and a Lined or Plain style
 - Press and hold to rearrange the mode tiles on a set, or the cards in the set editor. In the editor and Your Library, hold and let go to select items, then move or delete them together. Moving sets saves a Custom sort
 - Each set has a trophy shelf: finish a round in any mode to win a reward
