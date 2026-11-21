@@ -1,4 +1,6 @@
 {"format": "open-flashcards", "version": 1, "sets": [
+{"id":"1763740001","title":"Demo set: Ukrainian days of the week","description":"Monday to Sunday.","created":"2026-11-21","cards":[{"term":"Понеділок","definition":"Monday"},{"term":"Вівторок","definition":"Tuesday"},{"term":"Середа","definition":"Wednesday"},{"term":"Четвер","definition":"Thursday"},{"term":"П'ятниця","definition":"Friday"},{"term":"Субота","definition":"Saturday"},{"term":"Неділя","definition":"Sunday"}]}
+], "retired": [
 {"id":"1229458342","title":"Rooms and furnishings","old_title":"урок 30.10 кімната","description":"Around the home, from pillows and wallpaper to the gas stove, plus how to say what is on the left and right.","created":"2026-10-30", "cards": [
 {"term":"Кімната","definition":"a room"},
 {"term":"Подушка","definition":"a pillow / a cushion"},

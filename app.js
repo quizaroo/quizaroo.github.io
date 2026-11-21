@@ -111,7 +111,8 @@ import_input_el.addEventListener('change', () => { const chosen_file = import_in
 
 // ---- Demo sets ----
 function is_first_run() { try { return localStorage.getItem(STORAGE_KEY) === null; } catch (storage_err) { return false; } }
-function fetch_demo_sets() { return fetch('demo-sets.json').then(demo_response => demo_response.json()).then(demo_json => demo_json.sets.map(normalise_set).filter(Boolean)); }
+// New browsers get `sets` only; `retired` are the demo sets older browsers were given, still recognised as demo sets.
+function fetch_demo_sets(with_retired) { return fetch('demo-sets.json').then(demo_response => demo_response.json()).then(demo_json => demo_json.sets.concat(with_retired ? demo_json.retired || [] : []).map(normalise_set).filter(Boolean)); }
 // Seeds only a browser with nothing saved; saved data, even an empty library, is never touched.
 function seed_demo_sets() { if (is_first_run()) sync_engine.ready.then(() => (is_first_run() && !sync_engine.signed_in() ? fetch_demo_sets() : null)).then(demo_sets => { if (!demo_sets || !is_first_run()) return; app_state.sets = demo_sets; save_state(); route(); }).catch(() => {}); }
 // Adds only the demo sets that are missing, so an edited copy is never replaced.
@@ -121,7 +122,7 @@ function add_missing_demo_sets() { fetch_demo_sets().then(demo_sets => { const m
 function upgrade_demo_sets() {
   if (app_state.demo_version === DEMO_VERSION || is_first_run()) return;
   fetch('demo-sets.json').then(demo_response => demo_response.json()).then(demo_json => {
-    demo_json.sets.forEach(demo_set => { const your_set = find_set(demo_set.id); if (!your_set || your_set.title !== demo_set.old_title) return; your_set.title = demo_set.title; your_set.description = your_set.description || demo_set.description; your_set.created = your_set.created || demo_set.created; });
+    demo_json.sets.concat(demo_json.retired || []).forEach(demo_set => { const your_set = find_set(demo_set.id); if (!your_set || your_set.title !== demo_set.old_title) return; your_set.title = demo_set.title; your_set.description = your_set.description || demo_set.description; your_set.created = your_set.created || demo_set.created; });
     app_state.demo_version = DEMO_VERSION; save_state(); if (!editor_has_changes) route();
   }).catch(() => {});
 }
