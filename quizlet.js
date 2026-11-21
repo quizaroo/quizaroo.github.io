@@ -9,6 +9,8 @@ function quizlet_set_number(pasted_text) {
   const number_counts = new Map(); for (const link_match of pasted_text.matchAll(QUIZLET_SET_LINK)) number_counts.set(link_match[1], (number_counts.get(link_match[1]) || 0) + 1);
   return number_counts.size ? Array.from(number_counts).sort((count_a, count_b) => count_b[1] - count_a[1])[0][0] : '';
 }
+// Plain text: the set's title sits just above the page's rating and study buttons; the page's first line is often a banner.
+const QUIZLET_AFTER_TITLE = /^(Add to calendar|Leave the first rating|Study with friends|[\d.]+ \(\d+ reviews?\)|\d+ studiers)/i;
 function quizlet_term_count(page_text) { const count_match = /Terms in this set\s*\((\d+)\)/i.exec(page_text); return count_match ? Number(count_match[1]) : 0; }
 // A side's text with its line breaks kept: a parsed page has no layout, so <br> and block ends become new lines here.
 function side_text(side_el) {
@@ -31,7 +33,8 @@ function parse_quizlet(html_text, plain_text) {
   let card_lines = text_lines.slice(heading_index + 1); const end_index = card_lines.findIndex(text_line => /^(You can also click|Review with an activity)/i.test(text_line)); if (end_index >= 0) card_lines = card_lines.slice(0, end_index);
   card_lines = card_lines.filter(Boolean); if (/^(Original|Alphabetical|Sort\b.*)$/i.test(card_lines[0] || '') && (end_index < 0 || card_lines.length % 2)) card_lines = card_lines.slice(1);
   for (let line_index = 0; line_index + 1 < card_lines.length && text_cards.length < expected_count; line_index += 2) text_cards.push({term: card_lines[line_index], definition: card_lines[line_index + 1]});
-  return text_cards.length ? {title: text_lines.find(Boolean) || '', cards: text_cards, expected: expected_count, number: quizlet_set_number(plain_text)} : null;
+  const title_lines = text_lines.slice(0, heading_index).filter(Boolean), marker_index = title_lines.findIndex(text_line => QUIZLET_AFTER_TITLE.test(text_line));
+  return text_cards.length ? {title: (marker_index > 0 ? title_lines[marker_index - 1] : title_lines[0]) || '', cards: text_cards, expected: expected_count, number: quizlet_set_number(plain_text)} : null;
 }
 
 function open_quizlet_paste() {
