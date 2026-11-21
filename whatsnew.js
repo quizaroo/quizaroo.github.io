@@ -8,6 +8,7 @@
 // No `at`: no Show me. PUBLISHED holds when each version went live (UTC), filled in by tools/publish.py.
 const FIRST_SET = ['.set-row .row-title'];
 const WHATS_NEW = {
+  '1.5.17': [{text: 'Coming back after an hour or more without a sync account? A welcome page shows that your sets are only on this device, and how to back them up. Not now shows where to find it later: Settings > Sync.'}, {text: 'Creating a sync account: a big red reminder to check your Spam or Junk folder for the code.'}],
   '1.5.16': [{text: 'Merge sets: in Your Library, press and hold to select two or more sets, then Merge. Pick which name to keep, or type a new one.', go: '#/library', at: '.set-rows'}, {text: 'Ctrl+Z (Cmd+Z) now undoes a delete, reset, merge or paste even after its Undo message has gone, newest first.'}],
   '1.5.15': [{text: 'New users now start with one demo set, Demo set: Ukrainian days of the week, in place of the full collection. Sets you already have are not touched.'}],
   '1.5.14': [{text: 'Paste from Quizlet can add the cards to a set you already have: pick it under Add to. Cards already in that set are left out, and Undo (or Ctrl+Z) takes them back out.', go: '#/library', at: '#more-button'}],
@@ -142,6 +143,7 @@ const WHATS_NEW = {
   '1.0.00': [{text: 'Open Flashcards goes live: make sets, flip and swipe through them, and import or export them as JSON.'}]
 };
 const PUBLISHED = {
+  '1.5.17': '2026-11-21T16:08:10Z',
   '1.5.16': '2026-11-21T15:49:01Z',
   '1.5.15': '2026-11-21T15:49:01Z',
   '1.5.14': '2026-11-21T15:43:22Z',

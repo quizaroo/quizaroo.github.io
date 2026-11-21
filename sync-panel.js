@@ -224,19 +224,21 @@ function sync_section() {
     }
     // On a server that confirms addresses, Create account sends a code first, and the same button then finishes with it.
     const email_code_el = text_input('email_code', {inputmode: 'numeric', autocomplete: 'one-time-code', maxlength: '8'}), email_code_field = field('Code from your email', email_code_el), resend_button = el('button', {type: 'button'});
-    email_code_field.hidden = true; resend_button.hidden = true; resend_button.textContent = 'Send a new code';
+    const spam_callout_el = el('div', {class: 'spam-callout', role: 'alert'}, el('strong', {}, 'No email? Check your spam folder'), 'The code often lands in Spam or Junk. Look there before asking for a new one.');
+    email_code_field.hidden = true; resend_button.hidden = true; spam_callout_el.hidden = true; resend_button.textContent = 'Send a new code';
     let code_sent_to = '';
     const send_code = async show_message => {
       show_message('Sending a code…');
       await sync_engine.request_signup_code(chosen_server(), email_el.value.trim());
       code_sent_to = email_el.value.trim().toLowerCase();
-      email_code_field.hidden = false; resend_button.hidden = false;
+      email_code_field.hidden = false; resend_button.hidden = false; spam_callout_el.hidden = false;
       create_button.disabled = false; create_button.textContent = 'Finish creating account';
       email_code_el.value = ''; email_code_el.focus();
-      show_message('Check your email (and its spam folder) for a code from Quizaroo. It lasts 15 minutes.');
+      show_message('Check your email for a code from Quizaroo. It lasts 15 minutes.');
+      show_spam_warning(code_sent_to);
     };
     resend_button.onclick = button_work(resend_button, message_el, send_code);
-    email_el.addEventListener('input', () => { if (email_el.value.trim().toLowerCase() === code_sent_to || !code_sent_to) return; code_sent_to = ''; email_code_field.hidden = true; resend_button.hidden = true; create_button.textContent = 'Create account'; });
+    email_el.addEventListener('input', () => { if (email_el.value.trim().toLowerCase() === code_sent_to || !code_sent_to) return; code_sent_to = ''; email_code_field.hidden = true; resend_button.hidden = true; spam_callout_el.hidden = true; create_button.textContent = 'Create account'; });
     create_button.addEventListener('click', button_work(create_button, message_el, async show_message => {
       if (!email_el.value.trim() || !password_el.value) return show_message('Enter your email and password');
       if (password_el.value.length < 10) return show_message('Use at least 10 characters');
@@ -254,7 +256,7 @@ function sync_section() {
       await sync_engine.sign_in(chosen_server(), email_el.value.trim(), password_el.value);
       offer_to_save_login(email_el.value.trim(), password_el.value);
       await sync_engine.start(); draw();
-    })(); }}, server_field_el, field('Email', email_el), field('Password', password_el), email_code_field, reach_el, el('div', {class: 'button-row'}, sign_in_button, create_button, resend_button, el('button', {type: 'button', onclick: () => { recover_form.hidden = !recover_form.hidden; }}, 'Forgot password?'), message_el));
+    })(); }}, server_field_el, field('Email', email_el), field('Password', password_el), email_code_field, spam_callout_el, reach_el, el('div', {class: 'button-row'}, sign_in_button, create_button, resend_button, el('button', {type: 'button', onclick: () => { recover_form.hidden = !recover_form.hidden; }}, 'Forgot password?'), message_el));
     const reason_el = sync_status.error ? el('p', {class: 'sync-out-reason'}, sync_status.error) : null;
     body_el.replaceChildren(...[reason_el, el('p', {class: 'muted'}, 'Sync keeps your phone and laptop in step. Everything is encrypted here first; the server only stores scrambled copies.'), sync_note(), sign_in_form, cert_el, help_el, recover_form, el('div', {class: 'button-row'}, own_server_button)].filter(Boolean));
     check_server();
@@ -282,4 +284,58 @@ function sync_section() {
     sync_engine.check_link();
   });
   return section_el;
+}
+// ---- Welcome back: after an hour or more away, someone with sets who isn't signed in to sync is shown what an account adds ----
+const LAST_ACTIVE_KEY = 'open-flashcards:last-active', AWAY_MS = 3600000;
+function start_welcome_back() {
+  const read_last_active = () => { try { return Number(localStorage.getItem(LAST_ACTIVE_KEY)) || 0; } catch (storage_err) { return 0; } };
+  const note_active = () => { if (document.visibilityState === 'visible') try { localStorage.setItem(LAST_ACTIVE_KEY, String(Date.now())); } catch (storage_err) {} };
+  const check_away = () => { const last_active = read_last_active(), was_away = last_active && Date.now() - last_active > AWAY_MS; note_active(); if (was_away) sync_engine.ready.then(() => { if (!sync_engine.signed_in() && app_state.sets.length) show_welcome_back(); }); };
+  check_away();
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') check_away(); });
+  setInterval(note_active, 30000);
+}
+const WB_ART = {
+  laptop: '<svg width="62" height="50" viewBox="0 0 62 50"><rect x="8" y="4" width="46" height="32" rx="4" fill="none" stroke="currentColor" stroke-width="3"/><rect x="2" y="38" width="58" height="6" rx="3" fill="currentColor"/></svg>',
+  phone: '<svg width="30" height="50" viewBox="0 0 30 50"><rect x="3" y="3" width="24" height="44" rx="5" fill="none" stroke="currentColor" stroke-width="3"/><circle cx="15" cy="40" r="2" fill="currentColor"/></svg>',
+  cloud: '<svg width="64" height="44" viewBox="0 0 64 44"><path d="M18 40h30a12 12 0 0 0 1-24A16 16 0 0 0 19 12 14 14 0 0 0 18 40z" fill="currentColor"/><path d="M26 25l5 5 9-10" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  arrows: '<svg width="20" height="20" viewBox="0 0 20 20"><path d="M3 7h13l-3-3M17 13H4l3 3" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>'};
+function wb_art(...art_names) { const art_el = el('div', {class: 'wb-art'}); art_el.innerHTML = art_names.map(art_name => WB_ART[art_name]).join(''); return art_el; }
+function show_welcome_back() {
+  if (document.querySelector('.wb, .spot-tip')) return;
+  if (document.querySelector('dialog[open]')) { setTimeout(show_welcome_back, 1000); return; } // after What's new or anything else open
+  const set_count = app_state.sets.length, card_total = app_state.sets.reduce((total, card_set) => total + card_set.cards.length, 0), dialog_el = el('dialog', {class: 'wb'});
+  let chose_backup = false;
+  dialog_el.append(
+    el('div', {class: 'wb-top'}, el('div', {class: 'wb-hi'}, '👋'), el('h2', {}, 'Welcome back!'), el('p', {class: 'wb-sub'}, 'Thanks for using Quizaroo.')),
+    el('div', {class: 'wb-pics'},
+      el('div', {class: 'wb-pic now'}, el('span', {class: 'wb-tag'}, 'Now'), wb_art('laptop'), el('p', {class: 'wb-cap'}, 'Only on this device'), el('p', {class: 'wb-capsub'}, set_count + (set_count === 1 ? ' set · ' : ' sets · ') + card_total + (card_total === 1 ? ' card' : ' cards'))),
+      el('div', {class: 'wb-pic cloud'}, el('span', {class: 'wb-tag'}, 'With an account'), wb_art('laptop', 'arrows', 'cloud', 'arrows', 'phone'), el('p', {class: 'wb-cap'}, 'Backed up + synced'), el('p', {class: 'wb-capsub'}, 'Every device, always safe'), el('p', {class: 'wb-freeline'}, 'Free for family and friends!'))),
+    el('p', {class: 'wb-opt'}, el('b', {}, 'Signing in is optional.'), ' Just trying Quizaroo out? Carry on without it.'),
+    el('div', {class: 'wb-actions'}, el('button', {class: 'wb-go', onclick: () => { chose_backup = true; dialog_el.close(); }}, 'Set up backup'), el('button', {class: 'wb-later', onclick: () => dialog_el.close()}, 'Not now')));
+  dialog_el.addEventListener('close', () => { dialog_el.remove(); if (chose_backup) go_to_settings_panel('sync', '#sync-section'); else show_settings_spotlight(); });
+  document.body.appendChild(dialog_el); dialog_el.showModal(); document.activeElement.blur();
+}
+// After Not now: the Settings button lit up, with where backup lives.
+function show_settings_spotlight() {
+  const nav_el = [...document.querySelectorAll('[data-nav="settings"]')].find(nav_item => nav_item.getBoundingClientRect().width > 0);
+  if (!nav_el) return;
+  const nav_rect = nav_el.getBoundingClientRect(), pad = 6, blocker_el = el('div', {class: 'spot-blocker'}), hole_el = el('div', {class: 'spot-hole', style: `left:${nav_rect.left - pad}px;top:${nav_rect.top - pad}px;width:${nav_rect.width + pad * 2}px;height:${nav_rect.height + pad * 2}px`});
+  const icon_el = el('span', {class: 'spot-icon'}); icon_el.innerHTML = nav_el.querySelector('svg').outerHTML;
+  const tip_el = el('div', {class: 'spot-tip', role: 'dialog', 'aria-label': 'Backup is in Settings'}, el('div', {class: 'spot-big'}, '👍'), el('h3', {}, 'No problem'), el('div', {}, 'Back up any time from'), el('div', {class: 'spot-path'}, icon_el, 'Settings > Sync'), el('button', {class: 'spot-ok'}, 'Got it'));
+  const tip_left = Math.min(Math.max(12, nav_rect.left + nav_rect.width / 2 - 150), innerWidth - 312);
+  Object.assign(tip_el.style, {left: tip_left + 'px', bottom: innerHeight - nav_rect.top + 22 + 'px'}); tip_el.style.setProperty('--arrow-left', nav_rect.left + nav_rect.width / 2 - tip_left - 9 + 'px');
+  const close_spotlight = () => { [blocker_el, hole_el, tip_el].forEach(part_el => part_el.remove()); removeEventListener('keydown', close_on_escape, true); removeEventListener('resize', close_spotlight); };
+  const close_on_escape = key_event => { if (key_event.key === 'Escape') { key_event.stopPropagation(); close_spotlight(); } };
+  // A tap on the lit Settings button goes there; a tap anywhere else just closes.
+  blocker_el.addEventListener('click', click_event => { close_spotlight(); if (click_event.clientX >= nav_rect.left && click_event.clientX <= nav_rect.right && click_event.clientY >= nav_rect.top && click_event.clientY <= nav_rect.bottom) go_to_settings_panel('sync', '#sync-section'); });
+  tip_el.querySelector('.spot-ok').addEventListener('click', close_spotlight);
+  addEventListener('keydown', close_on_escape, true); addEventListener('resize', close_spotlight);
+  document.body.append(blocker_el, hole_el, tip_el); tip_el.querySelector('.spot-ok').focus();
+}
+// The sign-up code is on its way: most people who never get it have it in spam.
+function show_spam_warning(email_text) {
+  const dialog_el = el('dialog', {class: 'spam-sheet', role: 'alertdialog'}, el('div', {class: 'spam-big'}, '📩'), el('h2', {}, 'Check your spam folder'), el('p', {}, 'Your code is on its way to'), el('p', {}, el('b', {}, email_text)), el('p', {}, "If it isn't in your inbox in a minute, look in:"), el('div', {class: 'spam-folders'}, el('span', {}, 'Spam'), el('span', {}, 'Junk')), el('button', {onclick: () => dialog_el.close()}, "OK, I'll look"));
+  dialog_el.addEventListener('close', () => { dialog_el.remove(); const code_el = document.querySelector('[autocomplete="one-time-code"]'); if (code_el) code_el.focus(); });
+  document.body.appendChild(dialog_el); dialog_el.showModal();
 }

@@ -661,6 +661,7 @@ function open_view_menu() {
 view_button_el.addEventListener('click', open_view_menu);
 open_where_left_off();
 start_resume_tracking();
+start_welcome_back();
 sync_engine.init();
 sync_engine.watch_other_tabs();
 sync_pill();

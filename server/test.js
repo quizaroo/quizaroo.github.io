@@ -467,7 +467,7 @@ try {
   await new Promise(done => smtp.listen(0, '127.0.0.1', done));
   const dir3 = fs.mkdtempSync(path.join(os.tmpdir(), 'flashcards-test-'));
   const PORT3 = PORT + 2000;
-  const coded = spawn(process.execPath, ['server.js'], { env: { ...process.env, PORT: PORT3, DATA_DIR: dir3, REGISTRATION: 'open', EMAIL_CODES: 'on', MAIL_FROM: 'noreply@example.com', SMTP_PORT: String(smtp.address().port), ADMIN_EMAILS: 'boss@example.com' }, stdio: ['ignore', 'pipe', 'inherit'] });
+  const coded = spawn(process.execPath, ['server.js'], { env: { ...process.env, PORT: PORT3, DATA_DIR: dir3, REGISTRATION: 'open', EMAIL_CODES: 'on', MAIL_FROM: 'noreply@example.com', SMTP_PORT: String(smtp.address().port), ADMIN_EMAILS: 'boss@example.com', SIGNUP_ALERTS: 'owner@example.com' }, stdio: ['ignore', 'pipe', 'inherit'] });
   await new Promise(done => coded.stdout.once('data', done));
   const call3 = async (url, body, ipTail = 1) => {
     const res = await fetch(`http://127.0.0.1:${PORT3}${url}`, { method: body ? 'POST' : 'GET', headers: { 'Content-Type': 'application/json', 'X-Forwarded-For': `203.0.113.${ipTail}` }, body: body ? JSON.stringify(body) : undefined });
@@ -494,6 +494,11 @@ try {
     assert.match(r.json.error, /isn't right/);
     r = await call3('/api/register', { email: 'a@example.com', code: ` ${codeA.slice(0, 3)} ${codeA.slice(3)}`, ...keys3 });
     assert.equal(r.status, 200, 'the right code makes the account, spaces or not');
+    for (let tries = 0; tries < 50 && !mails.some(mail => mail.to === 'owner@example.com'); tries++) await new Promise(done => setTimeout(done, 20));
+    const alert = mails.find(mail => mail.to === 'owner@example.com');
+    assert.ok(alert, 'the owner is emailed about the new account');
+    assert.match(alert.text, /Subject: New Quizaroo sign-up: a@example.com/);
+    mails.splice(mails.indexOf(alert), 1);
     r = await call3('/api/register', { email: 'a@example.com', code: codeA, ...keys3 });
     assert.equal(r.status, 400, 'a code only works once');
 

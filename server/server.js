@@ -18,6 +18,7 @@
 //   SMTP_HOST, SMTP_PORT  the mail server that sends them; default 127.0.0.1 and 25, with no sign-in
 //                     Once `flashcards-admin connect-m365` has been run, mail goes through Microsoft 365 instead, and never by SMTP.
 //   SHARING           on | off (default): the sharing routes, which let any account look others up by email
+//   SIGNUP_ALERTS     comma list of addresses told by email about each new account (needs mail set up, as for EMAIL_CODES)
 
 import http from 'node:http';
 import net from 'node:net';
@@ -34,6 +35,7 @@ const ENV_REGISTRATION = process.env.REGISTRATION || 'first';
 const ENV_SIGNUP_LIMIT = Number(process.env.MAX_SIGNUPS_PER_DAY) || 0;
 const ADMINS = new Set((process.env.ADMIN_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean));
 const SHARING = process.env.SHARING === 'on';
+const SIGNUP_ALERTS = (process.env.SIGNUP_ALERTS || '').split(',').map(s => s.trim()).filter(Boolean);
 const EMAIL_CODES = process.env.EMAIL_CODES === 'on';
 const MAIL_FROM = process.env.MAIL_FROM || '';
 const SMTP_HOST = process.env.SMTP_HOST || '127.0.0.1';
@@ -251,6 +253,13 @@ function sendBySmtp(to, subject, lines) {
 }
 
 // Each limit answers the same way, so it can't be used to learn about an address.
+// Tells the admin about each new account. Never holds up or fails the sign-up.
+function alertNewSignup(email) {
+  if (!SIGNUP_ALERTS.length || (!MAIL_FROM && !graphSettings())) return;
+  const total = db.prepare('SELECT COUNT(*) n FROM users').get().n;
+  for (const to of SIGNUP_ALERTS) sendMail(to, `New Quizaroo sign-up: ${email}`, [`${email} created a Quizaroo sync account.`, '', `Accounts now: ${total}. Sign-ups today: ${signupsToday()}.`, '', 'See them, whitelist or remove them on the admin page (/admin).']).catch(err => console.error('Sign-up alert not sent:', err.message));
+}
+
 function checkMailLimits(email, ip) {
   const since = ms => new Date(Date.now() - ms).toISOString();
   const count = (sql, ...args) => db.prepare(`SELECT COUNT(*) n FROM mail_log WHERE ${sql}`).get(...args).n;
@@ -558,6 +567,7 @@ const routes = {
       .run(userId, email, authHash, salt, JSON.stringify(body.kdf), body.wrapped_data_key, recoveryHash, rsalt, now());
     if (EMAIL_CODES) db.prepare('UPDATE users SET email_confirmed_at = ? WHERE id = ?').run(now(), userId);
     pinAdmins();
+    alertNewSignup(email);
     return { user_id: userId, ...newDevice(userId, body.device_name) };
   },
 

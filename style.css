@@ -634,3 +634,51 @@ body.keyboard-up .mode-wrap > .muted:last-child { display: none; }
 .merge-count { flex: none; font-size: 14px; }
 /* On a touch screen rows move by dragging, so the bar drops the arrows and key hints to fit a phone. */
 @media (pointer: coarse) { .select-bar kbd, .select-bar .move-button { display: none; } .select-bar { gap: 2px; } .select-bar button { padding: 5px 8px; } .select-count { font-size: 13px; } }
+/* Welcome back: what a sync account adds, after an hour or more away */
+.wb { width: min(560px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); padding: 0; color: var(--text); background: var(--sheet); border: 1px solid var(--glass-border); border-radius: 26px; box-shadow: 0 24px 70px rgba(15, 23, 42, .3); text-align: center; }
+.wb::backdrop { background: rgba(15, 23, 42, .55); backdrop-filter: blur(3px); }
+.wb-top { padding: 30px 26px 8px; }
+.wb-hi { font-size: 46px; line-height: 1; }
+.wb h2 { margin: 12px 0 4px; font-size: 30px; letter-spacing: -.02em; }
+.wb-sub { margin: 0; color: var(--muted); font-size: 16px; }
+.wb-pics { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; padding: 20px 22px 6px; }
+.wb-pic { padding: 16px 12px 14px; border: 1px solid var(--glass-border); border-radius: 18px; }
+.wb-pic.now { color: #d97706; background: color-mix(in srgb, #f59e0b 13%, var(--sheet)); border-color: color-mix(in srgb, #f59e0b 45%, transparent); }
+.wb-pic.cloud { color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--sheet)); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+.wb-tag { display: inline-block; padding: 3px 10px; font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; border-radius: 99px; }
+.now .wb-tag { color: #1f1300; background: #f59e0b; }
+.cloud .wb-tag { color: #fff; background: var(--accent); }
+.wb-art { display: flex; align-items: center; justify-content: center; gap: 6px; height: 86px; margin-top: 10px; }
+.wb-art svg { display: block; }
+.wb-cap { margin: 6px 0 0; color: var(--text); font-size: 15px; font-weight: 600; }
+.wb-capsub { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+.wb-freeline { display: inline-block; margin: 10px 0 0; padding: 4px 12px; color: #fff; font-size: 13px; font-weight: 700; background: #16a34a; border-radius: 99px; }
+.wb-opt { margin: 14px 22px 0; color: var(--muted); font-size: 14px; }
+.wb-opt b { color: var(--text); }
+.wb-actions { display: grid; gap: 8px; padding: 14px 22px 22px; }
+.wb-go { padding: 15px; color: #fff; font-size: 17px; font-weight: 700; background: var(--accent); border: 0; border-radius: 14px; }
+.wb-later { padding: 10px; color: var(--muted); font-size: 15px; background: none; border: 0; }
+@media (max-width: 520px) { .wb-pics { grid-template-columns: minmax(0, 1fr); gap: 14px; } .wb-art { height: 64px; } .wb h2 { font-size: 26px; } .wb-hi { font-size: 38px; } .wb-top { padding: 24px 20px 4px; } }
+/* After Not now: Settings lit up, with where backup lives */
+.spot-blocker { position: fixed; inset: 0; z-index: 999; }
+.spot-hole { position: fixed; z-index: 1000; border-radius: 14px; box-shadow: 0 0 0 9999px rgba(15, 23, 42, .62); pointer-events: none; }
+.spot-hole::after { content: ""; position: absolute; inset: -6px; border: 3px solid #fff; border-radius: 18px; box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 55%, transparent); }
+.spot-tip { position: fixed; z-index: 1001; width: 300px; padding: 18px 18px 14px; color: var(--text); text-align: center; background: var(--sheet); border-radius: 20px; box-shadow: 0 20px 60px rgba(0, 0, 0, .35); }
+.spot-tip::before { content: ""; position: absolute; bottom: -8px; left: var(--arrow-left); width: 18px; height: 18px; background: var(--sheet); transform: rotate(45deg); }
+.spot-big { font-size: 34px; line-height: 1; }
+.spot-tip h3 { margin: 8px 0 6px; font-size: 21px; }
+.spot-path { display: inline-flex; align-items: center; gap: 6px; margin: 2px 0 14px; padding: 6px 12px; color: var(--accent); font-size: 15px; font-weight: 700; background: color-mix(in srgb, var(--accent) 14%, var(--sheet)); border-radius: 99px; }
+.spot-icon svg { display: block; width: 18px; height: 18px; }
+.spot-ok { width: 100%; padding: 12px; color: #fff; font-size: 16px; font-weight: 700; background: var(--accent); border: 0; border-radius: 12px; }
+/* Waiting for the sign-up code: spam is where it usually goes missing */
+.spam-callout { position: relative; grid-column: 1 / -1; flex: 1 0 100%; box-sizing: border-box; width: 100%; margin: 4px 0 10px; padding: 12px 14px 12px 22px; color: var(--text); background: color-mix(in srgb, var(--danger) 12%, var(--sheet)); border: 1px solid color-mix(in srgb, var(--danger) 45%, transparent); border-radius: 14px; }
+.spam-callout::before { content: ""; position: absolute; left: 8px; top: 10px; bottom: 10px; width: 4px; background: var(--danger); border-radius: 0; }
+.spam-callout strong { display: block; color: var(--danger); font-size: 17px; }
+.spam-sheet { width: min(420px, calc(100vw - 24px)); padding: 24px 22px 18px; color: var(--text); text-align: center; background: var(--sheet); border: 2px solid var(--danger); border-radius: 22px; box-shadow: var(--shadow); }
+.spam-sheet::backdrop { background: rgba(15, 23, 42, .55); }
+.spam-sheet .spam-big { font-size: 46px; line-height: 1; }
+.spam-sheet h2 { margin: 10px 0 6px; color: var(--danger); font-size: 26px; }
+.spam-sheet p { margin: 6px 0; }
+.spam-sheet .spam-folders { display: flex; justify-content: center; gap: 8px; margin: 12px 0 16px; }
+.spam-sheet .spam-folders span { padding: 5px 12px; color: #fff; font-weight: 700; background: var(--danger); border-radius: 99px; }
+.spam-sheet button { width: 100%; padding: 13px; color: #fff; font-size: 16px; font-weight: 700; background: var(--accent); border: 0; border-radius: 12px; }
