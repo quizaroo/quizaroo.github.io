@@ -8,7 +8,8 @@
 // No `at`: no Show me. PUBLISHED holds when each version went live (UTC), filled in by tools/publish.py.
 const FIRST_SET = ['.set-row .row-title'];
 const WHATS_NEW = {
-  '1.5.15': [{text: 'Merge sets: in Your Library, press and hold to select two or more sets, then Merge. Pick which name to keep, or type a new one.', go: '#/library', at: '.set-rows'}, {text: 'Ctrl+Z (Cmd+Z) now undoes a delete, reset, merge or paste even after its Undo message has gone, newest first.'}],
+  '1.5.16': [{text: 'Merge sets: in Your Library, press and hold to select two or more sets, then Merge. Pick which name to keep, or type a new one.', go: '#/library', at: '.set-rows'}, {text: 'Ctrl+Z (Cmd+Z) now undoes a delete, reset, merge or paste even after its Undo message has gone, newest first.'}],
+  '1.5.15': [{text: 'New users now start with one demo set, Demo set: Ukrainian days of the week, in place of the full collection. Sets you already have are not touched.'}],
   '1.5.14': [{text: 'Paste from Quizlet can add the cards to a set you already have: pick it under Add to. Cards already in that set are left out, and Undo (or Ctrl+Z) takes them back out.', go: '#/library', at: '#more-button'}],
   '1.5.13': [{text: 'Paste from Quizlet now picks up the set\'s name, not the banner at the top of Quizlet\'s page. Fixed.'}],
   '1.5.12': [{text: 'Paste a Quizlet set: copy the set page, paste in Import. On Quizlet, select all and copy the set\'s page, then choose Paste from Quizlet in Your Library\'s ⋯ menu. Quizaroo only reads what you paste.', go: '#/library', at: '#more-button'}],
@@ -141,7 +142,8 @@ const WHATS_NEW = {
   '1.0.00': [{text: 'Open Flashcards goes live: make sets, flip and swipe through them, and import or export them as JSON.'}]
 };
 const PUBLISHED = {
-  '1.5.15': '2026-11-21T15:48:32Z',
+  '1.5.16': '2026-11-21T15:49:01Z',
+  '1.5.15': '2026-11-21T15:49:01Z',
   '1.5.14': '2026-11-21T15:43:22Z',
   '1.5.13': '2026-11-21T15:38:59Z',
   '1.5.12': '2026-11-21T15:33:35Z',
