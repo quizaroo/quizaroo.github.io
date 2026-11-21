@@ -621,3 +621,6 @@ body.keyboard-up .mode-wrap > .muted:last-child { display: none; }
 .quizlet-card span { padding: 8px 12px; white-space: pre-line; overflow-wrap: anywhere; }
 .quizlet-card span + span { border-left: 1px solid var(--rule); }
 .quizlet-more { padding: 8px 12px; }
+.quizlet-target-row { display: flex; align-items: center; gap: 10px; margin: 0 0 6px 12px; }
+.quizlet-target { flex: 1; min-width: 0; font: inherit; }
+.quizlet-target-note:not(:empty) { margin: 6px 12px 0; }
