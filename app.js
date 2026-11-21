@@ -170,7 +170,7 @@ function view_library() {
   const sort_select_el = el('select', {onchange: change_event => { app_state.library_order = change_event.target.value; save_state(); view_library(); }}, el('option', {value: 'newest'}, 'Newest'), el('option', {value: 'name'}, 'Name'), el('option', {value: 'studied'}, 'Last studied'), el('option', {value: 'custom'}, 'Custom'));
   sort_select_el.value = library_sort;
   function menu_item(item_label, run_item) { return el('button', {class: 'menu-item', onclick: () => { close_view_menu(); run_item(); }}, item_label); }
-  const more_button_el = el('button', {id: 'more-button', class: 'icon-button', title: 'More', 'aria-label': 'More', 'aria-expanded': 'false', onclick: () => toggle_top_menu(more_button_el, 'More', menu_item('Import', () => import_input_el.click()), menu_item('Export all', () => download_json('open-flashcards-all.json', app_state.sets)), menu_item('Load demo sets', add_missing_demo_sets))}, '⋯');
+  const more_button_el = el('button', {id: 'more-button', class: 'icon-button', title: 'More', 'aria-label': 'More', 'aria-expanded': 'false', onclick: () => toggle_top_menu(more_button_el, 'More', menu_item('Import', () => import_input_el.click()), menu_item('Paste from Quizlet', open_quizlet_paste), menu_item('Export all', () => download_json('open-flashcards-all.json', app_state.sets)), menu_item('Load demo sets', add_missing_demo_sets))}, '⋯');
   render(library_trail(), [more_button_el, plus_button()], [
     el('div', {class: 'button-row'}, el('label', {class: 'toggle-line'}, 'Sort by', sort_select_el)),
     sorted_sets.length ? el('div', {class: 'muted library-hint'}, 'Press and hold a set to move it, or let go to select it.') : '',
