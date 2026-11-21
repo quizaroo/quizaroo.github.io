@@ -83,7 +83,29 @@ function match_set_sides(pair_list, set_cards) {
 }
 
 // ---- The sheet ----
+// A laptop or desktop opens its camera in the app (a file picker there never offers one); phones and tablets get the system picker, which already offers the camera.
 function scan_photo(set_cards, on_add) {
+  if (matchMedia('(pointer: fine)').matches && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) open_camera_sheet(set_cards, on_add); else pick_photo_file(set_cards, on_add);
+}
+async function open_camera_sheet(set_cards, on_add) {
+  let camera_stream = null;
+  const video_el = el('video', {class: 'scan-camera', autoplay: 'autoplay', muted: 'muted', playsinline: 'playsinline'}), status_el = el('div', {class: 'scan-status', role: 'status'}, 'Starting the camera…'), dialog_el = el('dialog', {class: 'whatsnew-sheet scan-sheet'});
+  const take_button_el = el('button', {class: 'primary', disabled: 'disabled', onclick: () => {
+    const frame_canvas = el('canvas'); frame_canvas.width = video_el.videoWidth; frame_canvas.height = video_el.videoHeight; frame_canvas.getContext('2d').drawImage(video_el, 0, 0);
+    frame_canvas.toBlob(photo_blob => { dialog_el.close(); if (photo_blob) open_scan_sheet(photo_blob, set_cards, on_add); }, 'image/jpeg', .92);
+  }}, '📷 Take photo');
+  dialog_el.append(el('div', {class: 'whatsnew-head'}, el('h2', {}, 'Scan photo'), el('button', {onclick: () => dialog_el.close()}, 'Cancel')),
+    el('div', {class: 'scan-photo-box'}, video_el, status_el),
+    el('div', {class: 'button-row'}, take_button_el, el('button', {onclick: () => { dialog_el.close(); pick_photo_file(set_cards, on_add); }}, 'Choose a file')));
+  dialog_el.addEventListener('close', () => { dialog_el.remove(); if (camera_stream) camera_stream.getTracks().forEach(camera_track => camera_track.stop()); });
+  document.body.appendChild(dialog_el); dialog_el.showModal();
+  try {
+    camera_stream = await navigator.mediaDevices.getUserMedia({video: {facingMode: 'environment', width: {ideal: 1920}, height: {ideal: 1080}}, audio: false});
+    if (!dialog_el.isConnected) { camera_stream.getTracks().forEach(camera_track => camera_track.stop()); return; }
+    video_el.srcObject = camera_stream; await video_el.play(); status_el.textContent = ''; take_button_el.disabled = false;
+  } catch (camera_err) { console.warn('Camera failed:', camera_err); status_el.textContent = camera_err && camera_err.name === 'NotAllowedError' ? 'Camera blocked. Allow it in the address bar, or choose a file.' : 'No camera found. Choose a file instead.'; }
+}
+function pick_photo_file(set_cards, on_add) {
   const file_input_el = el('input', {type: 'file', accept: 'image/*', hidden: 'hidden'});
   file_input_el.addEventListener('change', () => { const photo_file = file_input_el.files[0]; file_input_el.remove(); if (photo_file) open_scan_sheet(photo_file, set_cards, on_add); });
   document.body.appendChild(file_input_el); file_input_el.click();
