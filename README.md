@@ -17,7 +17,7 @@ A simple, open-source flashcards app that runs in your browser. No tracking, no 
 - Stats shows your day streak, a calendar of the days you studied, weekly answers, accuracy and seconds per question, and accuracy for each set
 - The app remembers how well you know each card and brings the hard ones back sooner, with a longer gap each time you get one right
 - Switch between term first, definition first or mixed inside any mode, and swap all sides of a set
-- Import and export single sets or everything as JSON
+- Import and export single sets or everything as JSON. Paste from Quizlet, in Your Library's ⋯ menu, turns a copied Quizlet set page into a set: Quizaroo only reads what you paste and never contacts Quizlet
 - Your sets are stored in your browser (localStorage). Your Library's Export all downloads everything to one JSON file, for a backup
 - Your sets, progress, rewards and settings can sync across your devices, encrypted on the device first. See [below](#sync-between-your-devices)
 - A browser with nothing saved starts with the demo sets from `demo-sets.json`. "Load demo sets" adds any that are missing and never changes your existing sets.
