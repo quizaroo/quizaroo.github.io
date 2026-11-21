@@ -8,6 +8,7 @@
 // No `at`: no Show me. PUBLISHED holds when each version went live (UTC), filled in by tools/publish.py.
 const FIRST_SET = ['.set-row .row-title'];
 const WHATS_NEW = {
+  '1.5.11': [{text: 'Scan photo on a laptop or desktop now opens the camera, with Take photo, and Choose a file beside it.', go: '#/new', at: '.scan-button'}],
   '1.5.10': [{text: 'Scan photo, in a set\'s editor: take or pick a photo of a vocab list and it finds each word and its translation, boxed on the photo for you to check and fix, then adds them as cards. Works with Ukrainian and English, and a few other languages. The photo stays on your device.', go: '#/new', at: '.scan-button'}],
   '1.5.09': [{text: 'Typing answers: a right answer is marked as soon as you type its last letter. Turn this off in Settings › Typing.', go: '#/settings', at: '.typing-section'}, {text: 'On a phone the keyboard stays up from one question to the next, the Term first / Definition first / Mixed switch no longer disappears, and the question card has one tint line and tighter spacing.'}],
   '1.5.08': [{text: 'Settings › Sound is tidier, with a button for each sound so you can hear it in the set you picked.', go: '#/settings', at: '.sound-samples'}],
@@ -136,6 +137,7 @@ const WHATS_NEW = {
   '1.0.00': [{text: 'Open Flashcards goes live: make sets, flip and swipe through them, and import or export them as JSON.'}]
 };
 const PUBLISHED = {
+  '1.5.11': '2026-11-21T15:30:56Z',
   '1.5.10': '2026-11-21T15:23:51Z',
   '1.5.09': '2026-11-12T04:30:54Z',
   '1.5.08': '2026-11-12T04:29:59Z',
