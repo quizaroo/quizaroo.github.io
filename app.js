@@ -135,6 +135,62 @@ function reset_with_undo(chosen_sets) {
   chosen_sets.forEach(reset_set_progress); save_state(); route();
   toast('Progress reset on ' + chosen_sets.length + (chosen_sets.length === 1 ? ' set' : ' sets'), {action: 'Undo', ms: 8000, on_action: () => { saved_progress.forEach(saved_item => { ['progress', 'learn_stages', 'card_ratings', 'tricky', 'active_ms', 'best_speed', 'last_studied'].forEach(field_name => { if (saved_item[field_name] === undefined) delete saved_item.card_set[field_name]; else saved_item.card_set[field_name] = saved_item[field_name]; }); }); save_state(); route(); }});
 }
+// Takes sets out of Your Library; the function it returns puts them back where they were, without undoing anything done since.
+function remove_sets(chosen_sets) {
+  const removed_places = chosen_sets.map(card_set => ({card_set, place: app_state.sets.indexOf(card_set)})).filter(place_item => place_item.place >= 0).sort((place_a, place_b) => place_a.place - place_b.place);
+  app_state.sets = app_state.sets.filter(card_set => !chosen_sets.includes(card_set)); save_state();
+  return () => { removed_places.forEach(place_item => { if (!find_set(place_item.card_set.id)) app_state.sets.splice(Math.min(place_item.place, app_state.sets.length), 0, place_item.card_set); }); save_state(); };
+}
+// Takes added cards back out: the same card objects, or, if the set has been edited and saved since (fresh copies), one card with the same term and definition for each.
+function take_back_cards(card_set, added_cards) {
+  const added_texts = added_cards.filter(card_item => !card_set.cards.includes(card_item)).map(card_item => card_item.term + '\n' + card_item.definition);
+  card_set.cards = card_set.cards.filter(card_item => { if (added_cards.includes(card_item)) return false; const text_place = added_texts.lastIndexOf(card_item.term + '\n' + card_item.definition); if (text_place < 0) return true; added_texts.splice(text_place, 1); return false; });
+}
+// Merges sets into the one whose name is kept (or the first, for a new name): its id, colour and progress stay, the others' cards follow in order, a card already there (same term and definition) is kept once, and progress on the others' cards comes along. Undo puts everything back as it was.
+function merge_sets(chosen_sets, keep_set, merged_title) {
+  const kept_before = JSON.parse(JSON.stringify(keep_set)), other_sets = chosen_sets.filter(card_set => card_set !== keep_set), card_texts = new Set(keep_set.cards.map(card_item => card_key(card_item) + '\n' + clean_text(card_item.definition)));
+  other_sets.forEach(other_set => other_set.cards.forEach(card_item => { const card_text = card_key(card_item) + '\n' + clean_text(card_item.definition); if (card_texts.has(card_text)) return; card_texts.add(card_text); keep_set.cards.push({term: card_item.term, definition: card_item.definition}); }));
+  // Per-card records: the kept set's own win, the others fill in cards it has none for.
+  ['progress', 'learn_stages', 'card_ratings', 'tricky'].forEach(field_name => { const merged_records = {}; other_sets.slice().reverse().concat([keep_set]).forEach(card_set => Object.assign(merged_records, card_set[field_name] || {})); if (Object.keys(merged_records).length) keep_set[field_name] = merged_records; });
+  other_sets.forEach(other_set => {
+    Object.keys(other_set.daily_stats || {}).forEach(day_text => { keep_set.daily_stats = keep_set.daily_stats || {}; const day_row = (keep_set.daily_stats[day_text] || [0, 0, 0, 0]).slice(); other_set.daily_stats[day_text].forEach((day_value, value_index) => { day_row[value_index] = (day_row[value_index] || 0) + (Number(day_value) || 0); }); keep_set.daily_stats[day_text] = day_row; });
+    if (other_set.trophies) keep_set.trophies = (keep_set.trophies || []).concat(other_set.trophies);
+    if (other_set.active_ms) keep_set.active_ms = (keep_set.active_ms || 0) + other_set.active_ms;
+    ['last_studied', 'last_opened'].forEach(field_name => { if ((other_set[field_name] || 0) > (keep_set[field_name] || 0)) keep_set[field_name] = other_set[field_name]; });
+    if (other_set.created && (!keep_set.created || other_set.created < keep_set.created)) keep_set.created = other_set.created;
+    if (!keep_set.description && other_set.description) keep_set.description = other_set.description;
+  });
+  keep_set.title = merged_title;
+  const undo_remove = remove_sets(other_sets);
+  return () => { Object.keys(keep_set).forEach(field_name => delete keep_set[field_name]); Object.assign(keep_set, kept_before); undo_remove(); };
+}
+// The sheet behind Merge: each set with its cards, a name to keep (one of theirs, or your own), and how many cards the merged set will have.
+function open_merge_sheet(chosen_sets, on_merged) {
+  const dialog_el = el('dialog', {class: 'whatsnew-sheet merge-sheet'}), own_input_el = el('input', {type: 'text', class: 'merge-own-name', placeholder: 'Your own name', 'aria-label': 'Your own name'}), own_radio_el = el('input', {type: 'radio', name: 'merge-name', value: 'own'});
+  const card_texts = new Set(); chosen_sets.forEach(card_set => card_set.cards.forEach(card_item => card_texts.add(card_key(card_item) + '\n' + clean_text(card_item.definition))));
+  const all_count = chosen_sets.reduce((card_total, card_set) => card_total + card_set.cards.length, 0), merged_count = card_texts.size, cards_label = card_count => card_count + (card_count === 1 ? ' card' : ' cards');
+  const merge_button_el = el('button', {class: 'primary', onclick: run_merge}, 'Merge');
+  const set_lines = chosen_sets.map((card_set, set_index) => el('label', {class: 'merge-line'}, el('input', {type: 'radio', name: 'merge-name', value: String(set_index), checked: set_index === 0, onchange: check_ready}), el('span', {class: 'merge-name'}, card_set.title), el('span', {class: 'muted merge-count'}, cards_label(card_set.cards.length))));
+  own_input_el.addEventListener('focus', () => { own_radio_el.checked = true; check_ready(); });
+  own_input_el.addEventListener('input', check_ready);
+  own_radio_el.addEventListener('change', () => { own_input_el.focus(); check_ready(); });
+  dialog_el.append(el('div', {class: 'whatsnew-head'}, el('h2', {}, 'Merge ' + chosen_sets.length + ' sets'), el('button', {onclick: () => dialog_el.close()}, 'Cancel')),
+    el('div', {class: 'muted merge-label'}, 'Name'),
+    el('div', {class: 'merge-lines'}, ...set_lines, el('label', {class: 'merge-line'}, own_radio_el, own_input_el)),
+    el('div', {class: 'merge-foot'}, el('span', {class: 'merge-total'}, el('b', {}, cards_label(merged_count)), all_count > merged_count ? el('span', {class: 'muted'}, ' · ' + (all_count - merged_count) + ' in more than one set, kept once') : null), merge_button_el));
+  dialog_el.addEventListener('close', () => dialog_el.remove());
+  document.body.appendChild(dialog_el); dialog_el.showModal(); merge_button_el.focus();
+  function picked_value() { const picked_el = dialog_el.querySelector('input[name=merge-name]:checked'); return picked_el ? picked_el.value : '0'; }
+  function check_ready() { merge_button_el.disabled = picked_value() === 'own' && !own_input_el.value.trim(); }
+  own_input_el.addEventListener('keydown', key_event => { if (key_event.key === 'Enter' && !merge_button_el.disabled) run_merge(); });
+  function run_merge() {
+    const picked_text = picked_value(), keep_set = picked_text === 'own' ? chosen_sets[0] : chosen_sets[Number(picked_text)], merged_title = picked_text === 'own' ? own_input_el.value.trim() : keep_set.title;
+    const undo_merge = merge_sets(chosen_sets, keep_set, merged_title);
+    dialog_el.close(); if (on_merged) on_merged(); route();
+    const merged_row = Array.from(view_el.querySelectorAll('.set-row')).find(row_el => row_el.list_item === keep_set); if (merged_row) { merged_row.scrollIntoView({block: 'center'}); merged_row.classList.add('flash'); setTimeout(() => merged_row.classList.remove('flash'), 2200); }
+    toast(chosen_sets.length + ' sets merged into "' + merged_title + '"', {action: 'Undo', ms: 10000, on_action: () => { undo_merge(); route(); }});
+  }
+}
 function set_row(card_set) {
   return el('div', {class: 'set-row', style: tint_style(card_set)},
     el('div', {class: 'line-margin'}, el('span', {class: 'count-chip', title: card_set.cards.length + ' cards'}, card_set.cards.length)),
@@ -180,8 +236,8 @@ function view_library() {
   if (!rows_el) return;
   const set_selection = selectable_list(rows_el, {item_selector: '.set-row', skip_selector: '.study-pill', noun: 'set',
     on_reorder: () => { app_state.library_custom_order = Array.from(rows_el.children).map(row_el => row_el.list_item.id); app_state.library_order = 'custom'; save_state(); sort_select_el.value = 'custom'; },
-    on_delete: chosen_sets => { const kept_before = app_state.sets.slice(); app_state.sets = app_state.sets.filter(card_set => !chosen_sets.includes(card_set)); save_state(); view_library(); return () => { app_state.sets = kept_before; save_state(); view_library(); }; },
-    extra_buttons: chosen_sets => [el('button', {title: 'Reset all progress', onclick: () => reset_with_undo(chosen_sets)}, '↺ Reset')]});
+    on_delete: chosen_sets => { const undo_delete = remove_sets(chosen_sets); view_library(); return () => { undo_delete(); route(); }; },
+    extra_buttons: chosen_sets => [chosen_sets.length > 1 ? el('button', {class: 'merge-button', title: 'Merge into one set', onclick: () => open_merge_sheet(chosen_sets, () => set_selection.clear())}, 'Merge') : null, el('button', {title: 'Reset all progress', onclick: () => reset_with_undo(chosen_sets)}, '↺ Reset')].filter(Boolean)});
   set_selection.paint();
 }
 
@@ -234,7 +290,7 @@ function view_set(card_set) {
     el('div', {class: 'button-row set-actions'}, el('button', {onclick: () => reset_with_undo([card_set])}, '↺ Reset progress'),
       el('button', {onclick: () => download_json(safe_file_name(card_set.title), [card_set])}, 'Export set'),
       el('button', {onclick: () => { const copied_set = JSON.parse(JSON.stringify(card_set)); copied_set.id = new_id(); copied_set.title = card_set.title + ' (copy)'; delete copied_set.last_studied; delete copied_set.last_opened; delete copied_set.progress; delete copied_set.learn_stages; delete copied_set.card_ratings; delete copied_set.tricky; delete copied_set.active_ms; delete copied_set.best_speed; delete copied_set.trophies; app_state.sets.push(copied_set); save_state(); location.hash = '#/set/' + copied_set.id; }}, 'Duplicate'),
-      el('button', {class: 'danger', onclick: () => { const kept_before = app_state.sets.slice(); app_state.sets = app_state.sets.filter(other_set => other_set.id !== card_set.id); save_state(); location.hash = '#/library'; toast('"' + card_set.title + '" deleted', {action: 'Undo', ms: 8000, on_action: () => { app_state.sets = kept_before; save_state(); route(); }}); }}, 'Delete set'))
+      el('button', {class: 'danger', onclick: () => { const undo_delete = remove_sets([card_set]); location.hash = '#/library'; toast('"' + card_set.title + '" deleted', {action: 'Undo', ms: 8000, on_action: () => { undo_delete(); route(); }}); }}, 'Delete set'))
   ]);
   press_and_drag(view_el.querySelector('.mode-areas'), {item_selector: '.mode-tile', same_parent: true, on_drop: () => { const saved_layout = {}; view_el.querySelectorAll('.mode-tiles').forEach(group_el => { saved_layout[group_el.dataset.group] = Array.from(group_el.querySelectorAll('.mode-tile')).map(tile_el => tile_el.dataset.mode); }); app_state.mode_layout = saved_layout; save_state(); }});
 }

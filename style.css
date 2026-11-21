@@ -624,3 +624,13 @@ body.keyboard-up .mode-wrap > .muted:last-child { display: none; }
 .quizlet-target-row { display: flex; align-items: center; gap: 10px; margin: 0 0 6px 12px; }
 .quizlet-target { flex: 1; min-width: 0; font: inherit; }
 .quizlet-target-note:not(:empty) { margin: 6px 12px 0; }
+.merge-label { margin: 14px 12px 4px; }
+.merge-lines { border-top: 1px solid var(--rule); }
+.merge-line { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-bottom: 1px solid var(--rule); cursor: pointer; }
+.merge-name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.merge-own-name { flex: 1; min-width: 0; padding: 4px 8px; font: inherit; color: var(--text); background: var(--glass-track); border: 1px solid var(--glass-border); border-radius: 8px; }
+.merge-foot { display: flex; align-items: center; gap: 10px; margin-top: 14px; }
+.merge-total { flex: 1; padding-left: 12px; }
+.merge-count { flex: none; font-size: 14px; }
+/* On a touch screen rows move by dragging, so the bar drops the arrows and key hints to fit a phone. */
+@media (pointer: coarse) { .select-bar kbd, .select-bar .move-button { display: none; } .select-bar { gap: 2px; } .select-bar button { padding: 5px 8px; } .select-count { font-size: 13px; } }

@@ -85,7 +85,7 @@ function open_quizlet_paste() {
   function add_to_set(target_set) {
     const added_cards = fresh_cards(target_set).map(card_item => ({term: card_item.term, definition: card_item.definition}));
     target_set.cards.push.apply(target_set.cards, added_cards); save_state(); dialog_el.close(); if (location.hash === '#/set/' + target_set.id) route(); else location.hash = '#/set/' + target_set.id;
-    toast(cards_label(added_cards.length) + ' added to "' + target_set.title + '"', {action: 'Undo', ms: 10000, on_action: () => { target_set.cards = target_set.cards.filter(card_item => !added_cards.includes(card_item)); save_state(); route(); toast('Cards taken back out'); }});
+    toast(cards_label(added_cards.length) + ' added to "' + target_set.title + '"', {action: 'Undo', ms: 10000, on_action: () => { take_back_cards(target_set, added_cards); save_state(); route(); toast('Cards taken back out'); }});
   }
   // A set already pasted from the same Quizlet set has the same id, so the import asks whether to merge, replace or keep both.
   function add_set() {
