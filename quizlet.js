@@ -42,8 +42,9 @@ function open_quizlet_paste() {
   const dialog_el = el('dialog', {class: 'whatsnew-sheet quizlet-sheet'}), status_el = el('div', {class: 'scan-status', role: 'status'}), preview_el = el('div', {class: 'quizlet-preview', hidden: 'hidden'});
   const paste_box_el = el('textarea', {class: 'quizlet-paste-box', rows: 2, placeholder: 'Or paste here', 'aria-label': 'Paste the Quizlet page here'});
   const title_input_el = el('input', {type: 'text', class: 'line-field quizlet-title', 'aria-label': 'Set name'}), count_el = el('div', {class: 'muted'}), sample_el = el('div', {class: 'ruled quizlet-sample'});
-  const add_button_el = el('button', {class: 'primary', onclick: add_set}, 'Add set'), paste_button_el = el('button', {class: 'primary quizlet-paste-button', onclick: read_clipboard}, 'Paste');
-  preview_el.append(title_input_el, count_el, sample_el, el('div', {class: 'button-row'}, add_button_el));
+  const target_select_el = el('select', {class: 'line-field quizlet-target', 'aria-label': 'Add to', onchange: show_target}), target_note_el = el('div', {class: 'muted quizlet-target-note'});
+  const add_button_el = el('button', {class: 'primary', onclick: add_cards}, 'Add set'), paste_button_el = el('button', {class: 'primary quizlet-paste-button', onclick: read_clipboard}, 'Paste');
+  preview_el.append(el('div', {class: 'quizlet-target-row'}, el('span', {class: 'muted'}, 'Add to'), target_select_el), title_input_el, target_note_el, count_el, sample_el, el('div', {class: 'button-row'}, add_button_el));
   dialog_el.append(el('div', {class: 'whatsnew-head'}, el('h2', {}, 'Paste from Quizlet'), el('button', {onclick: () => dialog_el.close()}, 'Cancel')),
     el('ol', {class: 'quizlet-steps'}, el('li', {}, 'Open the set on Quizlet'), el('li', {}, 'Select all and copy (Ctrl+A, Ctrl+C)'), el('li', {}, 'Paste it here')),
     el('div', {class: 'button-row'}, paste_button_el), paste_box_el, status_el, preview_el);
@@ -66,7 +67,25 @@ function open_quizlet_paste() {
     status_el.textContent = missing_count > 0 ? 'Only ' + card_count + ' of ' + parsed_set.expected + ' cards were on the page. On Quizlet, click See more, then copy again.' : '';
     title_input_el.value = parsed_set.title; count_el.textContent = card_count + (card_count === 1 ? ' card' : ' cards');
     sample_el.replaceChildren(...parsed_set.cards.slice(0, 4).map(card_item => el('div', {class: 'quizlet-card'}, el('span', {}, card_item.term), el('span', {}, card_item.definition))), card_count > 4 ? el('div', {class: 'muted quizlet-more'}, '+ ' + (card_count - 4) + ' more') : '');
-    add_button_el.textContent = 'Add ' + card_count + (card_count === 1 ? ' card' : ' cards');
+    target_select_el.replaceChildren(el('option', {value: ''}, 'A new set'), ...app_state.sets.map(card_set => el('option', {value: card_set.id}, card_set.title + ' (' + card_set.cards.length + ')')));
+    show_target();
+  }
+  function cards_label(card_count) { return card_count + (card_count === 1 ? ' card' : ' cards'); }
+  // Cards already in the chosen set (same term and definition) are left out, so pasting twice never doubles them up.
+  function fresh_cards(target_set) { const existing_texts = new Set(target_set.cards.map(card_item => card_key(card_item) + '\n' + clean_text(card_item.definition))); return parsed_set.cards.filter(card_item => { const card_text = card_key(card_item) + '\n' + clean_text(card_item.definition); if (existing_texts.has(card_text)) return false; existing_texts.add(card_text); return true; }); }
+  function show_target() {
+    const target_set = find_set(target_select_el.value); title_input_el.hidden = !!target_set;
+    if (!target_set) { target_note_el.textContent = ''; add_button_el.disabled = false; add_button_el.textContent = 'Add ' + cards_label(parsed_set.cards.length); return; }
+    const adding_count = fresh_cards(target_set).length, already_count = parsed_set.cards.length - adding_count;
+    target_note_el.textContent = already_count ? cards_label(already_count) + ' already in this set' + (adding_count ? ' will be left out.' : '.') : '';
+    add_button_el.disabled = !adding_count; add_button_el.textContent = adding_count ? 'Add ' + cards_label(adding_count) + ' to this set' : 'Nothing new to add';
+  }
+  function add_cards() { const target_set = find_set(target_select_el.value); if (target_set) add_to_set(target_set); else add_set(); }
+  // Appends to the end, so the set's other cards and their progress are untouched; Undo takes back exactly these cards.
+  function add_to_set(target_set) {
+    const added_cards = fresh_cards(target_set).map(card_item => ({term: card_item.term, definition: card_item.definition}));
+    target_set.cards.push.apply(target_set.cards, added_cards); save_state(); dialog_el.close(); if (location.hash === '#/set/' + target_set.id) route(); else location.hash = '#/set/' + target_set.id;
+    toast(cards_label(added_cards.length) + ' added to "' + target_set.title + '"', {action: 'Undo', ms: 10000, on_action: () => { target_set.cards = target_set.cards.filter(card_item => !added_cards.includes(card_item)); save_state(); route(); toast('Cards taken back out'); }});
   }
   // A set already pasted from the same Quizlet set has the same id, so the import asks whether to merge, replace or keep both.
   function add_set() {

@@ -8,6 +8,7 @@
 // No `at`: no Show me. PUBLISHED holds when each version went live (UTC), filled in by tools/publish.py.
 const FIRST_SET = ['.set-row .row-title'];
 const WHATS_NEW = {
+  '1.5.14': [{text: 'Paste from Quizlet can add the cards to a set you already have: pick it under Add to. Cards already in that set are left out, and Undo (or Ctrl+Z) takes them back out.', go: '#/library', at: '#more-button'}],
   '1.5.13': [{text: 'Paste from Quizlet now picks up the set\'s name, not the banner at the top of Quizlet\'s page. Fixed.'}],
   '1.5.12': [{text: 'Paste a Quizlet set: copy the set page, paste in Import. On Quizlet, select all and copy the set\'s page, then choose Paste from Quizlet in Your Library\'s ⋯ menu. Quizaroo only reads what you paste.', go: '#/library', at: '#more-button'}],
   '1.5.11': [{text: 'Scan photo on a laptop or desktop now opens the camera, with Take photo, and Choose a file beside it.', go: '#/new', at: '.scan-button'}],
@@ -139,6 +140,9 @@ const WHATS_NEW = {
   '1.0.00': [{text: 'Open Flashcards goes live: make sets, flip and swipe through them, and import or export them as JSON.'}]
 };
 const PUBLISHED = {
+  '1.5.14': '2026-11-21T15:43:22Z',
+  '1.5.13': '2026-11-21T15:38:59Z',
+  '1.5.12': '2026-11-21T15:33:35Z',
   '1.5.11': '2026-11-21T15:30:56Z',
   '1.5.10': '2026-11-21T15:23:51Z',
   '1.5.09': '2026-11-12T04:30:54Z',
