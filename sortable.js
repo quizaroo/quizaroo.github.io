@@ -127,7 +127,7 @@ function selectable_list(rows_el, list_options) {
     document.body.classList.add('has-select-bar');
     document.body.appendChild(el('div', {class: 'select-bar', role: 'toolbar', 'aria-label': 'Selected ' + list_options.noun + 's'}, el('span', {class: 'select-count'}, selected_items.size + ' selected'),
       el('button', {'aria-label': 'Clear selection', title: 'Clear selection (Esc)', onclick: clear_selection}, '✕', key_hint('Esc')), el('button', {title: 'Select all (Ctrl+A)', onclick: select_all}, 'All'),
-      el('button', {'aria-label': 'Move up', title: 'Move up (Shift+Alt+↑)', onclick: () => move_selected(-1)}, '↑'), el('button', {'aria-label': 'Move down', title: 'Move down (Shift+Alt+↓)', onclick: () => move_selected(1)}, '↓'),
+      el('button', {class: 'move-button', 'aria-label': 'Move up', title: 'Move up (Shift+Alt+↑)', onclick: () => move_selected(-1)}, '↑'), el('button', {class: 'move-button', 'aria-label': 'Move down', title: 'Move down (Shift+Alt+↓)', onclick: () => move_selected(1)}, '↓'),
       ...extra_buttons, el('button', {class: 'danger', title: 'Delete (Delete)', onclick: delete_selected}, 'Delete', key_hint('Del'))));
     selection_keys = key_event => {
       if (key_event.target.matches('input, textarea, select') && !key_event.target.readOnly) return false;

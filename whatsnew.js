@@ -8,6 +8,7 @@
 // No `at`: no Show me. PUBLISHED holds when each version went live (UTC), filled in by tools/publish.py.
 const FIRST_SET = ['.set-row .row-title'];
 const WHATS_NEW = {
+  '1.5.16': [{text: 'Merge sets: in Your Library, press and hold to select two or more sets, then Merge. Pick which name to keep, or type a new one.', go: '#/library', at: '.set-rows'}, {text: 'Ctrl+Z (Cmd+Z) now undoes a delete, reset, merge or paste even after its Undo message has gone, newest first.'}],
   '1.5.15': [{text: 'New users now start with one demo set, Demo set: Ukrainian days of the week, in place of the full collection. Sets you already have are not touched.'}],
   '1.5.14': [{text: 'Paste from Quizlet can add the cards to a set you already have: pick it under Add to. Cards already in that set are left out, and Undo (or Ctrl+Z) takes them back out.', go: '#/library', at: '#more-button'}],
   '1.5.13': [{text: 'Paste from Quizlet now picks up the set\'s name, not the banner at the top of Quizlet\'s page. Fixed.'}],
@@ -141,6 +142,8 @@ const WHATS_NEW = {
   '1.0.00': [{text: 'Open Flashcards goes live: make sets, flip and swipe through them, and import or export them as JSON.'}]
 };
 const PUBLISHED = {
+  '1.5.16': '2026-11-21T15:49:01Z',
+  '1.5.15': '2026-11-21T15:49:01Z',
   '1.5.14': '2026-11-21T15:43:22Z',
   '1.5.13': '2026-11-21T15:38:59Z',
   '1.5.12': '2026-11-21T15:33:35Z',
@@ -248,9 +251,19 @@ async function show_me(entry, from_version, page_index) {
   toast('Here it is', back_to_list);
 }
 // A brief message, the same as Sift's. A small ring runs down over the time it shows. Undo also answers Ctrl+Z (Cmd+Z) while it shows, until something is typed.
+// Every Undo also goes on a stack for the session, so Ctrl+Z outside a text box undoes the newest one still waiting, long after its message has gone.
 let toast_el = null, toast_timer = null, toast_undo = null;
+const undo_stack = [], UNDO_STACK_MAX = 50;
 function hide_toast() { clearTimeout(toast_timer); toast_undo = null; if (toast_el) toast_el.classList.remove('show'); }
-addEventListener('keydown', key_event => { if (!toast_undo || (key_event.key || '').toLowerCase() !== 'z' || !(key_event.ctrlKey || key_event.metaKey) || key_event.shiftKey || key_event.altKey) return; key_event.preventDefault(); key_event.stopImmediatePropagation(); toast_undo(); }, true);
+function is_typing_field(target_el) { return !!(target_el && target_el.matches && target_el.matches('input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=button]), textarea, select, [contenteditable]') && !target_el.readOnly); }
+addEventListener('keydown', key_event => {
+  if ((key_event.key || '').toLowerCase() !== 'z' || !(key_event.ctrlKey || key_event.metaKey) || key_event.shiftKey || key_event.altKey) return;
+  const undo_item = toast_undo ? null : (!is_typing_field(key_event.target) && !document.querySelector('dialog[open]') && undo_stack[undo_stack.length - 1]);
+  if (!toast_undo && !undo_item) return;
+  key_event.preventDefault(); key_event.stopImmediatePropagation();
+  if (toast_undo) return toast_undo();
+  undo_item.run(); toast('Undone: ' + undo_item.label, {ms: 2600});
+}, true);
 addEventListener('beforeinput', () => { if (!toast_undo) return; toast_undo = null; if (toast_el) toast_el.querySelectorAll('kbd').forEach(key_el => key_el.remove()); }, true);
 function toast(toast_text, toast_options) {
   const {action, on_action, ms = action ? 6000 : 1600} = toast_options || {};
@@ -262,9 +275,10 @@ function toast(toast_text, toast_options) {
   toast_undo = null;
   if (action) {
     let is_done = false;
-    const run_action = () => { if (is_done) return; is_done = true; hide_toast(); on_action(); };
+    const undo_item = action === 'Undo' ? {label: toast_text} : null;
+    const run_action = () => { if (is_done) return; is_done = true; if (undo_item) undo_stack.splice(undo_stack.indexOf(undo_item), 1); if (toast_undo === run_action) hide_toast(); on_action(); };
     const button_el = el('button', {type: 'button', onclick: run_action}, action);
-    if (action === 'Undo') { button_el.appendChild(el('kbd', {}, /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent) ? '⌘Z' : 'Ctrl+Z')); toast_undo = run_action; }
+    if (undo_item) { button_el.appendChild(el('kbd', {}, /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent) ? '⌘Z' : 'Ctrl+Z')); toast_undo = run_action; undo_item.run = run_action; undo_stack.push(undo_item); if (undo_stack.length > UNDO_STACK_MAX) undo_stack.shift(); }
     toast_el.appendChild(button_el);
   }
   toast_el.classList.add('show');
