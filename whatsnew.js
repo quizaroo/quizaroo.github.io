@@ -8,6 +8,7 @@
 // No `at`: no Show me. PUBLISHED holds when each version went live (UTC), filled in by tools/publish.py.
 const FIRST_SET = ['.set-row .row-title'];
 const WHATS_NEW = {
+  '1.5.15': [{text: 'New users now start with one demo set, Demo set: Ukrainian days of the week, in place of the full collection. Sets you already have are not touched.'}],
   '1.5.14': [{text: 'Paste from Quizlet can add the cards to a set you already have: pick it under Add to. Cards already in that set are left out, and Undo (or Ctrl+Z) takes them back out.', go: '#/library', at: '#more-button'}],
   '1.5.13': [{text: 'Paste from Quizlet now picks up the set\'s name, not the banner at the top of Quizlet\'s page. Fixed.'}],
   '1.5.12': [{text: 'Paste a Quizlet set: copy the set page, paste in Import. On Quizlet, select all and copy the set\'s page, then choose Paste from Quizlet in Your Library\'s ⋯ menu. Quizaroo only reads what you paste.', go: '#/library', at: '#more-button'}],
