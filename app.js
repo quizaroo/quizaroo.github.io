@@ -269,6 +269,7 @@ function view_edit(card_set, is_new) {
     pasted_text.split(/\r?\n/).forEach(pasted_line => { const split_parts = pasted_line.includes('\t') ? pasted_line.split('\t') : pasted_line.split(' - '); if (split_parts[0].trim()) draft_cards.push({term: split_parts[0].trim(), definition: split_parts.slice(1).join(' - ').trim()}); });
     draw_rows();
   }
+  function scan_add() { scan_photo(draft_cards.filter(draft_card => !is_blank(draft_card)), scanned_cards => { while (draft_cards.length && is_blank(draft_cards[draft_cards.length - 1])) draft_cards.pop(); scanned_cards.forEach(scanned_card => draft_cards.push(scanned_card)); draw_rows(); error_el.hidden = true; toast(scanned_cards.length + (scanned_cards.length === 1 ? ' card added' : ' cards added'), {ms: 2500}); }); }
   function current_edits() { return JSON.stringify([title_input_el.value.trim(), description_input_el.value.trim(), created_input_el.value, picked_colour, draft_cards.filter(draft_card => !is_blank(draft_card))]); }
   function save_edits() {
     const kept_cards = draft_cards.filter(draft_card => !is_blank(draft_card));
@@ -283,7 +284,7 @@ function view_edit(card_set, is_new) {
     el('div', {class: 'ruled'}, el('div', {class: 'detail-row'}, el('div', {class: 'line-margin'}, 'Name'), title_input_el), el('div', {class: 'detail-row'}, el('div', {class: 'line-margin'}, 'About'), description_input_el), el('div', {class: 'detail-row'}, el('div', {class: 'line-margin'}, 'Created'), created_input_el), el('div', {class: 'detail-row'}, el('div', {class: 'line-margin'}, 'Colour'), colour_pick_el)),
     el('h2', {class: 'edit-heading'}, 'Cards'), el('div', {class: 'muted'}, 'Press Tab to move from term to definition to the next term. A new row appears as you type. Press and hold a card to move it, or let go to select it.'),
     rows_el, error_el,
-    el('div', {class: 'button-row'}, el('button', {class: 'primary', onclick: save_edits}, 'Save'), el('button', {onclick: bulk_add}, 'Paste list'),
+    el('div', {class: 'button-row'}, el('button', {class: 'primary', onclick: save_edits}, 'Save'), el('button', {class: 'scan-button', onclick: scan_add}, '📷 Scan photo'), el('button', {onclick: bulk_add}, 'Paste list'),
       el('button', {onclick: () => { draft_cards.forEach(draft_card => { const swapped_term = draft_card.term; draft_card.term = draft_card.definition; draft_card.definition = swapped_term; }); draw_rows(); }}, 'Swap all sides'))
   ]);
   view_el.querySelectorAll('textarea').forEach(fit_height);
