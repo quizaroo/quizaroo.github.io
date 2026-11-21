@@ -8,6 +8,7 @@
 // No `at`: no Show me. PUBLISHED holds when each version went live (UTC), filled in by tools/publish.py.
 const FIRST_SET = ['.set-row .row-title'];
 const WHATS_NEW = {
+  '1.5.19': [{text: 'Whole keyboard now looks like the real one for the language (AZERTY, QWERTZ, ЙЦУКЕН…), keys staggered, bumps on the F and J keys, and any accents it lacks in a row above. A switch on the keyboard flips between the extra letters and the whole keyboard.'}, {text: 'The Language sheet, from a set\'s page or Your Library, also sets the on-screen keyboard: Extra letters, Whole keyboard or Off.', go: '#/library', at: '.set-rows'}],
   '1.5.18': [{text: 'Typing an answer in another language? An on-screen keyboard shows under it: the letters your keyboard lacks (é, ç, ß…), or the whole Ukrainian keyboard. On a computer, type Ukrainian on your own keys, each where it sits on a Ukrainian keyboard.', go: '#/settings', at: '.typing-section', more: 'Choose Extra letters, Whole keyboard or Off in Settings > Typing.'}, {text: 'Each set\'s language is found by itself, on your device. To change it, press the ⌨ language on the set\'s page, or select sets in Your Library and press Language.', go: '#/library', at: '.set-rows'}],
   '1.5.17': [{text: 'Coming back after an hour or more without a sync account? A welcome page shows that your sets are only on this device, and how to back them up. Not now shows where to find it later: Settings > Sync.'}, {text: 'Creating a sync account: a big red reminder to check your Spam or Junk folder for the code.'}],
   '1.5.16': [{text: 'Merge sets: in Your Library, press and hold to select two or more sets, then Merge. Pick which name to keep, or type a new one.', go: '#/library', at: '.set-rows'}, {text: 'Ctrl+Z (Cmd+Z) now undoes a delete, reset, merge or paste even after its Undo message has gone, newest first.'}],
@@ -144,6 +145,7 @@ const WHATS_NEW = {
   '1.0.00': [{text: 'Open Flashcards goes live: make sets, flip and swipe through them, and import or export them as JSON.'}]
 };
 const PUBLISHED = {
+  '1.5.19': '2026-11-21T17:09:02Z',
   '1.5.18': '2026-11-21T16:31:07Z',
   '1.5.17': '2026-11-21T16:08:10Z',
   '1.5.16': '2026-11-21T15:49:01Z',
