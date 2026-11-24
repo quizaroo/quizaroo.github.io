@@ -105,7 +105,8 @@ function answer_keyboard(card_set, answer_side, input_el) {
   function key_button(char_text, key_code, is_home) { const key_el = el('button', {type: 'button', class: 'kb-key' + (is_home ? ' kb-home' : ''), onclick: () => type_text(char_text)}, char_text); if (key_code && !is_phone) key_el.appendChild(el('span', {class: 'kb-hint', 'aria-hidden': 'true'}, physical_label(key_code))); key_els.set(char_text, key_el); return key_el; }
   const shift_el = el('button', {type: 'button', class: 'kb-key kb-wide kb-shift', 'aria-label': 'Capital letter', onclick: () => set_shift(!shift_on)}, '⇧'), delete_el = el('button', {type: 'button', class: 'kb-key kb-wide', 'aria-label': 'Delete', onclick: () => type_text('\b')}, '⌫');
   // Phones have no arrow keys while this keyboard stands in for theirs: ← and →, in a row of their own under the space bar, move the cursor one letter.
-  function arrow_key(step_by) { return el('button', {type: 'button', class: 'kb-key kb-arrow', 'aria-label': step_by < 0 ? 'Cursor left' : 'Cursor right', onclick: () => { const caret_at = Math.max(0, Math.min(input_el.value.length, (step_by < 0 ? input_el.selectionStart : input_el.selectionEnd) + (input_el.selectionStart === input_el.selectionEnd ? step_by : 0))); input_el.setSelectionRange(caret_at, caret_at); }}, step_by < 0 ? '←' : '→'); }
+  function move_caret(step_by) { const caret_at = Math.max(0, Math.min(input_el.value.length, (step_by < 0 ? input_el.selectionStart : input_el.selectionEnd) + (input_el.selectionStart === input_el.selectionEnd ? step_by : 0))); input_el.setSelectionRange(caret_at, caret_at); }
+  function arrow_key(step_by) { return el('button', {type: 'button', class: 'kb-key kb-arrow', 'aria-label': step_by < 0 ? 'Cursor left' : 'Cursor right', onclick: () => move_caret(step_by)}, step_by < 0 ? '←' : '→'); }
   const open_el = el('button', {type: 'button', class: 'kb-open', onclick: () => fold(false)}, '⌨ ' + (language_item.cyrillic ? language_item.rows[0].slice(0, 6).toUpperCase() : language_item.extras.slice(0, 4)));
   // Above the keys: the switch between extra letters and the country's keyboard (named by its first six letters, e.g. AZERTY), and ⌨ to hide it.
   const layout_name = language_item.rows[0].slice(0, 6).toUpperCase();
@@ -118,6 +119,19 @@ function answer_keyboard(card_set, answer_side, input_el) {
   const longest_row = Math.max(0, ...letter_rows.map((row_text, row_index) => Array.from(row_text).length + (is_phone ? [0, 0.5, 1][row_index] : [1.6, 0.4, 1.6][row_index])));
   const keys_el = el('div', {class: 'kb-keys', style: is_whole ? '--cols:' + longest_row : ''}, accent_el, ...letter_els, is_whole ? el('div', {class: 'kb-row kb-bottom'}, ...(is_phone ? [shift_el] : []), el('button', {type: 'button', class: 'kb-key kb-space', 'aria-label': 'Space', onclick: () => type_text(' ')}, ''), ...(is_phone ? [delete_el] : [])) : null, is_whole && is_phone ? el('div', {class: 'kb-row kb-arrows'}, arrow_key(-1), arrow_key(1)) : null);
   holder_el.append(head_el, keys_el, open_el);
+  // Like the iPhone's keyboard: press and hold anywhere on the keys, then slide left or right to move the cursor. Letting go types nothing. The page doesn't scroll or select text under the keys.
+  let hold_timer = 0, hold_start = null, is_sliding = false, slid_by = 0;
+  keys_el.addEventListener('pointerdown', press_event => { hold_start = {x: press_event.clientX, y: press_event.clientY, id: press_event.pointerId}; is_sliding = false; slid_by = 0; clearTimeout(hold_timer); hold_timer = setTimeout(() => { is_sliding = true; holder_el.classList.add('is-sliding'); try { keys_el.setPointerCapture(hold_start.id); } catch (capture_err) {} if (navigator.vibrate) navigator.vibrate(8); }, 380); });
+  keys_el.addEventListener('pointermove', move_event => {
+    if (!hold_start) return;
+    if (!is_sliding) { if (Math.hypot(move_event.clientX - hold_start.x, move_event.clientY - hold_start.y) > 12) clearTimeout(hold_timer); return; }
+    const steps_now = Math.trunc((move_event.clientX - hold_start.x) / 14); while (slid_by < steps_now) { move_caret(1); slid_by++; } while (slid_by > steps_now) { move_caret(-1); slid_by--; }
+  });
+  function end_hold() { clearTimeout(hold_timer); hold_start = null; holder_el.classList.remove('is-sliding'); setTimeout(() => { is_sliding = false; }, 0); }
+  ['pointerup', 'pointercancel'].forEach(event_name => keys_el.addEventListener(event_name, end_hold));
+  keys_el.addEventListener('click', click_event => { if (is_sliding) { click_event.preventDefault(); click_event.stopPropagation(); } }, true);
+  keys_el.addEventListener('touchmove', touch_event => touch_event.preventDefault(), {passive: false});
+  keys_el.addEventListener('contextmenu', menu_event => menu_event.preventDefault());
   function switch_mode(mode_value) { app_state.keyboard_mode = mode_value; save_state(); const fresh_el = answer_keyboard(card_set, answer_side, input_el); if (fresh_el) holder_el.replaceWith(fresh_el); keep_question_in_view(); refocus(); }
   function refocus() { if (document.activeElement === input_el) { input_el.blur(); } input_el.focus({preventScroll: true}); }
   // On a phone, a whole keyboard replaces the phone's own; folded, the phone's comes back.
