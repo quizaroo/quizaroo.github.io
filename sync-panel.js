@@ -225,20 +225,21 @@ function sync_section() {
     // On a server that confirms addresses, Create account sends a code first, and the same button then finishes with it.
     const email_code_el = text_input('email_code', {inputmode: 'numeric', autocomplete: 'one-time-code', maxlength: '8'}), email_code_field = field('Code from your email', email_code_el), resend_button = el('button', {type: 'button'});
     const spam_callout_el = el('div', {class: 'spam-callout', role: 'alert'}, el('strong', {}, 'No email? Check your spam folder'), 'The code often lands in Spam or Junk. Look there before asking for a new one.');
-    email_code_field.hidden = true; resend_button.hidden = true; spam_callout_el.hidden = true; resend_button.textContent = 'Send a new code';
+    const approval_note_el = sync_note();
+    email_code_field.hidden = true; resend_button.hidden = true; spam_callout_el.hidden = true; approval_note_el.hidden = true; resend_button.textContent = 'Send a new code';
     let code_sent_to = '';
     const send_code = async show_message => {
       show_message('Sending a code…');
       await sync_engine.request_signup_code(chosen_server(), email_el.value.trim());
       code_sent_to = email_el.value.trim().toLowerCase();
-      email_code_field.hidden = false; resend_button.hidden = false; spam_callout_el.hidden = false;
+      email_code_field.hidden = false; resend_button.hidden = false; spam_callout_el.hidden = false; approval_note_el.hidden = false;
       create_button.disabled = false; create_button.textContent = 'Finish creating account';
       email_code_el.value = ''; email_code_el.focus();
       show_message('Check your email for a code from Quizaroo. It lasts 15 minutes.');
       show_spam_warning(code_sent_to);
     };
     resend_button.onclick = button_work(resend_button, message_el, send_code);
-    email_el.addEventListener('input', () => { if (email_el.value.trim().toLowerCase() === code_sent_to || !code_sent_to) return; code_sent_to = ''; email_code_field.hidden = true; resend_button.hidden = true; spam_callout_el.hidden = true; create_button.textContent = 'Create account'; });
+    email_el.addEventListener('input', () => { if (email_el.value.trim().toLowerCase() === code_sent_to || !code_sent_to) return; code_sent_to = ''; email_code_field.hidden = true; resend_button.hidden = true; spam_callout_el.hidden = true; approval_note_el.hidden = true; create_button.textContent = 'Create account'; });
     create_button.addEventListener('click', button_work(create_button, message_el, async show_message => {
       if (!email_el.value.trim() || !password_el.value) return show_message('Enter your email and password');
       if (password_el.value.length < 10) return show_message('Use at least 10 characters');
@@ -256,13 +257,13 @@ function sync_section() {
       await sync_engine.sign_in(chosen_server(), email_el.value.trim(), password_el.value);
       offer_to_save_login(email_el.value.trim(), password_el.value);
       await sync_engine.start(); draw();
-    })(); }}, server_field_el, field('Email', email_el), field('Password', password_el), email_code_field, spam_callout_el, reach_el, el('div', {class: 'button-row'}, sign_in_button, create_button, resend_button, el('button', {type: 'button', onclick: () => { recover_form.hidden = !recover_form.hidden; }}, 'Forgot password?'), message_el));
+    })(); }}, server_field_el, field('Email', email_el), field('Password', password_el), email_code_field, spam_callout_el, approval_note_el, reach_el, el('div', {class: 'button-row'}, sign_in_button, create_button, resend_button, el('button', {type: 'button', onclick: () => { recover_form.hidden = !recover_form.hidden; }}, 'Forgot password?'), message_el));
     const reason_el = sync_status.error ? el('p', {class: 'sync-out-reason'}, sync_status.error) : null;
     body_el.replaceChildren(...[reason_el, el('p', {class: 'muted'}, 'Sync keeps your phone and laptop in step. Everything is encrypted here first; the server only stores scrambled copies.'), sync_note(), sign_in_form, cert_el, help_el, recover_form, el('div', {class: 'button-row'}, own_server_button)].filter(Boolean));
     check_server();
   }
   function sync_note() {
-    return el('p', {class: 'sync-note'}, el('b', {}, 'This app is free.'), ' Sync is open to you too, but please email ', el('a', {href: 'mailto:' + CONTACT_EMAIL + '?subject=Quizaroo%20sync'}, CONTACT_EMAIL), " to keep using it after 24 hours. Otherwise your account may be deleted. You won't lose anything if it is: your data stays on your device, and it just stops syncing.");
+    return el('p', {class: 'sync-note'}, el('b', {}, 'Sync is free to try for 24 hours.'), ' After that, accounts are kept by approval: email ', el('a', {href: 'mailto:' + CONTACT_EMAIL + '?subject=Quizaroo%20sync'}, CONTACT_EMAIL), " and I'll keep yours. If I don't, it stops syncing, but nothing is lost from your device.");
   }
   function draw() { was_signed_in = !!sync_engine.signed_in(); if (was_signed_in) draw_signed_in(); else draw_signed_out(); }
   function paint_facts(sync_status) {
