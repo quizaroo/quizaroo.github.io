@@ -1,5 +1,5 @@
 // The pill at the top right and the Sync section of Settings: sign in (or create the account on a fresh server), then it runs by itself.
-const SYNC_FORM_KEY = 'open-flashcards:sync-form', PANELS_KEY = 'open-flashcards:settings-open', CONTACT_EMAIL = 'hazymat@gmail.com';
+const SYNC_FORM_KEY = 'open-flashcards:sync-form', PANELS_KEY = 'open-flashcards:settings-open';
 // An expandable panel in Settings: a title and a basic status while closed. Whether it's open is remembered on this device.
 function settings_panel(panel_key, title_text, status_el, panel_attributes, ...body_nodes) {
   let open_panels = {};
@@ -263,7 +263,7 @@ function sync_section() {
     check_server();
   }
   function sync_note() {
-    return el('p', {class: 'sync-note'}, el('b', {}, 'Sync is free to try for 24 hours.'), ' After that, accounts are kept by approval: email ', el('a', {href: 'mailto:' + CONTACT_EMAIL + '?subject=Quizaroo%20sync'}, CONTACT_EMAIL), " and I'll keep yours. If I don't, it stops syncing, but nothing is lost from your device.");
+    return el('p', {class: 'sync-note'}, el('b', {}, 'Sync is free for family and friends.'), " Mat may remove accounts he doesn't recognise. If that happens, nothing is lost: your sets stay on this device, they just stop syncing.");
   }
   function draw() { was_signed_in = !!sync_engine.signed_in(); if (was_signed_in) draw_signed_in(); else draw_signed_out(); }
   function paint_facts(sync_status) {
