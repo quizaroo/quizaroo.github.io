@@ -321,11 +321,22 @@ function view_edit(card_set, is_new) {
     on_paint: is_selecting => rows_el.querySelectorAll('textarea').forEach(textarea_el => { textarea_el.readOnly = is_selecting; })});
   function add_blank_row() { if (draft_cards.length && is_blank(draft_cards[draft_cards.length - 1])) return; const blank_card = {term: '', definition: ''}; draft_cards.push(blank_card); make_row(blank_card); }
   function draw_rows() { rows_el.replaceChildren(); draft_cards.forEach(make_row); add_blank_row(); card_selection.paint(); }
+  // Paste list: a sheet with a big box, one card per line (term, Tab or " - ", definition); counts cards as you paste.
   function bulk_add() {
-    const pasted_text = prompt('Paste one card per line: term, then a Tab (or " - "), then definition.'); if (!pasted_text) return;
-    while (draft_cards.length && is_blank(draft_cards[draft_cards.length - 1])) draft_cards.pop();
-    pasted_text.split(/\r?\n/).forEach(pasted_line => { const split_parts = pasted_line.includes('\t') ? pasted_line.split('\t') : pasted_line.split(' - '); if (split_parts[0].trim()) draft_cards.push({term: split_parts[0].trim(), definition: split_parts.slice(1).join(' - ').trim()}); });
-    draw_rows();
+    const parse_lines = pasted_text => pasted_text.split(/\r?\n/).map(pasted_line => { const split_parts = pasted_line.includes('\t') ? pasted_line.split('\t') : pasted_line.split(' - '); return {term: split_parts[0].trim(), definition: split_parts.slice(1).join(' - ').trim()}; }).filter(parsed_card => parsed_card.term);
+    const dialog_el = el('dialog', {class: 'whatsnew-sheet paste-list-sheet'}), count_el = el('div', {class: 'muted paste-list-count'}), add_button_el = el('button', {class: 'primary', disabled: 'disabled', onclick: add_pasted}, 'Add cards');
+    const paste_box_el = el('textarea', {class: 'paste-list-box', rows: 12, spellcheck: 'false', placeholder: 'кіт - cat\nпес - dog\nптах - bird', 'aria-label': 'Paste your list here', oninput: show_count});
+    dialog_el.append(el('div', {class: 'whatsnew-head'}, el('h2', {}, 'Paste list'), el('button', {onclick: () => dialog_el.close()}, 'Cancel')),
+      el('div', {class: 'muted'}, 'One card per line: the term, then a Tab or " - ", then the definition.'), paste_box_el, count_el, el('div', {class: 'button-row'}, add_button_el));
+    dialog_el.addEventListener('close', () => dialog_el.remove());
+    document.body.appendChild(dialog_el); dialog_el.showModal(); paste_box_el.focus();
+    function show_count() { const card_count = parse_lines(paste_box_el.value).length; count_el.textContent = card_count ? card_count + (card_count === 1 ? ' card' : ' cards') : ''; add_button_el.disabled = !card_count; add_button_el.textContent = card_count ? 'Add ' + count_el.textContent : 'Add cards'; }
+    function add_pasted() {
+      const pasted_cards = parse_lines(paste_box_el.value); if (!pasted_cards.length) return;
+      while (draft_cards.length && is_blank(draft_cards[draft_cards.length - 1])) draft_cards.pop();
+      pasted_cards.forEach(pasted_card => draft_cards.push(pasted_card)); dialog_el.close(); draw_rows(); error_el.hidden = true;
+      toast(pasted_cards.length + (pasted_cards.length === 1 ? ' card added' : ' cards added'), {ms: 2500});
+    }
   }
   function scan_add() { scan_photo(draft_cards.filter(draft_card => !is_blank(draft_card)), scanned_cards => { while (draft_cards.length && is_blank(draft_cards[draft_cards.length - 1])) draft_cards.pop(); scanned_cards.forEach(scanned_card => draft_cards.push(scanned_card)); draw_rows(); error_el.hidden = true; toast(scanned_cards.length + (scanned_cards.length === 1 ? ' card added' : ' cards added'), {ms: 2500}); }); }
   function current_edits() { return JSON.stringify([title_input_el.value.trim(), description_input_el.value.trim(), created_input_el.value, picked_colour, draft_cards.filter(draft_card => !is_blank(draft_card))]); }
