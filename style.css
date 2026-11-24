@@ -392,7 +392,7 @@ body.is-carrying .select-bar { opacity: 0; pointer-events: none; }
 .type-buttons { display: flex; gap: 8px; }
 .hint-worth:empty { display: none; }
 /* On-screen keyboard under a typed answer: the extra letters as one strip, or the country's whole keyboard in a casing, keys staggered like a real one. Folded, it's one small button. */
-.answer-keyboard { display: grid; justify-items: center; gap: 6px; width: 100%; max-width: 680px; }
+.answer-keyboard { display: grid; justify-items: center; gap: 6px; width: 100%; max-width: 680px; min-width: 0; }
 .kb-head { display: flex; justify-content: flex-end; align-items: center; gap: 8px; width: 100%; }
 .kb-switch { display: flex; margin-right: auto; border: 1px solid var(--glass-border); border-radius: 999px; overflow: hidden; background: var(--glass); }
 .kb-switch button { padding: 3px 12px; font-size: 13px; color: var(--muted); background: none; border: 0; border-radius: 0; }
@@ -401,9 +401,9 @@ body.is-carrying .select-bar { opacity: 0; pointer-events: none; }
 .kb-hide { padding: 3px 10px; font-size: 13px; color: var(--muted); background: none; border: 1px solid var(--glass-border); border-radius: 999px; }
 .kb-keys { --key: 44px; display: grid; gap: 6px; }
 .kb-row { display: flex; justify-content: center; flex-wrap: wrap; gap: 5px; }
-.kb-key { position: relative; flex: 0 0 var(--key); min-width: 0; height: 44px; padding: 0 2px; font-size: 20px; line-height: 1; color: var(--text); background: var(--glass); border: 1px solid var(--glass-border); border-radius: 9px; box-shadow: 0 2px 0 var(--glass-border); }
+.kb-key { position: relative; flex: 0 0 var(--key); width: var(--key); min-width: 0; box-sizing: border-box; height: 44px; padding: 0 2px; font-size: 20px; line-height: 1; color: var(--text); background: var(--glass); border: 1px solid var(--glass-border); border-radius: 9px; box-shadow: 0 2px 0 var(--glass-border); }
 .kb-key:active, .kb-key.is-pressed { background: color-mix(in srgb, var(--accent) 22%, var(--glass)); border-color: var(--accent); box-shadow: none; transform: translateY(1px); }
-.kb-wide { flex-basis: calc(var(--key) * 1.6 + 2px); font-size: 17px; color: var(--muted); }
+.kb-wide { flex-basis: calc(var(--key) * 1.6 + 2px); width: calc(var(--key) * 1.6 + 2px); font-size: 17px; color: var(--muted); }
 .is-shifted .kb-shift { color: var(--accent); border-color: var(--accent); }
 /* The bumps on F and J (and their places on other keyboards), so you can find home without looking. */
 .kb-home::after { content: ""; position: absolute; left: 50%; bottom: 6px; width: 10px; height: 2px; margin-left: -5px; border-radius: 2px; background: currentColor; opacity: .55; }
@@ -414,15 +414,23 @@ body.is-carrying .select-bar { opacity: 0; pointer-events: none; }
 .answer-keyboard.is-extra .kb-keys { --key: 38px; }
 .answer-keyboard.is-extra .kb-key { height: 40px; }
 .answer-keyboard.is-extra .kb-row { gap: 4px; }
-.answer-keyboard.is-whole .kb-keys { --key: min(46px, calc((min(680px, 100vw - 32px) - 16px - (var(--cols) - 1) * 5px) / var(--cols))); justify-items: start; padding: 8px; background: color-mix(in srgb, var(--text) 5%, transparent); border: 1px solid var(--glass-border); border-radius: 14px; }
+.answer-keyboard.is-whole .kb-keys { --key: min(46px, calc((min(680px, 100vw - 32px) - 16px - (var(--cols) - 1) * 5px) / var(--cols))); justify-items: start; box-sizing: border-box; width: calc(var(--key) * var(--cols) + (var(--cols) - 1) * 5px + 16px); max-width: 100%; padding: 8px; background: color-mix(in srgb, var(--text) 5%, transparent); border: 1px solid var(--glass-border); border-radius: 14px; }
 .answer-keyboard.is-whole .kb-row { flex-wrap: nowrap; justify-content: flex-start; }
 .answer-keyboard.is-whole .kb-row-1 { padding-left: calc(var(--key) * .4); }
 .answer-keyboard.is-whole .kb-accents { flex-wrap: wrap; width: 100%; justify-content: center; margin-bottom: 6px; padding-bottom: 10px; border-bottom: 1px dashed var(--glass-border); }
 .answer-keyboard.is-whole .kb-bottom { justify-content: center; width: 100%; }
-.kb-space { flex: 0 0 calc(var(--key) * 5.5); }
+.kb-space { flex: 0 0 calc(var(--key) * 5.5); width: calc(var(--key) * 5.5); }
 .answer-keyboard.is-whole .kb-accents { gap: 3px; }
-.answer-keyboard.is-whole .kb-accents .kb-key { flex: 0 1 calc(var(--key) * .68); height: 36px; font-size: 17px; border-radius: 7px; }
-@media (pointer: coarse) { .answer-keyboard.is-whole .kb-keys { padding: 6px; gap: 5px; } .answer-keyboard.is-whole .kb-row { gap: 4px; } .answer-keyboard.is-whole .kb-row-1 { padding-left: calc(var(--key) * .5); } .answer-keyboard.is-whole .kb-row-2 { padding-left: calc(var(--key) * 1); } .kb-key { height: 42px; font-size: 18px; border-radius: 7px; } }
+.answer-keyboard.is-whole .kb-accents .kb-key { flex: 0 1 calc(var(--key) * .68); width: calc(var(--key) * .68); height: 36px; font-size: 17px; border-radius: 7px; }
+/* Phone: the whole keyboard runs edge to edge, keys as big as the screen allows (like the phone's own). */
+@media (pointer: coarse) {
+  .answer-keyboard.is-whole .kb-keys { --key: calc((100vw - 6px - (var(--cols) - 1) * 4px) / var(--cols)); width: 100vw; max-width: 100vw; margin-inline: calc(50% - 50vw); padding: 6px 3px 8px; gap: 8px; border-width: 1px 0; border-radius: 0; }
+  .answer-keyboard.is-whole .kb-row { gap: 4px; }
+  .answer-keyboard.is-whole .kb-row-1 { padding-left: calc(var(--key) * .5); }
+  .answer-keyboard.is-whole .kb-row-2 { padding-left: calc(var(--key) * 1); }
+  .kb-key { height: 50px; font-size: 22px; border-radius: 7px; }
+  .answer-keyboard.is-whole .kb-accents .kb-key { height: 42px; font-size: 19px; }
+}
 @media (max-width: 560px) { .answer-keyboard.is-extra .kb-keys { --key: 34px; } .answer-keyboard.is-extra .kb-key { height: 38px; } }
 .answer-keyboard.is-preview { justify-items: start; margin-top: 10px; pointer-events: none; }
 .answer-keyboard.is-preview .kb-row { justify-content: flex-start; }
