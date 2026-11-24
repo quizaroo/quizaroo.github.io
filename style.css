@@ -420,6 +420,8 @@ body.is-carrying .select-bar { opacity: 0; pointer-events: none; }
 .answer-keyboard.is-whole .kb-accents { flex-wrap: wrap; width: 100%; justify-content: center; margin-bottom: 6px; padding-bottom: 10px; border-bottom: 1px dashed var(--glass-border); }
 .answer-keyboard.is-whole .kb-bottom { justify-content: center; width: 100%; }
 .kb-space { flex: 0 0 calc(var(--key) * 5.5); width: calc(var(--key) * 5.5); }
+.kb-arrow { flex: 0 0 calc(var(--key) * 1.2); width: calc(var(--key) * 1.2); font-size: 18px; color: var(--muted); }
+.answer-keyboard.is-whole .kb-bottom:has(.kb-arrow) .kb-space { flex-basis: calc(var(--key) * 4.5); width: calc(var(--key) * 4.5); }
 .answer-keyboard.is-whole .kb-accents { gap: 3px; }
 .answer-keyboard.is-whole .kb-accents .kb-key { flex: 0 1 calc(var(--key) * .68); width: calc(var(--key) * .68); height: 36px; font-size: 17px; border-radius: 7px; }
 /* Phone: the whole keyboard runs edge to edge, keys as big as the screen allows (like the phone's own). */
