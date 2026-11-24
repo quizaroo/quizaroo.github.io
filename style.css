@@ -399,7 +399,11 @@ body.is-carrying .select-bar { opacity: 0; pointer-events: none; }
 .kb-switch button + button { border-left: 1px solid var(--glass-border); }
 .kb-switch button[aria-pressed="true"] { color: inherit; font-weight: 600; background: color-mix(in srgb, var(--accent) 16%, transparent); }
 .kb-hide { padding: 3px 10px; font-size: 13px; color: var(--muted); background: none; border: 1px solid var(--glass-border); border-radius: 999px; }
-.kb-keys { --key: 44px; display: grid; gap: 6px; }
+.kb-keys { --key: 44px; display: grid; gap: 6px; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.kb-keys * { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+/* Holding to slide the cursor: the letters fade, like the iPhone's trackpad mode. */
+.answer-keyboard.is-sliding .kb-key { color: transparent; }
+.answer-keyboard.is-sliding .kb-key * { visibility: hidden; }
 .kb-row { display: flex; justify-content: center; flex-wrap: wrap; gap: 5px; }
 .kb-key { position: relative; flex: 0 0 var(--key); width: var(--key); min-width: 0; box-sizing: border-box; height: 44px; padding: 0 2px; font-size: 20px; line-height: 1; color: var(--text); background: var(--glass); border: 1px solid var(--glass-border); border-radius: 9px; box-shadow: 0 2px 0 var(--glass-border); }
 .kb-key:active, .kb-key.is-pressed { background: color-mix(in srgb, var(--accent) 22%, var(--glass)); border-color: var(--accent); box-shadow: none; transform: translateY(1px); }
