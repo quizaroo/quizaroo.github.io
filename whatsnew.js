@@ -8,6 +8,7 @@
 // No `at`: no Show me. PUBLISHED holds when each version went live (UTC), filled in by tools/publish.py.
 const FIRST_SET = ['.set-row .row-title'];
 const WHATS_NEW = {
+  '1.5.24': [{text: 'On a phone, the whole on-screen keyboard has ← and → keys beside the space bar, to move the cursor back and forward through what you typed.'}],
   '1.5.23': [{text: 'Paste list, in a set\'s editor, now opens a big box to paste your whole list into, and counts the cards as you paste, in place of the browser\'s one-line box.', go: '#/new', at: '.scan-button'}],
   '1.5.22': [{text: 'Settings > Sync now says sync is free for family and friends.', go: '#/settings', at: '#sync-section'}],
   '1.5.21': [{text: 'Settings > Sync now says plainly that sync is free to try for 24 hours, then kept by approval, and says it again while you wait for your sign-up code.', go: '#/settings', at: '#sync-section'}],
@@ -149,6 +150,7 @@ const WHATS_NEW = {
   '1.0.00': [{text: 'Open Flashcards goes live: make sets, flip and swipe through them, and import or export them as JSON.'}]
 };
 const PUBLISHED = {
+  '1.5.24': '2026-11-24T19:46:55Z',
   '1.5.23': '2026-11-24T17:38:01Z',
   '1.5.22': '2026-11-24T16:11:16Z',
   '1.5.21': '2026-11-24T14:23:17Z',
