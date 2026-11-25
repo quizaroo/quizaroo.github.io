@@ -8,6 +8,7 @@
 // No `at`: no Show me. PUBLISHED holds when each version went live (UTC), filled in by tools/publish.py.
 const FIRST_SET = ['.set-row .row-title'];
 const WHATS_NEW = {
+  '1.5.27': [{text: 'Typing with Hint: once every underline is filled, the blinking cursor stays after the last letter instead of disappearing. Fixed.'}],
   '1.5.26': [{text: 'On-screen keyboard: press and hold anywhere on the keys, then slide left or right to move the cursor, like on an iPhone. Holding a key no longer scrolls the page or selects text.'}],
   '1.5.25': [{text: 'The ← and → cursor keys now have a row of their own under the space bar, which is back to full width.'}],
   '1.5.24': [{text: 'On a phone, the whole on-screen keyboard has ← and → keys, to move the cursor back and forward through what you typed.'}],
@@ -152,6 +153,7 @@ const WHATS_NEW = {
   '1.0.00': [{text: 'Open Flashcards goes live: make sets, flip and swipe through them, and import or export them as JSON.'}]
 };
 const PUBLISHED = {
+  '1.5.27': '2026-11-25T16:21:27Z',
   '1.5.26': '2026-11-24T19:55:52Z',
   '1.5.25': '2026-11-24T19:54:57Z',
   '1.5.24': '2026-11-24T19:46:55Z',
