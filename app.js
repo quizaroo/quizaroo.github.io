@@ -2,7 +2,7 @@
 const STORAGE_KEY = 'open-flashcards:v1', THEME_KEY = 'open-flashcards:theme', STYLE_KEY = 'open-flashcards:style', view_button_el = document.getElementById('view-button'), DEMO_VERSION = 2, view_el = document.getElementById('view'), topbar_actions_el = document.getElementById('topbar-actions'), page_title_el = document.getElementById('page-title'), import_input_el = document.getElementById('import-file');
 // The same twelve soft hues as Sift. A set keeps the colour it was given (`colour`); until then its colour comes from its id, so it never changes.
 const TINTS = [['rose', '#ff9aa2'], ['coral', '#ffab91'], ['peach', '#ffc285'], ['butter', '#ffe27a'], ['lime', '#d4ef8a'], ['mint', '#9be7a8'], ['teal', '#86e3d0'], ['sky', '#8fd3ff'], ['periwinkle', '#a8b8ff'], ['lavender', '#c3a6ff'], ['orchid', '#f4a6e0'], ['sand', '#e3c9a8']];
-let app_state = load_state(), study_session = null, editor_has_changes = null, skip_next_route = false, last_list_hash = '#/';
+let app_state = load_state(), study_session = null, editor_has_changes = null, skip_next_route = false, last_list_hash = '#/library';
 
 function load_state() {
   try { const stored_state = JSON.parse(localStorage.getItem(STORAGE_KEY)); if (stored_state && Array.isArray(stored_state.sets)) { stored_state.sets = stored_state.sets.filter(card_set => card_set && card_set.id && Array.isArray(card_set.cards)); return stored_state; } } catch (storage_err) {}
@@ -21,7 +21,8 @@ function el(tag_name, attributes) {
 }
 // Breadcrumbs: the top title always starts from the left menu's item, with its icon. Each step but the last links back.
 function menu_crumb(nav_name, hash_text) { return {label: document.querySelector('.nav-item[data-nav="' + nav_name + '"]').textContent.trim(), hash: hash_text, nav_name}; }
-function library_trail(...later_crumbs) { return [menu_crumb('library', '#/library')].concat(later_crumbs); }
+// A set's pages lead back to where you opened it from: Home or Your Library.
+function library_trail(...later_crumbs) { return [last_list_hash === '#/' ? menu_crumb('home', '#/') : menu_crumb('library', '#/library')].concat(later_crumbs); }
 function set_trail(card_set, ...page_labels) { return library_trail(page_labels.length ? {label: card_set.title, hash: '#/set/' + card_set.id} : {label: card_set.title}, ...page_labels.map(page_label => ({label: page_label}))); }
 function draw_breadcrumbs(trail) {
   page_title_el.replaceChildren();
@@ -192,31 +193,36 @@ function open_merge_sheet(chosen_sets, on_merged) {
     toast(chosen_sets.length + ' sets merged into "' + merged_title + '"', {action: 'Undo', ms: 10000, on_action: () => { undo_merge(); route(); }});
   }
 }
-function set_row(card_set) {
+// One line per set: card count, title over its progress, the next thing to do. Home adds a short note (how long it's been, how close it is).
+function set_row(card_set, note_text) {
   return el('div', {class: 'set-row', style: tint_style(card_set)},
     el('div', {class: 'line-margin'}, el('span', {class: 'count-chip', title: card_set.cards.length + ' cards'}, card_set.cards.length)),
-    el('div', {class: 'row-body'}, el('a', {class: 'row-title', href: '#/set/' + card_set.id}, card_set.title), card_set.description ? el('span', {class: 'row-description'}, card_set.description) : null, date_chips(card_set), progress_meter(card_set)),
+    el('div', {class: 'row-body'}, el('a', {class: 'row-title', href: '#/set/' + card_set.id}, card_set.title), note_text ? el('span', {class: 'row-note'}, note_text) : null, progress_meter(card_set)),
     study_pill(card_set));
 }
-function set_tile(card_set) {
-  return el('div', {class: 'tile', style: tint_style(card_set)},
-    el('div', {class: 'tile-band'}, el('a', {class: 'row-title', href: '#/set/' + card_set.id}, card_set.title)),
-    el('div', {class: 'tile-lines'}, card_set.description ? el('span', {class: 'row-description'}, card_set.description) : null, progress_meter(card_set),
-      el('div', {class: 'tile-foot'}, el('span', {class: 'date-chips'}, el('span', {class: 'date-chip'}, el('b', {}, card_set.cards.length), 'cards'), ...date_chips(card_set).childNodes), study_pill(card_set))));
-}
+// Home: the day streak, then what to do next. Each set shows up once, in the first group it fits.
 function view_home() {
-  const WEEK_MS = 7 * 86400000, shown_ids = new Set(), cards_total = app_state.sets.reduce((card_total, card_set) => card_total + card_set.cards.length, 0), studied_this_week = app_state.sets.filter(card_set => card_set.last_studied > Date.now() - WEEK_MS).length;
-  function top_sets(sort_value) { const top_list = app_state.sets.filter(card_set => sort_value(card_set) && !shown_ids.has(card_set.id)).sort((set_a, set_b) => String(sort_value(set_b)).localeCompare(String(sort_value(set_a)), undefined, {numeric: true})).slice(0, 4); top_list.forEach(card_set => shown_ids.add(card_set.id)); return top_list; }
-  function home_section(heading_text, card_sets) { return card_sets.length ? el('section', {class: 'home-section'}, el('h2', {}, heading_text), el('div', {class: 'tile-grid'}, ...card_sets.map(set_tile))) : null; }
-  const due_sets = top_sets(card_set => due_indexes(card_set).length), studied_sets = top_sets(card_set => card_set.last_studied), opened_sets = top_sets(card_set => card_set.last_opened), newest_sets = top_sets(card_set => card_set.created);
+  const DAY_MS = 86400000, shown_ids = new Set(), day_totals = all_days(), streak_now = streaks(day_totals).current_streak, today_date = local_day(day_key(Date.now())), monday_date = week_start(today_date);
+  const mastered_share = card_set => { const studyable_count = studyable_indexes(card_set).length; return studyable_count ? progress_counts(card_set).mastered / studyable_count : 0; };
+  const days_since = card_set => Math.floor((Date.now() - card_set.last_studied) / DAY_MS);
+  function pick_sets(fits_set, sort_rule) { const picked_sets = app_state.sets.filter(card_set => !shown_ids.has(card_set.id) && studyable_indexes(card_set).length && fits_set(card_set)).sort(sort_rule).slice(0, 4); picked_sets.forEach(card_set => shown_ids.add(card_set.id)); return picked_sets; }
+  function dash_section(icon_text, heading_text, card_sets, note_of) { return card_sets.length ? el('section', {class: 'home-section'}, el('h2', {}, el('span', {class: 'section-icon', 'aria-hidden': 'true'}, icon_text), heading_text), el('div', {class: 'ruled set-rows'}, ...card_sets.map(card_set => set_row(card_set, note_of(card_set))))) : null; }
+  const due_sets = pick_sets(card_set => due_indexes(card_set).length, (set_a, set_b) => due_indexes(set_b).length - due_indexes(set_a).length);
+  const close_sets = pick_sets(card_set => mastered_share(card_set) >= .7 && mastered_share(card_set) < 1, (set_a, set_b) => mastered_share(set_b) - mastered_share(set_a));
+  const dusty_sets = pick_sets(card_set => card_set.last_studied && days_since(card_set) >= 14, (set_a, set_b) => set_a.last_studied - set_b.last_studied);
+  const fresh_sets = pick_sets(card_set => !card_set.last_studied, (set_a, set_b) => (set_b.created || '').localeCompare(set_a.created || ''));
+  const due_total = app_state.sets.reduce((due_count, card_set) => due_count + due_indexes(card_set).length, 0), answered_today = answered_on(day_totals, today_date);
+  const week_dots = ['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((day_letter, day_index) => { const dot_date = add_days(monday_date, day_index), dot_state = dot_date > today_date ? 'is-later' : answered_on(day_totals, dot_date) ? 'is-done' : dot_date < today_date ? 'is-missed' : 'is-today'; return el('span', {class: 'week-dot ' + dot_state}, el('i', {}, dot_state === 'is-done' ? '✓' : ''), day_letter); });
   render([menu_crumb('home', '#/')], [plus_button()], app_state.sets.length ? [
-    el('div', {class: 'stat-strip'},
-      el('div', {class: 'stat', style: 'background:#8fd3ff'}, el('strong', {}, app_state.sets.length), 'sets'),
-      el('div', {class: 'stat', style: 'background:#ffe27a'}, el('strong', {}, cards_total), 'cards'),
-      el('div', {class: 'stat', style: 'background:#9be7a8'}, el('strong', {}, studied_this_week), 'studied this week')),
-    home_section('Ready to revise', due_sets), home_section('Recently studied', studied_sets), home_section('Recently opened', opened_sets), home_section('Newest sets', newest_sets),
-    el('p', {class: 'empty-note'}, 'See everything in ', el('a', {href: '#/library'}, 'Your Library'), '.')
-  ].filter(Boolean) : [el('p', {class: 'empty-note'}, 'No sets yet. Press + to make your first one, or import a file in ', el('a', {href: '#/library'}, 'Your Library'), '.')]);
+    el('div', {class: 'streak-hero'},
+      el('div', {class: 'streak-count'}, el('span', {class: 'streak-flame', 'aria-hidden': 'true'}, streak_now ? '🔥' : '💤'), el('strong', {}, streak_now), el('span', {}, streak_now === 1 ? 'day' : 'days')),
+      el('div', {class: 'streak-side'}, el('div', {class: 'week-dots'}, ...week_dots), el('div', {class: 'streak-today'}, answered_today ? plural(answered_today, 'answer') + ' today' : 'Nothing yet today', due_total ? el('b', {}, plural(due_total, 'card') + ' due') : null))),
+    el('div', {class: 'home-grid'}, dash_section('🔁', 'Due for revision', due_sets, card_set => plural(due_indexes(card_set).length, 'card') + ' due'),
+    dash_section('🏁', 'Nearly mastered', close_sets, card_set => Math.round(100 * mastered_share(card_set)) + '% mastered'),
+    dash_section('🕸️', 'Gathering dust', dusty_sets, card_set => 'Last studied ' + (days_since(card_set) >= 28 ? Math.floor(days_since(card_set) / 7) + ' weeks ago' : days_since(card_set) + ' days ago')),
+    dash_section('🌱', 'Not started yet', fresh_sets, () => 'Never studied')),
+    el('a', {class: 'button library-link', href: '#/library'}, 'All sets in Your Library')
+  ] : [el('p', {class: 'empty-note'}, 'No sets yet. Press + to make your first one, or import a file in ', el('a', {href: '#/library'}, 'Your Library'), '.')]);
 }
 function view_library() {
   const sort_rules = {name: (set_a, set_b) => set_a.title.localeCompare(set_b.title), newest: (set_a, set_b) => (set_b.created || '').localeCompare(set_a.created || '') || set_a.title.localeCompare(set_b.title), studied: (set_a, set_b) => (set_b.last_studied || 0) - (set_a.last_studied || 0) || set_a.title.localeCompare(set_b.title)};
@@ -228,7 +234,7 @@ function view_library() {
   sort_select_el.value = library_sort;
   function menu_item(item_label, run_item) { return el('button', {class: 'menu-item', onclick: () => { close_view_menu(); run_item(); }}, item_label); }
   const more_button_el = el('button', {id: 'more-button', class: 'icon-button', title: 'More', 'aria-label': 'More', 'aria-expanded': 'false', onclick: () => toggle_top_menu(more_button_el, 'More', menu_item('Import', () => import_input_el.click()), menu_item('Paste from Quizlet', open_quizlet_paste), menu_item('Export all', () => download_json('open-flashcards-all.json', app_state.sets)), menu_item('Load demo sets', add_missing_demo_sets))}, '⋯');
-  render(library_trail(), [more_button_el, plus_button()], [
+  render([menu_crumb('library', '#/library')], [more_button_el, plus_button()], [
     el('div', {class: 'button-row'}, el('label', {class: 'toggle-line'}, 'Sort by', sort_select_el)),
     sorted_sets.length ? el('div', {class: 'muted library-hint'}, 'Press and hold a set to move it, or let go to select it.') : '',
     sorted_sets.length ? el('div', {class: 'ruled set-rows'}, ...sorted_sets.map(card_set => { const row_el = set_row(card_set); row_el.list_item = card_set; return row_el; })) : el('p', {class: 'empty muted'}, 'No sets yet. Press + to make one, or import a .json file.')
@@ -576,6 +582,19 @@ window.addEventListener('hashchange', hash_event => {
   route();
 });
 window.addEventListener('beforeunload', unload_event => { if (editor_has_changes && editor_has_changes()) unload_event.preventDefault(); });
+// ---- Swipe in from the left edge to go back up one level (the breadcrumb before this page). An app on the iPhone Home Screen has no back gesture of its own; Safari's own one is left alone. ----
+(function edge_swipe_back() {
+  const EDGE_PX = 28, GO_PX = 80, hint_el = el('div', {id: 'swipe-back-hint', 'aria-hidden': 'true'}, '‹');
+  let start_x = null, start_y = 0, swipe_px = 0;
+  document.body.appendChild(hint_el);
+  function parent_link() { const crumb_links = page_title_el.querySelectorAll('a.crumb'); return crumb_links.length ? crumb_links[crumb_links.length - 1] : null; }
+  function end_swipe() { start_x = null; hint_el.style.transform = ''; hint_el.style.opacity = ''; }
+  addEventListener('touchstart', touch_event => { if (touch_event.touches.length !== 1 || touch_event.touches[0].clientX > EDGE_PX || (is_ios() && !is_standalone()) || !parent_link()) return; start_x = touch_event.touches[0].clientX; start_y = touch_event.touches[0].clientY; swipe_px = 0; }, {passive: true});
+  addEventListener('touchmove', touch_event => { if (start_x === null) return; swipe_px = touch_event.touches[0].clientX - start_x; if (Math.abs(touch_event.touches[0].clientY - start_y) > Math.max(40, swipe_px)) return end_swipe(); hint_el.style.transform = 'translateX(' + Math.min(swipe_px, GO_PX + 20) + 'px)'; hint_el.style.opacity = Math.min(1, swipe_px / GO_PX); }, {passive: true});
+  addEventListener('touchend', () => { if (start_x === null) return; const link_el = parent_link(), is_far = swipe_px >= GO_PX; end_swipe(); if (is_far && link_el) location.hash = link_el.getAttribute('href'); });
+  addEventListener('touchcancel', end_swipe);
+})();
+
 // ---- Where you left off: the page (and a round in progress) is kept in app_state.resume_point, and sync sends it as this device's place. Opening the app goes back there. Another device's newer place is followed at start-up, or once this one has been left alone for a minute. ----
 const DEVICE_KEY = 'open-flashcards:device', RESUME_IDLE_MS = 60000, RESUMABLE_MODES = ['cards', 'revise', 'tricky', 'learn', 'wheel', 'test', 'type', 'choice', 'truefalse', 'scramble', 'listen'];
 const this_device = (() => { try { let device_text = localStorage.getItem(DEVICE_KEY); if (!device_text) { device_text = new_id(); localStorage.setItem(DEVICE_KEY, device_text); } return device_text; } catch (storage_err) { return 'here'; } })();

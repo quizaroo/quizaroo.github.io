@@ -8,6 +8,9 @@
 // No `at`: no Show me. PUBLISHED holds when each version went live (UTC), filled in by tools/publish.py.
 const FIRST_SET = ['.set-row .row-title'];
 const WHATS_NEW = {
+  '1.5.29': [{text: 'Home is now a dashboard: your day streak, then sets due for revision, nearly mastered, gathering dust and not started yet.', go: '#/', at: '.streak-hero'},
+    {text: 'Your Library shows one line per set, so many more fit on the screen.', go: '#/library', at: '.set-rows'},
+    {text: 'A set page has a ‹ back button at the top left, back to Home or Your Library. On a phone you can also swipe in from the left edge.', go: '#/library', open: FIRST_SET, at: '#page-title a.crumb'}],
   '1.5.28': [{text: 'On a phone, the ◀ ▶ cursor keys now sit on their own under the keyboard, smaller and apart from the letters.'}],
   '1.5.27': [{text: 'Typing with Hint: once every underline is filled, the blinking cursor stays after the last letter instead of disappearing. Fixed.'}],
   '1.5.26': [{text: 'On-screen keyboard: press and hold anywhere on the keys, then slide left or right to move the cursor, like on an iPhone. Holding a key no longer scrolls the page or selects text.'}],
@@ -154,6 +157,7 @@ const WHATS_NEW = {
   '1.0.00': [{text: 'Open Flashcards goes live: make sets, flip and swipe through them, and import or export them as JSON.'}]
 };
 const PUBLISHED = {
+  '1.5.29': '2026-11-25T19:39:26Z',
   '1.5.28': '2026-11-25T16:40:32Z',
   '1.5.27': '2026-11-25T16:21:27Z',
   '1.5.26': '2026-11-24T19:55:52Z',
