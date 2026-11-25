@@ -186,6 +186,8 @@ function ask_type(card_set, mode_item, card_index, finish, ask_options) {
       const is_caret = !shown_chars[char_index] && !caret_placed; if (is_caret) caret_placed = true;
       word_el.appendChild(el('span', {class: 'hint-slot' + (revealed_slots.has(char_index) ? ' is-revealed' : '') + (is_caret ? ' is-next' : '')}, shown_chars[char_index] || ' '));
     });
+    // Every underline filled (even if wrong): the cursor waits after the last letter, so it never disappears.
+    if (!caret_placed && word_el) word_el.appendChild(el('span', {class: 'hint-caret'}));
     slots_el.replaceChildren(...word_groups);
   }
   function take_hint() {

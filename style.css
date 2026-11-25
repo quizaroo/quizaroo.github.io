@@ -389,6 +389,9 @@ body.is-carrying .select-bar { opacity: 0; pointer-events: none; }
 .hint-slot.is-revealed { color: var(--accent); border-bottom-color: var(--accent); }
 .type-line:focus-within .hint-slot.is-next { border-bottom-color: var(--accent); animation: slot-blink 1s steps(1) infinite; }
 @keyframes slot-blink { 50% { border-bottom-color: transparent; } }
+.hint-caret { display: inline-block; width: 3px; height: 1.05em; margin-left: 2px; align-self: center; background: var(--accent); border-radius: 2px; opacity: 0; }
+.type-line:focus-within .hint-caret { animation: caret-blink 1s steps(1) infinite; }
+@keyframes caret-blink { 0% { opacity: 1; } 50% { opacity: 0; } }
 .type-buttons { display: flex; gap: 8px; }
 .hint-worth:empty { display: none; }
 /* On-screen keyboard under a typed answer: the extra letters as one strip, or the country's whole keyboard in a casing, keys staggered like a real one. Folded, it's one small button. */
